@@ -7,6 +7,7 @@ import {
   createDraftVersion,
   decideAsset,
   exportAssetMarkdown,
+  loadPreparedCorrection,
   submitAssetForReview,
   transitionClaimState,
 } from "@/server/review/service";
@@ -31,6 +32,11 @@ export async function decideAction(input: z.input<typeof DecideInput>) {
 
 export async function createDraftVersionAction(assetId: string, content: unknown) {
   return runAction((actor) => createDraftVersion(actor, getDb(), { assetId: Id.parse(assetId), content }));
+}
+
+/** Demo tenant only: create v2 of the battlecard from the prepared (simulated) correction. */
+export async function loadPreparedCorrectionAction(assetId: string) {
+  return runAction((actor) => loadPreparedCorrection(actor, getDb(), Id.parse(assetId)));
 }
 
 export async function exportMarkdownAction(assetId: string) {

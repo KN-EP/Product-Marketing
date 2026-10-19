@@ -11,6 +11,7 @@ import {
 import { transitionClaim } from "../../domain/claims/claim-state";
 import type { ClaimState } from "../../domain/knowledge/snapshot";
 import { exportApprovedMarkdown } from "../../domain/export/markdown";
+import { SIMULATED_BATTLECARD_CORRECTED } from "../../demo/fixtures";
 import type { Db } from "../db/client";
 import { tenantDb, withTenantTx } from "../db/tenant-scope";
 import { HttpError } from "../errors";
@@ -98,16 +99,23 @@ export async function decideAsset(
 }
 
 /** A human edit: always a NEW immutable version (draft); approved versions stay untouched. */
-export async function createDraftVersion(actor: Actor, db: Db, input: { assetId: string; content: unknown }) {
+export async function createDraftVersion(
+  actor: Actor,
+  db: Db,
+  input: { assetId: string; content: unknown; source?: "human_edit" | "prepared_correction_simulated" },
+) {
   const size = Buffer.byteLength(JSON.stringify(input.content ?? null), "utf8");
   if (size > MAX_CONTENT_BYTES) throw new HttpError(413, "payload_too_large", `Content exceeds ${MAX_CONTENT_BYTES} bytes.`);
   return withTenantTx(actor, db, async (t) => {
     const rec = await t.assets.getRecord(input.assetId);
     const base = currentVersion(rec);
     const { snapshot } = await t.knowledge.snapshot();
-    // generationMode has no "human" value; the edit inherits its base version's mode
-    // and the audit event records source=human_edit.
-    const next = addVersion(rec, input.content, actor, snapshot, { id: randomUUID(), generationMode: base?.generationMode ?? "simulated" });
+    // Provenance: a human edit is its own generation mode, linked to its base version.
+    const next = addVersion(rec, input.content, actor, snapshot, {
+      id: randomUUID(),
+      generationMode: "human_edit",
+      basedOnVersionId: base?.id ?? null,
+    });
     const v = currentVersion(next)!;
     await t.assets.insertVersion(v, null);
     await t.assets.setState(input.assetId, [rec.state], next.state, v.id);
@@ -117,7 +125,7 @@ export async function createDraftVersion(actor: Actor, db: Db, input: { assetId:
       entityType: "Asset",
       entityId: input.assetId,
       metadata: {
-        source: "human_edit",
+        source: input.source ?? "human_edit",
         versionId: v.id,
         versionNumber: v.versionNumber,
         basedOnVersionId: base?.id ?? null,
@@ -170,4 +178,19 @@ export async function transitionClaimState(actor: Actor, db: Db, input: { claimI
     });
     return { claimId: input.claimId, state: input.to };
   });
+}
+
+/**
+ * Demo tenant only: v2 of the battlecard from the prepared, SYNTHETIC
+ * correction fixture. Stored as a human_edit version (a person chose to apply
+ * it) and audited as "prepared_correction_simulated".
+ */
+export async function loadPreparedCorrection(actor: Actor, db: Db, assetId: string) {
+  const tdb = tenantDb(actor, db);
+  const [tenant, rec] = await Promise.all([tdb.tenant.get(), tdb.assets.getRecord(assetId)]);
+  if (!tenant.isDemo) throw new HttpError(403, "forbidden", "Prepared corrections exist only for demo tenants.");
+  if (rec.type !== "competitive_battlecard") {
+    throw new HttpError(409, "not_applicable", "A prepared correction exists only for the competitive battlecard.");
+  }
+  return createDraftVersion(actor, db, { assetId, content: SIMULATED_BATTLECARD_CORRECTED, source: "prepared_correction_simulated" });
 }

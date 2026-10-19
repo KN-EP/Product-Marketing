@@ -18,5 +18,6 @@ DataGuard has not reviewed it. Simulated mode replays prepared outputs — nothi
 10. **Export** the Messaging Framework as Markdown: version, approver, claim and source references, synthetic label.
 11. **Isolation:** switch to the second demo tenant; the DataGuard demo URLs return 404.
 
-Current state: steps 6–10 are implemented and verified as domain logic (`tests/unit/domain.test.ts`);
-the UI arrives in M6.
+Current state (M6): every step runs in the UI; `/demo` links each step to its page. Battlecard v2 in step 8 is
+created with “Load prepared correction (simulated)” on the battlecard’s edit page (demo tenant only) and is
+labelled “Human-edited (based on v1)”.

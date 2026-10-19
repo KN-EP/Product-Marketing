@@ -33,7 +33,7 @@ import { loginAction, switchDemoUserAction } from "@/app/actions/auth";
 import { GET as getAssetRoute } from "@/app/api/assets/[id]/route";
 import { GET as getClaimRoute } from "@/app/api/claims/[id]/route";
 import { GET as getSourceRoute } from "@/app/api/sources/[id]/route";
-import AssetPage from "@/app/assets/[id]/page";
+import AssetPage from "@/app/(app)/assets/[id]/page";
 import { DEMO_TENANT_ID, OTHER_TENANT_ID } from "@/demo/fixtures";
 import type { Role } from "@/domain/actor";
 import { getActorOrNull } from "@/server/auth/actor";

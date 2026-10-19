@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { hasRole, type Actor } from "../../domain/actor";
+import { ACTIVE_RUN_STATUSES } from "../db/tenant-scope";
 import { addVersion, currentVersion, submitForReview, type AssetRecord } from "../../domain/assets/asset-state";
 import type { AssetType } from "../../domain/schemas/agents";
 import { idempotencyKey, WORKFLOW_LIMITS, type WorkflowStatus } from "../../domain/workflow/workflow-state";
@@ -19,7 +20,8 @@ export interface RunSummary {
   id: string;
   kind: string;
   status: WorkflowStatus;
-  generationMode: "live" | "simulated";
+  /** Runs are live or simulated; human_edit only ever applies to asset versions. */
+  generationMode: "live" | "simulated" | "human_edit";
   modelId: string | null;
   promptVersions: unknown;
   inputRefs: unknown;
@@ -49,6 +51,8 @@ export interface OrchestratorAdapter {
   execute(actor: Actor, runId: string): Promise<RunSummary>;
   /** Explicit retry: failed → queued (attempts and concurrency permitting). */
   retry(actor: Actor, runId: string): Promise<RunSummary>;
+  /** Admin only: an active run with no progress for STALE_RUN_AFTER_MS → failed. */
+  markStaleRunFailed(actor: Actor, runId: string): Promise<RunSummary>;
   get(actor: Actor, runId: string): Promise<RunDetails>;
 }
 
@@ -58,6 +62,13 @@ const ASSET_LABEL: Record<AssetType, string> = {
   competitive_battlecard: "Competitive battlecard",
   regulatory_gtm_brief: "Regulatory GTM brief",
 };
+
+/** An active run whose row has not changed for this long is considered stale. */
+export const STALE_RUN_AFTER_MS = 10 * 60 * 1000;
+
+export function isStale(run: { status: WorkflowStatus; updatedAt: Date }, now: Date): boolean {
+  return ACTIVE_RUN_STATUSES.includes(run.status) && now.getTime() - run.updatedAt.getTime() >= STALE_RUN_AFTER_MS;
+}
 
 const systemActor = (tenantId: string): Actor => ({ kind: "system", userId: null, tenantId, role: "editor" });
 
@@ -290,6 +301,27 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
       assertCanRetry(run);
       assertConcurrencyAvailable(await t.workflowRuns.countActive());
       await t.workflowRuns.transition(runId, "failed", "queued", actor.userId, { error: null }, { retry: true });
+      return summary(await t.workflowRuns.getById(runId));
+    });
+  }
+
+  async markStaleRunFailed(actor: Actor, runId: string): Promise<RunSummary> {
+    if (!hasRole(actor, "admin")) throw new HttpError(403, "forbidden", "Admin role required.");
+    return withTenantTx(actor, this.deps.db, async (t) => {
+      await t.workflowRuns.lockTenant();
+      const run = await t.workflowRuns.getById(runId);
+      if (!ACTIVE_RUN_STATUSES.includes(run.status)) throw new HttpError(409, "not_active", `Run is ${run.status}.`);
+      if (!isStale(run, this.now())) {
+        throw new HttpError(409, "not_stale", `Run has changed within the last ${STALE_RUN_AFTER_MS / 60_000} minutes.`);
+      }
+      await t.workflowRuns.transition(
+        runId,
+        run.status,
+        "failed",
+        actor.userId,
+        { error: "stale: Marked as failed by an administrator (no progress).", completedAt: this.now() },
+        { stale: true },
+      );
       return summary(await t.workflowRuns.getById(runId));
     });
   }

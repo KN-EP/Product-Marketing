@@ -7,12 +7,15 @@
 
 /** Files under src/app that take a record id (or start work) → covered by the integration tests. */
 export const ID_ENTRYPOINTS = [
+  "src/app/(app)/assets/[id]/edit/page.tsx", // ui.test.ts
+  "src/app/(app)/assets/[id]/page.tsx", // tenant-isolation.test.ts, ui.test.ts
+  "src/app/(app)/products/[id]/page.tsx", // ui.test.ts
+  "src/app/(app)/workflows/[id]/page.tsx", // ui.test.ts
   "src/app/api/assets/[id]/route.ts", // tenant-isolation.test.ts
   "src/app/api/claims/[id]/route.ts", // tenant-isolation.test.ts
   "src/app/api/sources/[id]/route.ts", // tenant-isolation.test.ts
   "src/app/api/workflows/[id]/route.ts", // workflow.test.ts
   "src/app/api/workflows/route.ts", // workflow.test.ts (foreign product/persona/... ids → 404)
-  "src/app/assets/[id]/page.tsx", // tenant-isolation.test.ts
 ] as const;
 
 /** Every exported server action, with how it is covered. */
@@ -25,5 +28,8 @@ export const SERVER_ACTIONS: Record<string, string> = {
   "src/app/actions/review.ts#createDraftVersionAction": "workflow.test.ts: foreign asset id → 404",
   "src/app/actions/review.ts#exportMarkdownAction": "workflow.test.ts: foreign asset id → 404",
   "src/app/actions/review.ts#transitionClaimAction": "workflow.test.ts: foreign claim id → 404",
+  "src/app/actions/review.ts#loadPreparedCorrectionAction": "ui.test.ts: foreign asset id → 404",
   "src/app/actions/workflow.ts#retryWorkflowRunAction": "workflow.test.ts: foreign run id → 404",
+  "src/app/actions/workflow.ts#startWorkflowAction": "ui.test.ts: foreign product/persona/... ids → 404",
+  "src/app/actions/workflow.ts#markRunFailedAction": "ui.test.ts: foreign run id → 404",
 };

@@ -28,6 +28,7 @@ import {
   DEMO_SOURCES,
   DEMO_TENANT_ID,
   OTHER_TENANT_ID,
+  SIMULATED_BATTLECARD_CORRECTED,
   SIMULATED_MESSAGING_FRAMEWORK,
 } from "@/demo/fixtures";
 import { buildSnapshot, type SourceRecord } from "@/domain/knowledge/snapshot";
@@ -104,9 +105,14 @@ describe("simulated agents pass the existing quality gates", () => {
     expect(runQualityGates("messaging_framework", r.output, kb()).passed).toBe(true);
   });
 
-  it("agent C → competitive_battlecard passes gates", async () => {
-    const r = await runAgentC(input(), sim, "battlecard");
-    expect(runQualityGates("competitive_battlecard", r.output, kb()).passed).toBe(true);
+  it("agent C → competitive_battlecard: demo v1 fails gates (G7b), the prepared correction passes", async () => {
+    // Demo storyline: the simulated v1 battlecard is deliberately flawed (acceptance E).
+    const v1 = await runAgentC(input(), sim, "battlecard");
+    const report = runQualityGates("competitive_battlecard", v1.output, kb());
+    expect(report.passed).toBe(false);
+    expect(report.findings.some((f) => f.gate === "G7b_comparative_support" && f.severity === "critical")).toBe(true);
+    const corrected = await runAgentC(input(), new SimulatedProvider({ competitive_battlecard: SIMULATED_BATTLECARD_CORRECTED }), "battlecard");
+    expect(runQualityGates("competitive_battlecard", corrected.output, kb()).passed).toBe(true);
   });
 
   it("agent C → regulatory_gtm_brief passes gates and requires expert review", async () => {

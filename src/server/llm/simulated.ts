@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import {
-  SIMULATED_BATTLECARD_CORRECTED,
+  SIMULATED_BATTLECARD_FLAWED,
   SIMULATED_MESSAGING_FRAMEWORK,
   SIMULATED_PRODUCT_INTELLIGENCE_BRIEF,
   SIMULATED_REGULATORY_BRIEF,
@@ -14,7 +14,9 @@ export const SIMULATED_MODEL_ID = "simulated-fixtures-v1";
 const DEFAULT_FIXTURES: Record<AssetType, unknown> = {
   product_intelligence_brief: SIMULATED_PRODUCT_INTELLIGENCE_BRIEF,
   messaging_framework: SIMULATED_MESSAGING_FRAMEWORK,
-  competitive_battlecard: SIMULATED_BATTLECARD_CORRECTED,
+  // Demo storyline (DEMO_SCRIPT step 7): v1 deliberately fails the gates; the
+  // corrected v2 is created as a human edit ("Load prepared correction").
+  competitive_battlecard: SIMULATED_BATTLECARD_FLAWED,
   regulatory_gtm_brief: SIMULATED_REGULATORY_BRIEF,
 };
 

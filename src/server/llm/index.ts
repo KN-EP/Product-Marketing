@@ -24,9 +24,9 @@ export function decideLlmMode(env: Env = process.env): LlmModeDecision {
 }
 
 export const FALLBACK_MESSAGES: Record<Extract<LlmModeDecision, { mode: "simulated" }>["reason"], string> = {
-  llm_mode_simulated: "Simulated mode (LLM_MODE is not \"live\"). Outputs are synthetic fixtures.",
-  missing_api_key: "Simulated mode: ANTHROPIC_API_KEY is not set. Outputs are synthetic fixtures.",
-  missing_model: "Simulated mode: ANTHROPIC_MODEL is not set. Outputs are synthetic fixtures.",
+  llm_mode_simulated: "LLM_MODE is not \"live\". Outputs are prepared synthetic fixtures, nothing is generated live.",
+  missing_api_key: "ANTHROPIC_API_KEY is not set. Outputs are prepared synthetic fixtures, nothing is generated live.",
+  missing_model: "ANTHROPIC_MODEL is not set. Outputs are prepared synthetic fixtures, nothing is generated live.",
 };
 
 export function createLlmProvider(

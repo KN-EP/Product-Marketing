@@ -92,6 +92,8 @@ enum ApprovalDecision {
 enum GenerationMode {
   live
   simulated
+  /// A human edit of an earlier version (see AssetVersion.basedOnVersionId).
+  human_edit
 }
 
 // ───────────────────────── Identity & tenancy ─────────────────────────
@@ -107,23 +109,23 @@ model Tenant {
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
 
-  memberships        Membership[]
-  products           Product[]
-  sources            Source[]
-  claims             Claim[]
-  personas           Persona[]
-  buyerProblems      BuyerProblem[]
-  competitors        Competitor[]
-  competitorEvidence CompetitorEvidence[]
-  regulatoryTriggers RegulatoryTrigger[]
-  assets             Asset[]
-  assetVersions      AssetVersion[]
-  workflowRuns       WorkflowRun[]
-  approvals          Approval[]
-  auditEvents        AuditEvent[]
-  valuePropositions  ValueProposition[]
-  productFeatures    ProductFeature[]
-  claimEvidence      ClaimEvidence[]
+  memberships            Membership[]
+  products               Product[]
+  sources                Source[]
+  claims                 Claim[]
+  personas               Persona[]
+  buyerProblems          BuyerProblem[]
+  competitors            Competitor[]
+  competitorEvidence     CompetitorEvidence[]
+  regulatoryTriggers     RegulatoryTrigger[]
+  assets                 Asset[]
+  assetVersions          AssetVersion[]
+  workflowRuns           WorkflowRun[]
+  approvals              Approval[]
+  auditEvents            AuditEvent[]
+  valuePropositions      ValueProposition[]
+  productFeatures        ProductFeature[]
+  claimEvidence          ClaimEvidence[]
   valuePropositionClaims ValuePropositionClaim[]
 }
 
@@ -135,9 +137,9 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  memberships Membership[]
-  approvals   Approval[]
-  reviewedClaims Claim[]  @relation("ClaimReviewer")
+  memberships    Membership[]
+  approvals      Approval[]
+  reviewedClaims Claim[]      @relation("ClaimReviewer")
 }
 
 model Membership {
@@ -222,28 +224,28 @@ model Source {
 }
 
 model Claim {
-  id               String        @id @default(cuid())
-  tenantId         String
-  productId        String
-  featureId        String?
-  text             String
-  category         ClaimCategory
-  state            ClaimState    @default(draft)
-  reviewerId       String?
-  approvedAt       DateTime?
-  lastVerifiedAt   DateTime?
-  reviewDueAt      DateTime?
-  staleReason      String?
-  isSynthetic      Boolean       @default(false)
-  version          Int           @default(1)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  id             String        @id @default(cuid())
+  tenantId       String
+  productId      String
+  featureId      String?
+  text           String
+  category       ClaimCategory
+  state          ClaimState    @default(draft)
+  reviewerId     String?
+  approvedAt     DateTime?
+  lastVerifiedAt DateTime?
+  reviewDueAt    DateTime?
+  staleReason    String?
+  isSynthetic    Boolean       @default(false)
+  version        Int           @default(1)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
-  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  product  Product         @relation(fields: [productId, tenantId], references: [id, tenantId])
-  feature  ProductFeature? @relation(fields: [featureId, tenantId], references: [id, tenantId])
-  reviewer User?           @relation("ClaimReviewer", fields: [reviewerId], references: [id])
-  evidence ClaimEvidence[]
+  tenant            Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product           Product                 @relation(fields: [productId, tenantId], references: [id, tenantId])
+  feature           ProductFeature?         @relation(fields: [featureId, tenantId], references: [id, tenantId])
+  reviewer          User?                   @relation("ClaimReviewer", fields: [reviewerId], references: [id])
+  evidence          ClaimEvidence[]
   valuePropositions ValuePropositionClaim[]
 
   @@unique([id, tenantId])
@@ -344,13 +346,13 @@ model ValuePropositionClaim {
 }
 
 model Competitor {
-  id          String   @id @default(cuid())
-  tenantId    String
-  name        String
-  website     String?
-  isPlaceholder Boolean @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  tenantId      String
+  name          String
+  website       String?
+  isPlaceholder Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   tenant   Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   evidence CompetitorEvidence[]
@@ -360,16 +362,16 @@ model Competitor {
 }
 
 model CompetitorEvidence {
-  id           String       @id @default(cuid())
+  id           String     @id @default(cuid())
   tenantId     String
   competitorId String
   sourceId     String
   assertion    String
   excerpt      String
   locator      String?
-  state        ClaimState   @default(draft)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  state        ClaimState @default(draft)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   competitor Competitor @relation(fields: [competitorId, tenantId], references: [id, tenantId], onDelete: Cascade)
@@ -380,14 +382,14 @@ model CompetitorEvidence {
 }
 
 model RegulatoryTrigger {
-  id          String   @id @default(cuid())
-  tenantId    String
-  name        String
+  id           String   @id @default(cuid())
+  tenantId     String
+  name         String
   jurisdiction String
-  summary     String
-  sourceIds   String[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  summary      String
+  sourceIds    String[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -398,14 +400,14 @@ model RegulatoryTrigger {
 // ───────────────────────── Assets, runs, approvals ─────────────────────────
 
 model Asset {
-  id              String     @id @default(cuid())
-  tenantId        String
-  type            AssetType
-  title           String
-  state           AssetState @default(draft)
+  id               String     @id @default(cuid())
+  tenantId         String
+  type             AssetType
+  title            String
+  state            AssetState @default(draft)
   currentVersionId String?
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
 
   tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   versions AssetVersion[]
@@ -416,22 +418,26 @@ model Asset {
 
 /// Immutable. The data-access layer exposes no update path for content fields.
 model AssetVersion {
-  id             String         @id @default(cuid())
-  tenantId       String
-  assetId        String
-  versionNumber  Int
-  schemaVersion  String
-  content        Json
+  id               String         @id @default(cuid())
+  tenantId         String
+  assetId          String
+  versionNumber    Int
+  schemaVersion    String
+  content          Json
   /// Result of the automated quality gates (src/domain/quality-gates).
-  gateReport     Json
-  gatesPassed    Boolean
-  generationMode GenerationMode
-  workflowRunId  String?
-  createdAt      DateTime       @default(now())
+  gateReport       Json
+  gatesPassed      Boolean
+  generationMode   GenerationMode
+  workflowRunId    String?
+  /// For human_edit versions: the version the edit was based on (same tenant).
+  basedOnVersionId String?
+  createdAt        DateTime       @default(now())
 
-  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  asset       Asset        @relation(fields: [assetId, tenantId], references: [id, tenantId], onDelete: Cascade)
-  workflowRun WorkflowRun? @relation(fields: [workflowRunId], references: [id])
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  asset       Asset          @relation(fields: [assetId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  workflowRun WorkflowRun?   @relation(fields: [workflowRunId], references: [id])
+  basedOn     AssetVersion?  @relation("VersionBase", fields: [basedOnVersionId, tenantId], references: [id, tenantId], onDelete: NoAction)
+  derived     AssetVersion[] @relation("VersionBase")
   approvals   Approval[]
 
   @@unique([assetId, versionNumber])

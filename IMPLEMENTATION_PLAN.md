@@ -33,14 +33,14 @@ the domain half of H.
   `maxExternalModelClass`). Restricted data never leaves the server by default.
 - Missing API key → automatic fallback to simulated mode with visible banner (test I).
 
-## M5 — Workflow engine 🔍 in review
+## M5 — Workflow engine ✅
 - In-process orchestrator: A → B → C, persisted status transitions per `workflow-state.ts`.
 - Idempotency via `@@unique([tenantId, idempotencyKey])`; duplicate requests return the existing run.
 - Bounded concurrency per tenant, per-run cost cap, max attempts.
 - Each output goes through `addVersion` → gates → `pending_review`. Workflow "completed" ≠ content approved.
 - `OrchestratorAdapter` interface for a future n8n implementation (no dependency).
 
-## M6 — UI
+## M6 — UI 🔍 in review
 Pages per PRODUCT_SPEC §Pages. `/demo` is the guided 15-step walkthrough.
 
 ## M7 — Seed, tests, hardening

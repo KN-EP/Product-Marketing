@@ -18,8 +18,8 @@ This repository is being built milestone by milestone (see `IMPLEMENTATION_PLAN.
 | M2 | Domain core: agent schemas, quality gates, claim/asset/workflow state machines, Markdown export | ✅ done, 27 unit tests passing |
 | M3 | Next.js app shell, auth, tenant-scoped data-access layer | ✅ done, integration test H passing |
 | M4 | LLM provider abstraction (Anthropic + simulated), agents A/B/C | ✅ done |
-| M5 | Workflow engine, persistence, run history, review persistence | 🔍 in review |
-| M6 | UI pages and guided `/demo` | ⏳ |
+| M5 | Workflow engine, persistence, run history, review persistence | ✅ done |
+| M6 | UI pages, review screen, guided `/demo`, human_edit provenance | 🔍 in review |
 | M7 | Seed, integration and Playwright E2E tests, hardening | ⏳ |
 
 ## Requirements
@@ -79,7 +79,7 @@ cp .env.example .env          # then fill in real values — never commit .env
 # local Postgres only: docker compose up -d db
 npm run db:migrate            # prisma migrate deploy, as the owner role
 npm run db:seed               # synthetic demo tenants + users, as pmm_app
-npm run dev                   # http://localhost:3000/login
+npm run dev                   # http://localhost:3000/login → /demo
 ```
 
 Seeded demo users (password: `DEMO_USER_PASSWORD`), all synthetic:
@@ -116,6 +116,9 @@ src/server/prompts/         versioned prompt templates for agents A/B/C (id + ve
 src/server/agents/          agents A/B/C: KnowledgeSnapshot in, schema-valid output out
 src/server/workflow/        pmm_three_asset run: OrchestratorAdapter + InProcessOrchestrator, limits, idempotency
 src/server/review/          review persistence (submit, decide, new version, export, claim decisions) + AuditEvent
+src/app/(app)/               signed-in pages (shell with banners + nav): dashboard, products, knowledge, personas,
+                            competitors, workflows, assets (review screen, structured editor), approvals, settings, demo
+src/components/review/      review screen: content renderer, gate report, evidence panel, decision form, editor
 src/app/api/workflows/      POST start (202/200), GET [id] status + history + outputs
 src/app/actions/            server actions: auth, review, workflow retry
 src/components/ui/          shadcn/ui components

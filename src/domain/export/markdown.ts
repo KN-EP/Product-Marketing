@@ -1,5 +1,5 @@
 import { DomainError, type Actor } from "../actor";
-import { latestApprovedVersion, type AssetRecord } from "../assets/asset-state";
+import { generationLabel, latestApprovedVersion, type AssetRecord } from "../assets/asset-state";
 import type { KnowledgeSnapshot } from "../knowledge/snapshot";
 import { collectStatements } from "../schemas/agents";
 
@@ -32,7 +32,13 @@ export function exportApprovedMarkdown(asset: AssetRecord, actor: Actor, kb: Kno
   lines.push(`| Schema | ${version.schemaVersion} |`);
   lines.push(`| Approved by | ${reviewerName(approval.reviewerId)} |`);
   lines.push(`| Approved at | ${approval.createdAt.toISOString()} |`);
-  lines.push(`| Generation | ${version.generationMode === "simulated" ? "SIMULATED (deterministic demo output, not generated live)" : "Live model output, human-reviewed"} |`);
+  const generation =
+    version.generationMode === "simulated"
+      ? "SIMULATED (deterministic demo output, not generated live)"
+      : version.generationMode === "human_edit"
+        ? `${generationLabel(asset, version)}, human-reviewed`
+        : "Live model output, human-reviewed";
+  lines.push(`| Generation | ${generation} |`);
   lines.push("");
   if (version.generationMode === "simulated" || [...kb.sources.values()].some((s) => s.isSynthetic)) {
     lines.push("> **Demonstration content.** Contains synthetic example data. Not an official statement of any named company.", "");

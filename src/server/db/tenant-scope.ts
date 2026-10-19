@@ -9,6 +9,7 @@ import type { Prisma } from "../../generated/prisma/client";
 import type { DataClassification, ExternalModelPolicy } from "../llm/classification";
 import { ConflictError, NotFoundError } from "../errors";
 import type { Db } from "./client";
+import { tenantViews } from "./views";
 
 /** A client or an interactive-transaction client. */
 export type DbTx = Prisma.TransactionClient;
@@ -65,6 +66,8 @@ export function tenantDb(actor: Actor, db: DbTx) {
   return {
     tenantId,
     audit,
+    /** Read-only page queries (src/server/db/views.ts), scoped to this tenant. */
+    views: tenantViews(tenantId, db),
 
     tenant: {
       get: async () =>
@@ -213,6 +216,7 @@ export function tenantDb(actor: Actor, db: DbTx) {
           gateReport: v.gateReport as unknown as GateReport,
           gatesPassed: v.gatesPassed,
           generationMode: v.generationMode,
+          basedOnVersionId: v.basedOnVersionId,
           createdAt: v.createdAt,
         }));
         const approvals: ApprovalRecord[] = a.versions
@@ -253,6 +257,7 @@ export function tenantDb(actor: Actor, db: DbTx) {
             gatesPassed: v.gatesPassed,
             generationMode: v.generationMode,
             workflowRunId,
+            basedOnVersionId: v.basedOnVersionId ?? null,
             createdAt: v.createdAt,
           },
           select: { id: true },

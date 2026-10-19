@@ -4,7 +4,8 @@ import { runQualityGates, type GateReport } from "../quality-gates/gates";
 import type { AssetType } from "../schemas/agents";
 
 export type AssetState = "draft" | "pending_review" | "changes_requested" | "approved" | "archived";
-export type GenerationMode = "live" | "simulated";
+/** human_edit: a person edited an earlier version (basedOnVersionId says which). */
+export type GenerationMode = "live" | "simulated" | "human_edit";
 export type Decision = "approved" | "rejected" | "changes_requested";
 
 export interface AssetVersionRecord {
@@ -17,6 +18,8 @@ export interface AssetVersionRecord {
   readonly gateReport: GateReport;
   readonly gatesPassed: boolean;
   readonly generationMode: GenerationMode;
+  /** Set for human_edit versions. */
+  readonly basedOnVersionId?: string | null;
   readonly createdAt: Date;
 }
 
@@ -66,7 +69,7 @@ export function addVersion(
   content: unknown,
   actor: Actor,
   kb: KnowledgeSnapshot,
-  opts: { id: string; generationMode: GenerationMode; now?: Date },
+  opts: { id: string; generationMode: GenerationMode; basedOnVersionId?: string | null; now?: Date },
 ): AssetRecord {
   assertTenant(asset, actor);
   if (actor.kind === "human" && !hasRole(actor, "editor")) throw new DomainError("forbidden", "Insufficient role");
@@ -83,6 +86,7 @@ export function addVersion(
     gateReport: report,
     gatesPassed: report.passed,
     generationMode: opts.generationMode,
+    basedOnVersionId: opts.basedOnVersionId ?? null,
     createdAt: now,
   });
   return { ...asset, state: "draft", currentVersionId: version.id, versions: [...asset.versions, version] };
@@ -150,6 +154,15 @@ export function decide(
   const nextState: AssetState =
     input.decision === "approved" ? "approved" : input.decision === "changes_requested" ? "changes_requested" : "draft";
   return { asset: { ...asset, state: nextState, approvals: [...asset.approvals, approval] }, approval, gateReport };
+}
+
+/** Human-readable provenance label for a version. */
+export function generationLabel(asset: Pick<AssetRecord, "versions">, version: AssetVersionRecord): string {
+  if (version.generationMode === "human_edit") {
+    const base = asset.versions.find((v) => v.id === version.basedOnVersionId);
+    return base ? `Human-edited (based on v${base.versionNumber})` : "Human-edited";
+  }
+  return version.generationMode === "simulated" ? "Simulated" : "Live model";
 }
 
 /** The most recent approved version, independent of later drafts. */
