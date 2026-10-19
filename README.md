@@ -16,8 +16,8 @@ This repository is being built milestone by milestone (see `IMPLEMENTATION_PLAN.
 | M0 | Plan, specs, repo hygiene | ✅ done |
 | M1 | Data model (Prisma schema), Docker Compose, least-privilege DB role | ✅ done, initial migration applied |
 | M2 | Domain core: agent schemas, quality gates, claim/asset/workflow state machines, Markdown export | ✅ done, 27 unit tests passing |
-| M3 | Next.js app shell, auth, tenant-scoped data-access layer | 🔍 in review — integration test H written; runs only with `TEST_DATABASE_URL` |
-| M4 | LLM provider abstraction (Anthropic + simulated), agents A/B/C | ⏳ |
+| M3 | Next.js app shell, auth, tenant-scoped data-access layer | ✅ done, integration test H passing |
+| M4 | LLM provider abstraction (Anthropic + simulated), agents A/B/C | 🔍 in review |
 | M5 | Workflow engine, persistence, run history | ⏳ |
 | M6 | UI pages and guided `/demo` | ⏳ |
 | M7 | Seed, integration and Playwright E2E tests, hardening | ⏳ |
@@ -37,6 +37,29 @@ This repository is being built milestone by milestone (see `IMPLEMENTATION_PLAN.
 | `TEST_DATABASE_URL` | separate test DB / Neon branch | `npm run test:integration` only |
 
 `prisma.config.ts` loads `.env` via `dotenv/config`. The app never sees `MIGRATION_DATABASE_URL`.
+
+**TLS for hosted Postgres (e.g. Neon).** The right parameter depends on the client that reads the URL:
+
+| URL | Read by | Use |
+|---|---|---|
+| `DATABASE_URL`, `TEST_DATABASE_URL` | node-postgres (app, seed, tests) | `sslmode=verify-full` |
+| `MIGRATION_DATABASE_URL`, `TEST_MIGRATION_DATABASE_URL` | Prisma schema engine (`prisma migrate`) | `sslmode=require&sslaccept=strict` |
+
+The Prisma schema engine does not recognise `sslmode=verify-full` (unknown values are silently
+accepted) and defaults to `sslaccept=accept_invalid_certs`; `sslaccept=strict` enables certificate
+validation there.
+
+## LLM mode
+
+Live Anthropic calls happen only when `LLM_MODE=live` **and** `ANTHROPIC_API_KEY` **and**
+`ANTHROPIC_MODEL` are set. Otherwise the app falls back to deterministic simulated output
+(fixtures from `src/demo/fixtures.ts`) and shows a banner. The model ID comes from
+`ANTHROPIC_MODEL` only — check the current IDs at
+<https://platform.claude.com/docs/en/about-claude/models>.
+
+Before any external call the classification gate checks the tenant's
+`externalModelsApproved` and `maxExternalModelClass`; restricted data never leaves the server
+unless an admin raises the limit.
 
 ## Quick start
 
@@ -78,6 +101,9 @@ prisma/seed.ts              synthetic seed: demo tenant (fixtures) + second tena
 src/app/                    Next.js App Router: /login, /dashboard, /assets/[id], /api/{assets,claims,sources}/[id]
 src/server/auth/            iron-session cookie, getActor() (session + Membership), demo login
 src/server/db/              Prisma client (pg driver adapter), tenantDb(actor) data-access layer
+src/server/llm/             LlmProvider: AnthropicProvider (server-only) + SimulatedProvider, classification gate
+src/server/prompts/         versioned prompt templates for agents A/B/C (id + version)
+src/server/agents/          agents A/B/C: KnowledgeSnapshot in, schema-valid output out
 src/components/ui/          shadcn/ui components
 src/domain/                 framework-free business logic — no DB, no HTTP
   actor.ts                  principal, roles, DomainError

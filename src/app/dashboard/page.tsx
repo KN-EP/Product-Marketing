@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { logoutAction } from "@/app/actions/auth";
+import { LlmModeBanner } from "@/components/llm-mode-banner";
 import { SyntheticBanner } from "@/components/synthetic-banner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +24,7 @@ export default async function DashboardPage() {
   return (
     <>
       <SyntheticBanner />
+      <LlmModeBanner />
       <main className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-8">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div>

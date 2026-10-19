@@ -161,6 +161,35 @@ const S = (
   extra: Partial<{ claimIds: string[]; evidence: { sourceId: string; excerpt: string }[]; competitorEvidenceIds: string[]; regulatory: boolean; comparative: boolean }> = {},
 ) => ({ text, kind, claimIds: [], evidence: [], competitorEvidenceIds: [], regulatory: false, comparative: false, ...extra });
 
+/** Agent A (simulated). Only states what approved claims support; lists the gaps. */
+export const SIMULATED_PRODUCT_INTELLIGENCE_BRIEF = {
+  schemaVersion: "product_intelligence_brief.v1",
+  summary: S(
+    "The module maintains a central register of AI systems; each system can be assigned a risk category and a responsible owner, and an exportable documentation pack is generated per system.",
+    "fact",
+    { claimIds: ["clm_register", "clm_risk_owner", "clm_doc_pack"] },
+  ),
+  buyerProblems: [
+    S("Organisations first need an overview of the AI systems they use before they can assess their obligations.", "interpretation", {
+      regulatory: true,
+      evidence: [ev("src_demo_regulatory_summary", "need an overview of which AI systems they use in order to assess their obligations")],
+    }),
+    S("Ownership of individual AI systems is often unclear, which makes reviews hard to assign.", "hypothesis"),
+  ],
+  possibleDifferentiation: [
+    S("Recorded reviewer identity and timestamps could anchor an audit-trail message.", "suggestion", { claimIds: ["clm_audit_trail"] }),
+  ],
+  missingEvidence: [
+    "No approved claim supports automated risk classification (clm_automated_classification is pending review) — do not state it.",
+    "No source documents available hosting regions.",
+  ],
+  questionsForProductExperts: [
+    "Does the module support automated risk classification, and if so, under which conditions?",
+    "Which hosting regions are available?",
+    "Can the documentation pack be customised per customer?",
+  ],
+};
+
 export const SIMULATED_MESSAGING_FRAMEWORK = {
   schemaVersion: "messaging_framework.v1",
   positioningStatement: S(

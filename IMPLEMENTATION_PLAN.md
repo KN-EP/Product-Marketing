@@ -16,7 +16,7 @@ Framework-free, unit-tested: agent output schemas v1, quality gates, claim/asset
 state machines, Markdown export, synthetic fixtures. Covers acceptance tests D, E, F, G and
 the domain half of H.
 
-## M3 — App shell, auth, tenant isolation 🔍 in review
+## M3 — App shell, auth, tenant isolation ✅
 - Next.js App Router, Tailwind, shadcn/ui.
 - Session auth (credentials in demo mode only). Demo identity switcher hard-disabled when `NODE_ENV=production`.
 - `getActor()` resolves tenant from session + Membership; never from request input.
@@ -24,7 +24,7 @@ the domain half of H.
   `findFirst({ where: { id, tenantId } })` and return 404 on miss.
 - Integration test H: a user of tenant A requesting tenant B's ids receives 404 on every route.
 
-## M4 — LLM layer & agents
+## M4 — LLM layer & agents 🔍 in review
 - `LlmProvider` interface; `AnthropicProvider` (server-only, timeout, retry/backoff on 429/5xx,
   usage capture) and `SimulatedProvider` (returns fixtures, labelled `simulated`).
 - Versioned prompt templates in `src/server/prompts/` (id + version recorded per run).
