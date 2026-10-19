@@ -24,7 +24,7 @@ the domain half of H.
   `findFirst({ where: { id, tenantId } })` and return 404 on miss.
 - Integration test H: a user of tenant A requesting tenant B's ids receives 404 on every route.
 
-## M4 — LLM layer & agents 🔍 in review
+## M4 — LLM layer & agents ✅
 - `LlmProvider` interface; `AnthropicProvider` (server-only, timeout, retry/backoff on 429/5xx,
   usage capture) and `SimulatedProvider` (returns fixtures, labelled `simulated`).
 - Versioned prompt templates in `src/server/prompts/` (id + version recorded per run).
@@ -33,7 +33,7 @@ the domain half of H.
   `maxExternalModelClass`). Restricted data never leaves the server by default.
 - Missing API key → automatic fallback to simulated mode with visible banner (test I).
 
-## M5 — Workflow engine
+## M5 — Workflow engine 🔍 in review
 - In-process orchestrator: A → B → C, persisted status transitions per `workflow-state.ts`.
 - Idempotency via `@@unique([tenantId, idempotencyKey])`; duplicate requests return the existing run.
 - Bounded concurrency per tenant, per-run cost cap, max attempts.

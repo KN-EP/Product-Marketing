@@ -26,6 +26,8 @@ const DEFAULT_FIXTURES: Record<AssetType, unknown> = {
 export class SimulatedProvider implements LlmProvider {
   readonly mode = "simulated" as const;
   readonly external = false;
+  readonly modelId = SIMULATED_MODEL_ID;
+  readonly maxTokens = 0;
 
   constructor(private readonly fixtures: Partial<Record<AssetType, unknown>> = {}) {}
 

@@ -17,8 +17,8 @@ This repository is being built milestone by milestone (see `IMPLEMENTATION_PLAN.
 | M1 | Data model (Prisma schema), Docker Compose, least-privilege DB role | ✅ done, initial migration applied |
 | M2 | Domain core: agent schemas, quality gates, claim/asset/workflow state machines, Markdown export | ✅ done, 27 unit tests passing |
 | M3 | Next.js app shell, auth, tenant-scoped data-access layer | ✅ done, integration test H passing |
-| M4 | LLM provider abstraction (Anthropic + simulated), agents A/B/C | 🔍 in review |
-| M5 | Workflow engine, persistence, run history | ⏳ |
+| M4 | LLM provider abstraction (Anthropic + simulated), agents A/B/C | ✅ done |
+| M5 | Workflow engine, persistence, run history, review persistence | 🔍 in review |
 | M6 | UI pages and guided `/demo` | ⏳ |
 | M7 | Seed, integration and Playwright E2E tests, hardening | ⏳ |
 
@@ -57,6 +57,16 @@ Live Anthropic calls happen only when `LLM_MODE=live` **and** `ANTHROPIC_API_KEY
 `ANTHROPIC_MODEL` only — check the current IDs at
 <https://platform.claude.com/docs/en/about-claude/models>.
 
+## Workflow
+
+`POST /api/workflows` with `{ productId, personaId, market, regulatoryTriggerId, competitorIds[3] }`
+starts a `pmm_three_asset` run (editor role). The run executes after the response:
+agent A → B → C (battlecard + regulatory brief); all four outputs pass the quality gates and land as
+assets in `pending_review` in one transaction. A run status of `completed` never means the content is
+approved — only a human reviewer can approve, via `decideAction`. Repeating a request returns the same
+run (`requestNonce` deliberately starts a new one). Limits (`WORKFLOW_LIMITS`): 3 attempts, cost cap
+checked before every model call, 2 active runs per tenant. Failed runs are retried only explicitly.
+
 Before any external call the classification gate checks the tenant's
 `externalModelsApproved` and `maxExternalModelClass`; restricted data never leaves the server
 unless an admin raises the limit.
@@ -82,7 +92,7 @@ it is hard-disabled when `NODE_ENV=production`.
 ```bash
 npm run check             # prisma generate + typecheck + unit tests + schema validation
 npm run build             # prisma generate + next build
-npm run test:integration  # migrates TEST_DATABASE_URL, runs tests/integration (test H)
+npm run test:integration  # migrates TEST_DATABASE_URL, runs tests/integration (H, workflow, E/F/G) in simulated mode
 ```
 
 `test:integration` exits with code 2 and prints `NOT EXECUTED` if `TEST_DATABASE_URL` is
@@ -104,6 +114,10 @@ src/server/db/              Prisma client (pg driver adapter), tenantDb(actor) d
 src/server/llm/             LlmProvider: AnthropicProvider (server-only) + SimulatedProvider, classification gate
 src/server/prompts/         versioned prompt templates for agents A/B/C (id + version)
 src/server/agents/          agents A/B/C: KnowledgeSnapshot in, schema-valid output out
+src/server/workflow/        pmm_three_asset run: OrchestratorAdapter + InProcessOrchestrator, limits, idempotency
+src/server/review/          review persistence (submit, decide, new version, export, claim decisions) + AuditEvent
+src/app/api/workflows/      POST start (202/200), GET [id] status + history + outputs
+src/app/actions/            server actions: auth, review, workflow retry
 src/components/ui/          shadcn/ui components
 src/domain/                 framework-free business logic — no DB, no HTTP
   actor.ts                  principal, roles, DomainError

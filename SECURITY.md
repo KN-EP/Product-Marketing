@@ -14,7 +14,8 @@
 | Confidential data sent to external model | ✅ M4 classification gate inside `AnthropicProvider.generate` (cannot be bypassed by callers): blocks unless `externalModelsApproved` and data ≤ `maxExternalModelClass`; prompt floor is `internal`; restricted never external unless an admin raises the limit |
 | Secret leakage | API key server-side only (`server-only` import; unit test asserts only `src/server/llm` imports the SDK); `.env` gitignored; LLM errors carry no prompt/source text · ⏳ M7 log sanitizer |
 | DB transport security | ✅ app URLs `sslmode=verify-full` (node-postgres); migration URLs `sslmode=require&sslaccept=strict` (Prisma schema engine ignores `verify-full`) |
-| Abuse / cost blow-up | ⏳ M5/M7 rate limits, body-size limits, per-run cost cap, bounded concurrency |
+| Abuse / cost blow-up | ✅ M5 per-run cost cap checked before every model call (live models without a documented price fail closed), max 2 active runs per tenant (advisory-locked admission), max 3 attempts, explicit retry only, 16 KB body limit on `POST /api/workflows` · ⏳ M7 rate limits |
+| Run/audit data leakage | ✅ M5 `WorkflowRun.error` is built only from our own error codes/messages (unknown errors → generic text); AuditEvent metadata holds ids, states and counts only (no content, comments or prompts) |
 | DB privilege abuse | ✅ separate `pmm_app` role with DML only; Postgres bound to 127.0.0.1 |
 | Demo switcher in production | ✅ M3 hard-disabled when `NODE_ENV=production`; credentials login only for seeded demo users and only with `DEMO_MODE=true` |
 | Session tampering | ✅ M3 sealed (encrypted + signed) HttpOnly, SameSite=Lax cookie (iron-session), `Secure` in production; tenant re-checked against Membership on every request |

@@ -6,6 +6,7 @@ import { LlmError, LlmOutputInvalidError } from "./errors";
 import { toolInputSchema } from "./json-schema";
 import { estimateCostUsd } from "./pricing";
 import {
+  MAX_REQUESTS_PER_GENERATE,
   ZERO_USAGE,
   type GenerateOptions,
   type LlmProvider,
@@ -74,6 +75,14 @@ export class AnthropicProvider implements LlmProvider {
   private readonly client: MessagesClient;
   private readonly o: Required<Omit<AnthropicProviderOptions, "client" | "apiKey">>;
 
+  get modelId(): string {
+    return this.o.model;
+  }
+
+  get maxTokens(): number {
+    return this.o.maxTokens;
+  }
+
   constructor(opts: AnthropicProviderOptions) {
     if (!opts.model) throw new LlmError("config", "ANTHROPIC_MODEL is not set.");
     this.o = {
@@ -104,7 +113,7 @@ export class AnthropicProvider implements LlmProvider {
     let usage = { ...ZERO_USAGE };
     let attempts = 0;
 
-    for (let turn = 0; turn < 2; turn++) {
+    for (let turn = 0; turn < MAX_REQUESTS_PER_GENERATE; turn++) {
       const res = await this.createWithRetry(
         {
           model: this.o.model,

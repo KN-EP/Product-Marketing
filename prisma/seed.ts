@@ -36,11 +36,47 @@ export const SEED_TENANTS = [
   { id: OTHER_TENANT_ID, slug: "other-demo", name: OTHER_TENANT_NAME, emailDomain: "other-demo.example", userPrefix: "usr_other" },
 ] as const;
 
-/** Seeded ids the isolation tests refer to. */
+/** Seeded ids the isolation and workflow tests refer to. */
 export const SEED_IDS = {
-  [DEMO_TENANT_ID]: { asset: "ast_demo_messaging", claim: DEMO_CLAIMS[0]!.id, source: DEMO_SOURCES[0]!.id },
-  [OTHER_TENANT_ID]: { asset: "ast_other_brief", claim: FOREIGN_CLAIM.id, source: "src_other_note" },
+  [DEMO_TENANT_ID]: {
+    asset: "ast_demo_messaging",
+    claim: DEMO_CLAIMS[0]!.id,
+    source: DEMO_SOURCES[0]!.id,
+    product: "prd_demo_ai_governance",
+    persona: "per_demo_ciso",
+    regulatoryTrigger: "rtr_demo_eu_ai_act",
+    competitors: ["cmp_a", "cmp_b", "cmp_c"],
+  },
+  [OTHER_TENANT_ID]: {
+    asset: "ast_other_brief",
+    claim: FOREIGN_CLAIM.id,
+    source: "src_other_note",
+    product: "prd_other_demo",
+    persona: "per_other_buyer",
+    regulatoryTrigger: "rtr_other",
+    competitors: ["cmp_other_1", "cmp_other_2", "cmp_other_3"],
+  },
 } as const;
+
+/** Persona, regulatory trigger and competitors so each tenant can start a run. */
+async function upsertRunContext(
+  db: Db,
+  tenantId: keyof typeof SEED_IDS,
+  data: { persona: { name: string; role: string; market: string }; trigger: { name: string; jurisdiction: string; summary: string; sourceIds: string[] }; competitorNames: string[] },
+) {
+  const ids = SEED_IDS[tenantId];
+  const persona = { ...data.persona, goals: ["[SYNTHETIC] goal"], concerns: ["[SYNTHETIC] concern"], isSynthetic: true };
+  await db.persona.upsert({ where: { id: ids.persona }, create: { id: ids.persona, tenantId, ...persona }, update: persona });
+  await db.regulatoryTrigger.upsert({
+    where: { id: ids.regulatoryTrigger },
+    create: { id: ids.regulatoryTrigger, tenantId, ...data.trigger },
+    update: data.trigger,
+  });
+  for (const [i, id] of ids.competitors.entries()) {
+    const c = { name: data.competitorNames[i]!, isPlaceholder: true };
+    await db.competitor.upsert({ where: { id }, create: { id, tenantId, ...c }, update: c });
+  }
+}
 
 export function seedUserEmail(tenantIndex: 0 | 1, role: Role): string {
   return `${role}@${SEED_TENANTS[tenantIndex].emailDomain}`;
@@ -153,11 +189,16 @@ export async function seed(db: Db, opts: { password: string }): Promise<void> {
   });
   await upsertKnowledge(db, DEMO_TENANT_ID, demoProduct, DEMO_SOURCES, DEMO_CLAIMS);
 
-  for (const cmp of ["a", "b", "c"]) {
-    const id = `cmp_${cmp}`;
-    const data = { name: `Competitor ${cmp.toUpperCase()} (placeholder)`, isPlaceholder: true };
-    await db.competitor.upsert({ where: { id }, create: { id, tenantId: DEMO_TENANT_ID, ...data }, update: data });
-  }
+  await upsertRunContext(db, DEMO_TENANT_ID, {
+    persona: { name: "[SYNTHETIC] CISO, German mid-sized company", role: "CISO", market: "DACH mid-market" },
+    trigger: {
+      name: "[SYNTHETIC] EU AI Act — demo summary",
+      jurisdiction: "EU",
+      summary: "[SYNTHETIC] Demo summary only; replace with verified excerpts of Regulation (EU) 2024/1689.",
+      sourceIds: ["src_demo_regulatory_summary"],
+    },
+    competitorNames: ["Competitor A (placeholder)", "Competitor B (placeholder)", "Competitor C (placeholder)"],
+  });
   for (const e of DEMO_COMPETITOR_EVIDENCE) {
     const data = { competitorId: e.competitorId, sourceId: e.sourceId, assertion: e.assertion, excerpt: e.excerpt, state: e.state };
     await db.competitorEvidence.upsert({ where: { id: e.id }, create: { id: e.id, tenantId: DEMO_TENANT_ID, ...data }, update: data });
@@ -190,6 +231,11 @@ export async function seed(db: Db, opts: { password: string }): Promise<void> {
     update: otherProductData,
   });
   await upsertKnowledge(db, OTHER_TENANT_ID, otherProduct, [OTHER_SOURCE], [{ ...FOREIGN_CLAIM, text: "[SYNTHETIC] Foreign tenant claim" }]);
+  await upsertRunContext(db, OTHER_TENANT_ID, {
+    persona: { name: "[SYNTHETIC] Other tenant buyer", role: "Buyer", market: "Synthetic" },
+    trigger: { name: "[SYNTHETIC] Other trigger", jurisdiction: "N/A", summary: "[SYNTHETIC] Isolation test record.", sourceIds: ["src_other_note"] },
+    competitorNames: ["[SYNTHETIC] Other competitor 1", "[SYNTHETIC] Other competitor 2", "[SYNTHETIC] Other competitor 3"],
+  });
   const otherKb = buildSnapshot({ tenantId: OTHER_TENANT_ID, sources: [OTHER_SOURCE], claims: [FOREIGN_CLAIM] });
   const otherContent = { ...SIMULATED_MESSAGING_FRAMEWORK, pillars: [], objections: [] };
   await upsertAsset(db, OTHER_TENANT_ID, {

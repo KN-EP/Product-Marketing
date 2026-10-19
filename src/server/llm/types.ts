@@ -55,7 +55,14 @@ export interface LlmProvider {
   readonly mode: LlmMode;
   /** True when generate() sends data outside this server. */
   readonly external: boolean;
+  /** Model the provider will call (known before any call; used for cost pre-checks). */
+  readonly modelId: string;
+  /** Upper bound on output tokens per request. */
+  readonly maxTokens: number;
   generate<S extends z.ZodType>(spec: OutputSpec<S>, prompt: RenderedPrompt, opts: GenerateOptions): Promise<LlmResult<z.infer<S>>>;
 }
+
+/** Requests one generate() may make in the worst case: first call + one re-prompt. */
+export const MAX_REQUESTS_PER_GENERATE = 2;
 
 export const ZERO_USAGE: LlmUsage = { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 };

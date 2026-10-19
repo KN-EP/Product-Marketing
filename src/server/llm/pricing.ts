@@ -13,6 +13,21 @@ const PRICES: Record<string, { input: number; output: number; cacheRead: number 
   "claude-sonnet-5-5": { input: 2, output: 10, cacheRead: 0.2 },
 };
 
+export function hasPricing(modelId: string): boolean {
+  return modelId in PRICES;
+}
+
+/**
+ * Conservative upper bound for ONE request: input estimated at 1 token per 3
+ * characters (over-counts for typical text) and the full max_tokens of output.
+ * Null when the model has no documented price.
+ */
+export function maxRequestCostUsd(modelId: string, promptChars: number, maxTokens: number): number | null {
+  const p = PRICES[modelId];
+  if (!p) return null;
+  return (Math.ceil(promptChars / 3) * p.input + maxTokens * p.output) / 1_000_000;
+}
+
 export function estimateCostUsd(modelId: string, u: LlmUsage): number | null {
   const p = PRICES[modelId];
   if (!p) return null;

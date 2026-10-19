@@ -26,6 +26,8 @@ export interface AgentInput {
   policy: ExternalModelPolicy;
   /** Classifications of the sources in the snapshot (from Source.classification). */
   sourceClassifications: DataClassification[];
+  /** Agent B output for agent C. Only pass it after MessagingFrameworkV1 validation. */
+  messagingFramework?: z.infer<typeof MessagingFrameworkV1>;
 }
 
 /**
@@ -75,7 +77,11 @@ async function runAgent<S extends z.ZodType>(
   if (input.policy.tenantId !== input.snapshot.tenantId) {
     throw new DomainError("tenant_mismatch", "Agent policy and knowledge snapshot belong to different tenants.");
   }
-  const prompt = renderPrompt(template, { snapshot: input.snapshot, brief: input.brief });
+  const prompt = renderPrompt(template, {
+    snapshot: input.snapshot,
+    brief: input.brief,
+    ...(input.messagingFramework ? { messagingFramework: input.messagingFramework } : {}),
+  });
   const res = await provider.generate(spec, prompt, {
     dataPolicy: { tenant: input.policy, dataClassification: promptClassification(input.sourceClassifications) },
   });

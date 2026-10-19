@@ -46,6 +46,9 @@ const childEnv = {
   MIGRATION_DATABASE_URL: process.env.TEST_MIGRATION_DATABASE_URL || testUrl,
   DATABASE_URL: testUrl,
   SESSION_SECRET: randomBytes(32).toString("base64url"),
+  // Integration tests never call a real model.
+  LLM_MODE: "simulated",
+  ANTHROPIC_API_KEY: "",
 };
 
 function run(label, script, args) {
