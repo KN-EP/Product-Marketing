@@ -6,7 +6,7 @@
 ## Threat model (P0)
 | Threat | Control |
 |---|---|
-| Cross-tenant data access via altered ids/params | ✅ domain checks + composite FKs · ⏳ M3 tenant-scoped DAL, 404 on miss, test H |
+| Cross-tenant data access via altered ids/params | ✅ domain checks + composite FKs · ✅ M3 `tenantDb(actor)` DAL, 404 on miss, `getActor()` from session + Membership only · test H written (`npm run test:integration`, needs `TEST_DATABASE_URL`) |
 | Unauthorized approval (incl. by the AI) | ✅ `canReview` requires human reviewer; model output cannot set status |
 | Unsupported/false claims reaching approved assets | ✅ gates G2–G7b, re-run at approval; export only of approved versions |
 | Prompt injection via sources/uploads | ⏳ M4 sources passed as delimited data, system prompt states they are untrusted; output still gated |
@@ -15,7 +15,9 @@
 | Secret leakage | API key server-side only; `.env` gitignored · ⏳ M7 log sanitizer |
 | Abuse / cost blow-up | ⏳ M5/M7 rate limits, body-size limits, per-run cost cap, bounded concurrency |
 | DB privilege abuse | ✅ separate `pmm_app` role with DML only; Postgres bound to 127.0.0.1 |
-| Demo switcher in production | ⏳ M3 hard-disabled when `NODE_ENV=production` |
+| Demo switcher in production | ✅ M3 hard-disabled when `NODE_ENV=production`; credentials login only for seeded demo users and only with `DEMO_MODE=true` |
+| Session tampering | ✅ M3 sealed (encrypted + signed) HttpOnly, SameSite=Lax cookie (iron-session), `Secure` in production; tenant re-checked against Membership on every request |
+| Migration credentials in the app | ✅ M3 app uses `DATABASE_URL` (DML-only role); `MIGRATION_DATABASE_URL` is read only by the Prisma CLI |
 
 ## Operational checklist (before any non-local deployment)
 - [ ] Replace demo auth with SSO/OIDC; disable `DEMO_MODE`

@@ -1,0 +1,55 @@
+"use server";
+
+import { redirect } from "next/navigation";
+import { z } from "zod";
+import { getDb } from "@/server/db";
+import { isCredentialsLoginEnabled, isDemoSwitcherEnabled } from "@/server/auth/demo-mode";
+import { authenticateDemoUser, demoIdentityForUser, type LoginIdentity } from "@/server/auth/login";
+import { getSession } from "@/server/auth/session";
+
+export interface LoginState {
+  error?: string;
+}
+
+const LoginInput = z.object({
+  email: z.string().trim().min(3).max(320),
+  password: z.string().min(1).max(512),
+});
+
+async function startSession(identity: LoginIdentity): Promise<void> {
+  const session = await getSession();
+  session.userId = identity.userId;
+  session.tenantId = identity.tenantId; // from Membership, never from input
+  await session.save();
+}
+
+/** Credentials login — seeded demo users only, DEMO_MODE=true only. */
+export async function loginAction(_prev: LoginState, formData: FormData): Promise<LoginState> {
+  if (!isCredentialsLoginEnabled()) return { error: "Login is disabled." };
+  const parsed = LoginInput.safeParse({ email: formData.get("email"), password: formData.get("password") });
+  if (!parsed.success) return { error: "Invalid e-mail or password." };
+  const identity = await authenticateDemoUser(getDb(), parsed.data.email, parsed.data.password);
+  if (!identity) return { error: "Invalid e-mail or password." };
+  await startSession(identity);
+  redirect("/dashboard");
+}
+
+/**
+ * Dev-only demo identity switcher. Hard-disabled when NODE_ENV=production.
+ * The input selects a demo USER; the tenant is derived from that user's Membership.
+ */
+export async function switchDemoUserAction(formData: FormData): Promise<void> {
+  if (!isDemoSwitcherEnabled()) throw new Error("Demo identity switcher is disabled.");
+  const userId = z.string().min(1).max(64).safeParse(formData.get("userId"));
+  if (!userId.success) throw new Error("Invalid demo user.");
+  const identity = await demoIdentityForUser(getDb(), userId.data);
+  if (!identity) throw new Error("Invalid demo user.");
+  await startSession(identity);
+  redirect("/dashboard");
+}
+
+export async function logoutAction(): Promise<void> {
+  const session = await getSession();
+  session.destroy();
+  redirect("/login");
+}

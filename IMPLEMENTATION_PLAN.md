@@ -6,17 +6,17 @@ Do not start P1/P2 features before the P0 end-to-end flow works.
 ## M0 — Plan & specs ✅
 Repository inspected (empty). Specs written.
 
-## M1 — Data model ✅ / ⏳
+## M1 — Data model ✅
 - ✅ Prisma schema; composite FKs `(id, tenantId)` so child rows cannot reference another tenant's parent.
 - ✅ Docker Compose with Postgres bound to 127.0.0.1, separate `pmm_app` role (DML only).
-- ⏳ `prisma migrate dev` → first migration. Needs a running Postgres and Prisma engine download (`binaries.prisma.sh`).
+- ✅ First migration `20261019190729_init` generated and applied.
 
 ## M2 — Domain core ✅
 Framework-free, unit-tested: agent output schemas v1, quality gates, claim/asset/workflow
 state machines, Markdown export, synthetic fixtures. Covers acceptance tests D, E, F, G and
 the domain half of H.
 
-## M3 — App shell, auth, tenant isolation
+## M3 — App shell, auth, tenant isolation 🔍 in review
 - Next.js App Router, Tailwind, shadcn/ui.
 - Session auth (credentials in demo mode only). Demo identity switcher hard-disabled when `NODE_ENV=production`.
 - `getActor()` resolves tenant from session + Membership; never from request input.
