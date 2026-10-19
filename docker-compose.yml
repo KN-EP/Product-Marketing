@@ -1,0 +1,17 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: pmm_os
+      POSTGRES_USER: pmm_admin
+      POSTGRES_PASSWORD: pmm_admin_dev
+    ports: ["127.0.0.1:5432:5432"]   # bound to localhost only
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/init-app-role.sql:/docker-entrypoint-initdb.d/01-app-role.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pmm_admin -d pmm_os"]
+      interval: 5s
+      retries: 10
+volumes:
+  pgdata:

@@ -1,0 +1,499 @@
+// ExtendPartner Product Marketing OS 3.0 — data model (P0)
+// Rule: every tenant-owned model carries tenantId and is only accessed via the
+// tenant-scoped data-access layer (src/server/db/tenant-scope.ts).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────── Enums ─────────────────────────
+
+enum Role {
+  viewer
+  editor
+  reviewer
+  admin
+}
+
+enum DataClassification {
+  public
+  internal
+  confidential
+  restricted
+}
+
+enum SourceKind {
+  public_web
+  product_doc
+  regulatory_text
+  interview
+  synthetic_demo
+}
+
+enum SourceStatus {
+  active
+  changed
+  invalid
+}
+
+enum ClaimState {
+  draft
+  pending_review
+  approved
+  rejected
+  stale
+}
+
+enum ClaimCategory {
+  product_capability
+  compliance
+  security
+  comparative
+  commercial
+  regulatory
+}
+
+enum AssetType {
+  messaging_framework
+  competitive_battlecard
+  regulatory_gtm_brief
+  product_intelligence_brief
+}
+
+enum AssetState {
+  draft
+  pending_review
+  changes_requested
+  approved
+  archived
+}
+
+enum WorkflowStatus {
+  created
+  queued
+  running
+  validation
+  pending_review
+  completed
+  failed
+}
+
+enum ApprovalDecision {
+  approved
+  rejected
+  changes_requested
+}
+
+enum GenerationMode {
+  live
+  simulated
+}
+
+// ───────────────────────── Identity & tenancy ─────────────────────────
+
+model Tenant {
+  id                     String             @id @default(cuid())
+  slug                   String             @unique
+  name                   String
+  isDemo                 Boolean            @default(false)
+  /// Highest classification that may be sent to an external model provider.
+  maxExternalModelClass  DataClassification @default(internal)
+  externalModelsApproved Boolean            @default(false)
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  memberships        Membership[]
+  products           Product[]
+  sources            Source[]
+  claims             Claim[]
+  personas           Persona[]
+  buyerProblems      BuyerProblem[]
+  competitors        Competitor[]
+  competitorEvidence CompetitorEvidence[]
+  regulatoryTriggers RegulatoryTrigger[]
+  assets             Asset[]
+  assetVersions      AssetVersion[]
+  workflowRuns       WorkflowRun[]
+  approvals          Approval[]
+  auditEvents        AuditEvent[]
+  valuePropositions  ValueProposition[]
+  productFeatures    ProductFeature[]
+  claimEvidence      ClaimEvidence[]
+  valuePropositionClaims ValuePropositionClaim[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships Membership[]
+  approvals   Approval[]
+  reviewedClaims Claim[]  @relation("ClaimReviewer")
+}
+
+model Membership {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+  role      Role
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@index([userId])
+}
+
+// ───────────────────────── Product knowledge ─────────────────────────
+
+model Product {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  area        String
+  description String
+  isSynthetic Boolean  @default(false)
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  features ProductFeature[]
+  claims   Claim[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+}
+
+model ProductFeature {
+  id          String   @id @default(cuid())
+  tenantId    String
+  productId   String
+  name        String
+  description String
+  isSynthetic Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product           Product            @relation(fields: [productId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  claims            Claim[]
+  valuePropositions ValueProposition[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, productId])
+}
+
+model Source {
+  id             String             @id @default(cuid())
+  tenantId       String
+  kind           SourceKind
+  title          String
+  /// Null for synthetic or internal sources. Never fabricated.
+  url            String?
+  publisher      String?
+  classification DataClassification @default(internal)
+  status         SourceStatus       @default(active)
+  /// Stored text the excerpts are checked against (quality gate 4).
+  content        String
+  contentHash    String
+  retrievedAt    DateTime?
+  isSynthetic    Boolean            @default(false)
+  version        Int                @default(1)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  tenant             Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  claimEvidence      ClaimEvidence[]
+  competitorEvidence CompetitorEvidence[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, status])
+}
+
+model Claim {
+  id               String        @id @default(cuid())
+  tenantId         String
+  productId        String
+  featureId        String?
+  text             String
+  category         ClaimCategory
+  state            ClaimState    @default(draft)
+  reviewerId       String?
+  approvedAt       DateTime?
+  lastVerifiedAt   DateTime?
+  reviewDueAt      DateTime?
+  staleReason      String?
+  isSynthetic      Boolean       @default(false)
+  version          Int           @default(1)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product  Product         @relation(fields: [productId, tenantId], references: [id, tenantId])
+  feature  ProductFeature? @relation(fields: [featureId, tenantId], references: [id, tenantId])
+  reviewer User?           @relation("ClaimReviewer", fields: [reviewerId], references: [id])
+  evidence ClaimEvidence[]
+  valuePropositions ValuePropositionClaim[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, state])
+}
+
+/// Structured evidence: a claim is linked to a source with an exact excerpt
+/// and optional locator (page, section, anchor). Not free-text citations.
+model ClaimEvidence {
+  id        String   @id @default(cuid())
+  tenantId  String
+  claimId   String
+  sourceId  String
+  excerpt   String
+  locator   String?
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  claim  Claim  @relation(fields: [claimId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  source Source @relation(fields: [sourceId, tenantId], references: [id, tenantId])
+
+  @@index([tenantId, sourceId])
+  @@index([claimId])
+}
+
+// ───────────────────────── Market & buyer ─────────────────────────
+
+model Persona {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  role        String
+  market      String
+  goals       String[]
+  concerns    String[]
+  isSynthetic Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  buyerProblems     BuyerProblem[]
+  valuePropositions ValueProposition[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+}
+
+model BuyerProblem {
+  id          String   @id @default(cuid())
+  tenantId    String
+  personaId   String
+  statement   String
+  severity    Int      @default(3)
+  isSynthetic Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  persona           Persona            @relation(fields: [personaId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  valuePropositions ValueProposition[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, personaId])
+}
+
+model ValueProposition {
+  id             String   @id @default(cuid())
+  tenantId       String
+  featureId      String
+  buyerProblemId String
+  personaId      String
+  statement      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant       Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  feature      ProductFeature          @relation(fields: [featureId, tenantId], references: [id, tenantId])
+  buyerProblem BuyerProblem            @relation(fields: [buyerProblemId, tenantId], references: [id, tenantId])
+  persona      Persona                 @relation(fields: [personaId, tenantId], references: [id, tenantId])
+  claims       ValuePropositionClaim[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+}
+
+/// Composite FKs on (id, tenantId) make cross-tenant links impossible at DB level.
+model ValuePropositionClaim {
+  tenantId           String
+  valuePropositionId String
+  claimId            String
+
+  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  valueProposition ValueProposition @relation(fields: [valuePropositionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  claim            Claim            @relation(fields: [claimId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@id([valuePropositionId, claimId])
+  @@index([tenantId])
+}
+
+model Competitor {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  website     String?
+  isPlaceholder Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant   Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  evidence CompetitorEvidence[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+}
+
+model CompetitorEvidence {
+  id           String       @id @default(cuid())
+  tenantId     String
+  competitorId String
+  sourceId     String
+  assertion    String
+  excerpt      String
+  locator      String?
+  state        ClaimState   @default(draft)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  competitor Competitor @relation(fields: [competitorId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  source     Source     @relation(fields: [sourceId, tenantId], references: [id, tenantId])
+
+  @@unique([id, tenantId])
+  @@index([tenantId, competitorId])
+}
+
+model RegulatoryTrigger {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  jurisdiction String
+  summary     String
+  sourceIds   String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+}
+
+// ───────────────────────── Assets, runs, approvals ─────────────────────────
+
+model Asset {
+  id              String     @id @default(cuid())
+  tenantId        String
+  type            AssetType
+  title           String
+  state           AssetState @default(draft)
+  currentVersionId String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  versions AssetVersion[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, state])
+}
+
+/// Immutable. The data-access layer exposes no update path for content fields.
+model AssetVersion {
+  id             String         @id @default(cuid())
+  tenantId       String
+  assetId        String
+  versionNumber  Int
+  schemaVersion  String
+  content        Json
+  /// Result of the automated quality gates (src/domain/quality-gates).
+  gateReport     Json
+  gatesPassed    Boolean
+  generationMode GenerationMode
+  workflowRunId  String?
+  createdAt      DateTime       @default(now())
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  asset       Asset        @relation(fields: [assetId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  workflowRun WorkflowRun? @relation(fields: [workflowRunId], references: [id])
+  approvals   Approval[]
+
+  @@unique([assetId, versionNumber])
+  @@unique([id, tenantId])
+  @@index([tenantId])
+}
+
+model WorkflowRun {
+  id              String         @id @default(cuid())
+  tenantId        String
+  kind            String
+  status          WorkflowStatus @default(created)
+  idempotencyKey  String
+  generationMode  GenerationMode
+  modelId         String?
+  promptVersions  Json
+  inputRefs       Json
+  usage           Json?
+  costEstimateUsd Decimal?       @db.Decimal(10, 4)
+  error           String?
+  attempts        Int            @default(0)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assetVersions AssetVersion[]
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, status])
+}
+
+model Approval {
+  id             String           @id @default(cuid())
+  tenantId       String
+  assetVersionId String
+  reviewerId     String
+  decision       ApprovalDecision
+  comment        String?
+  createdAt      DateTime         @default(now())
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assetVersion AssetVersion @relation(fields: [assetVersionId, tenantId], references: [id, tenantId])
+  reviewer     User         @relation(fields: [reviewerId], references: [id])
+
+  @@index([tenantId, assetVersionId])
+}
+
+model AuditEvent {
+  id         String   @id @default(cuid())
+  tenantId   String
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String
+  /// Sanitized metadata only — never credentials, prompts or personal data.
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, createdAt])
+}
