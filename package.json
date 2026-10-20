@@ -19,7 +19,9 @@
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:seed": "prisma db seed",
-    "check": "npm run db:generate && npm run typecheck && npm run test && npm run db:validate"
+    "check": "npm run db:generate && npm run typecheck && npm run test && npm run db:validate",
+    "demo:reset": "tsx scripts/demo-reset.ts",
+    "test:e2e": "node scripts/run-e2e.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
@@ -37,12 +39,12 @@
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "server-only": "^0.0.1",
-    "shadcn": "^4.22.1",
     "tailwind-merge": "^3.7.0",
     "tw-animate-css": "^1.4.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@prisma/prisma-schema-wasm": "8.1.0-1.d1b3f377ca835d73fd50954a5e22128b9ebdd6b8",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22.20.5",
@@ -51,6 +53,7 @@
     "@types/react-dom": "^19.3.0",
     "postcss": "^8.5.31",
     "prisma": "^7.10.1",
+    "shadcn": "^4.22.1",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",

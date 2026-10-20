@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { GatesBadge, ModeBadge, StateBadge } from "@/components/app/badges";
 import { EmptyState, PageHeader, Section } from "@/components/app/page-header";
+import { InputBrief } from "@/components/review/input-brief";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AutoRefresh, MarkRunFailedButton, RetryRunButton } from "@/components/workflow/run-actions";
@@ -30,8 +31,12 @@ export default async function WorkflowRunPage({ params }: { params: Promise<{ id
   const { id } = await params;
   const actor = await requirePageActor();
   const details = await or404(getOrchestrator().get(actor, id));
-  const raw = await tenantDb(actor, getDb()).workflowRuns.getById(id);
+  const tdb = tenantDb(actor, getDb());
+  const raw = await tdb.workflowRuns.getById(id);
   const { run, history, outputs } = details;
+  const deliverables = outputs.filter((o) => !o.internal);
+  const briefOut = outputs.find((o) => o.internal);
+  const brief = briefOut ? (await tdb.assets.getRecord(briefOut.assetId)).versions.find((v) => v.id === briefOut.versionId) : undefined;
   const active = ACTIVE_RUN_STATUSES.includes(run.status);
   const stale = isStale(raw, new Date());
   const usage = (run.usage ?? null) as Record<string, number> | null;
@@ -123,9 +128,12 @@ export default async function WorkflowRunPage({ params }: { params: Promise<{ id
         </Section>
       </div>
 
-      <Section title="Generated assets" description="Each output was checked by the quality gates on generation and is waiting for human review — a failed check blocks approval, not review.">
-        {outputs.length === 0 ? (
-          <EmptyState>{active ? "Outputs appear here when the run reaches review." : "This run produced no assets."}</EmptyState>
+      <Section
+        title={`Deliverables (${deliverables.length})`}
+        description="Messaging framework, competitive battlecard and regulatory GTM brief. Each was checked by the quality gates on generation and waits for human review — a failed check blocks approval, not review."
+      >
+        {deliverables.length === 0 ? (
+          <EmptyState>{active ? "Deliverables appear here when the run reaches review." : "This run produced no deliverables."}</EmptyState>
         ) : (
           <Table>
             <TableHeader>
@@ -137,18 +145,18 @@ export default async function WorkflowRunPage({ params }: { params: Promise<{ id
               </TableRow>
             </TableHeader>
             <TableBody>
-              {outputs.map((o) => (
+              {deliverables.map((o) => (
                 <TableRow key={o.versionId}>
-                  <TableCell className="whitespace-normal">
-                    <Link href={`/assets/${o.assetId}`} className="font-medium underline-offset-4 hover:underline">
+                  <TableCell data-label="Asset" className="whitespace-normal">
+                    <Link href={`/assets/${o.assetId}`} className="line-clamp-2 font-medium underline-offset-4 hover:underline" title={o.title}>
                       {o.title}
                     </Link>
                   </TableCell>
-                  <TableCell>{ASSET_TYPE_LABEL[o.assetType]}</TableCell>
-                  <TableCell>
+                  <TableCell data-label="Type">{ASSET_TYPE_LABEL[o.assetType]}</TableCell>
+                  <TableCell data-label="State">
                     <StateBadge state={o.assetState} />
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Checks (v1)">
                     <GatesBadge passed={o.gatesPassed} />
                   </TableCell>
                 </TableRow>
@@ -157,6 +165,12 @@ export default async function WorkflowRunPage({ params }: { params: Promise<{ id
           </Table>
         )}
       </Section>
+
+      {brief ? (
+        <Section title="Input brief" description="Agent A output used as input for agents B and C. Internal — not a deliverable.">
+          <InputBrief content={brief.content} gateReport={brief.gateReport} generationMode={brief.generationMode} createdAt={brief.createdAt} />
+        </Section>
+      ) : null}
     </>
   );
 }

@@ -10,6 +10,7 @@ import type { DataClassification, ExternalModelPolicy } from "../llm/classificat
 import { ConflictError, NotFoundError } from "../errors";
 import type { Db } from "./client";
 import { tenantViews } from "./views";
+import { INTERNAL_ASSET_TYPES } from "../assets/deliverables";
 
 /** A client or an interactive-transaction client. */
 export type DbTx = Prisma.TransactionClient;
@@ -101,7 +102,8 @@ export function tenantDb(actor: Actor, db: DbTx) {
 
     counts: async () => {
       const [assets, claims, sources] = await Promise.all([
-        db.asset.count({ where: { tenantId } }),
+        // Deliverables only — the internal input brief is not an asset for the user.
+        db.asset.count({ where: { tenantId, type: { notIn: [...INTERNAL_ASSET_TYPES] } } }),
         db.claim.count({ where: { tenantId } }),
         db.source.count({ where: { tenantId } }),
       ]);
@@ -334,6 +336,14 @@ export function tenantDb(actor: Actor, db: DbTx) {
       getById: async (id: string) => orNotFound(await db.workflowRun.findFirst({ where: { id, tenantId } }), "workflow run"),
       findByKey: (idempotencyKey: string) => db.workflowRun.findFirst({ where: { tenantId, idempotencyKey } }),
       countActive: () => db.workflowRun.count({ where: { tenantId, status: { in: ACTIVE_RUN_STATUSES } } }),
+      /** Active runs whose row has not changed since `before`. */
+      listStale: (before: Date) =>
+        db.workflowRun.findMany({
+          where: { tenantId, status: { in: ACTIVE_RUN_STATUSES }, updatedAt: { lt: before } },
+          select: { id: true, status: true },
+        }),
+      /** Heartbeat while a run is executing (keeps it from being swept as stale). */
+      touch: (id: string) => db.workflowRun.updateMany({ where: { id, tenantId, status: "running" }, data: { updatedAt: new Date() } }),
       /**
        * Serialises run admission per tenant (inside a transaction): the
        * concurrency check and the insert cannot interleave.

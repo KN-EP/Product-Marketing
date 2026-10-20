@@ -1,5 +1,6 @@
 import "server-only";
 import { DomainError } from "../../domain/actor";
+import { BODY_LIMITS } from "../../lib/security-headers";
 import { HttpError, NotFoundError, UnauthenticatedError } from "../errors";
 
 /** Return this from a jsonRoute handler to set a non-200 status. */
@@ -44,7 +45,7 @@ export async function jsonRoute(fn: () => Promise<unknown>): Promise<Response> {
 }
 
 /** Reads a JSON body with a hard size limit (413) and parse check (400). */
-export async function readJsonBody(req: Request, maxBytes = 16_384): Promise<unknown> {
+export async function readJsonBody(req: Request, maxBytes: number = BODY_LIMITS.workflowStartBytes): Promise<unknown> {
   const declared = Number(req.headers.get("content-length") ?? "0");
   if (declared > maxBytes) throw new HttpError(413, "payload_too_large", `Body exceeds ${maxBytes} bytes.`);
   const text = await req.text();

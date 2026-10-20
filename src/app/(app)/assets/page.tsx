@@ -35,16 +35,16 @@ export default async function AssetsPage() {
               const v = a.versions[0];
               return (
                 <TableRow key={a.id}>
-                  <TableCell className="whitespace-normal">
-                    <Link href={`/assets/${a.id}`} className="font-medium underline-offset-4 hover:underline">
+                  <TableCell data-label="Asset" className="whitespace-normal">
+                    <Link href={`/assets/${a.id}`} className="line-clamp-2 font-medium underline-offset-4 hover:underline">
                       {a.title}
                     </Link>
                   </TableCell>
-                  <TableCell>{ASSET_TYPE_LABEL[a.type]}</TableCell>
-                  <TableCell>
+                  <TableCell data-label="Type">{ASSET_TYPE_LABEL[a.type]}</TableCell>
+                  <TableCell data-label="State">
                     <StateBadge state={a.state} />
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Latest version">
                     {v ? (
                       <span className="flex flex-wrap items-center gap-1.5">
                         v{v.versionNumber} <ModeBadge mode={v.generationMode} /> <GatesBadge passed={v.gatesPassed} />
@@ -53,7 +53,7 @@ export default async function AssetsPage() {
                       "—"
                     )}
                   </TableCell>
-                  <TableCell>{fmtDate(a.updatedAt)}</TableCell>
+                  <TableCell data-label="Updated">{fmtDate(a.updatedAt)}</TableCell>
                 </TableRow>
               );
             })}

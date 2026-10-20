@@ -9,11 +9,14 @@ import { fmtDate, fmtUsd } from "@/lib/format";
 import { requirePageActor } from "@/server/auth/actor";
 import { getDb } from "@/server/db";
 import { tenantDb } from "@/server/db/tenant-scope";
+import { getOrchestrator } from "@/server/workflow/runtime";
 
 export const dynamic = "force-dynamic";
 
 export default async function WorkflowsPage() {
   const actor = await requirePageActor();
+  // Stale runs are failed automatically on every workflow request.
+  await getOrchestrator().sweepStaleRuns(actor);
   const v = tenantDb(actor, getDb()).views;
   const [runs, products, personas, triggers, competitors] = await Promise.all([
     v.runs(),
@@ -28,7 +31,7 @@ export default async function WorkflowsPage() {
     <>
       <PageHeader
         title="Workflows"
-        description={`Three-asset run: Agent A (product intelligence) → B (messaging framework) → C (battlecard + regulatory brief). Limits: ${WORKFLOW_LIMITS.maxConcurrentRunsPerTenant} active runs per tenant, ${WORKFLOW_LIMITS.maxAttempts} attempts, cost cap per run.`}
+        description={`One run produces three deliverables — messaging framework (Agent B), competitive battlecard and regulatory GTM brief (Agent C) — from an internal input brief (Agent A, not a deliverable). Limits: ${WORKFLOW_LIMITS.maxConcurrentRunsPerTenant} active runs per tenant, ${WORKFLOW_LIMITS.maxAttempts} attempts, cost cap per run.`}
       />
       <Section title="Start a run" description="A completed run means the outputs are waiting for human review — never that they are approved.">
         {!canStart ? (
@@ -63,20 +66,20 @@ export default async function WorkflowsPage() {
             <TableBody>
               {runs.map((r) => (
                 <TableRow key={r.id}>
-                  <TableCell>
+                  <TableCell data-label="Run">
                     <Link href={`/workflows/${r.id}`} className="font-mono text-xs underline-offset-4 hover:underline">
                       {r.id}
                     </Link>
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Status">
                     <StateBadge state={r.status} />
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Mode">
                     <ModeBadge mode={r.generationMode} />
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{r.attempts}</TableCell>
-                  <TableCell className="text-right tabular-nums">{fmtUsd(r.costEstimateUsd)}</TableCell>
-                  <TableCell>{fmtDate(r.createdAt)}</TableCell>
+                  <TableCell data-label="Attempts" className="text-right tabular-nums">{r.attempts}</TableCell>
+                  <TableCell data-label="Cost (est.)" className="text-right tabular-nums">{fmtUsd(r.costEstimateUsd)}</TableCell>
+                  <TableCell data-label="Created">{fmtDate(r.createdAt)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

@@ -14,6 +14,7 @@ import { exportApprovedMarkdown } from "../../domain/export/markdown";
 import { SIMULATED_BATTLECARD_CORRECTED } from "../../demo/fixtures";
 import type { Db } from "../db/client";
 import { tenantDb, withTenantTx } from "../db/tenant-scope";
+import { assertDeliverable } from "../assets/deliverables";
 import { HttpError } from "../errors";
 
 /**
@@ -35,6 +36,7 @@ export async function submitAssetForReview(actor: Actor, db: Db, assetId: string
   requireEditor(actor);
   return withTenantTx(actor, db, async (t) => {
     const rec = await t.assets.getRecord(assetId);
+    assertDeliverable(rec.type);
     const next = submitForReview(rec, actor);
     await t.assets.setState(assetId, [rec.state], next.state);
     await t.audit.record({
@@ -56,6 +58,7 @@ export async function decideAsset(
   try {
     return await withTenantTx(actor, db, async (t) => {
       const rec = await t.assets.getRecord(input.assetId);
+      assertDeliverable(rec.type);
       // Gates re-run inside decide() against the CURRENT database snapshot.
       const { snapshot } = await t.knowledge.snapshot();
       const r = decide(rec, actor, snapshot, {
@@ -102,12 +105,19 @@ export async function decideAsset(
 export async function createDraftVersion(
   actor: Actor,
   db: Db,
-  input: { assetId: string; content: unknown; source?: "human_edit" | "prepared_correction_simulated" },
+  input: { assetId: string; content: unknown; origin?: "human_edit" | "prepared_correction_simulated" },
 ) {
   const size = Buffer.byteLength(JSON.stringify(input.content ?? null), "utf8");
   if (size > MAX_CONTENT_BYTES) throw new HttpError(413, "payload_too_large", `Content exceeds ${MAX_CONTENT_BYTES} bytes.`);
   return withTenantTx(actor, db, async (t) => {
     const rec = await t.assets.getRecord(input.assetId);
+    assertDeliverable(rec.type);
+    if (input.origin === "prepared_correction_simulated") {
+      const tenant = await t.tenant.get();
+      if (!preparedCorrectionFor(tenant, rec.type)) {
+        throw new HttpError(409, "not_applicable", "A prepared correction exists only for the battlecard of a demo tenant.");
+      }
+    }
     const base = currentVersion(rec);
     const { snapshot } = await t.knowledge.snapshot();
     // Provenance: a human edit is its own generation mode, linked to its base version.
@@ -125,7 +135,8 @@ export async function createDraftVersion(
       entityType: "Asset",
       entityId: input.assetId,
       metadata: {
-        source: input.source ?? "human_edit",
+        // "prepared_correction_simulated": the editor was pre-filled from the synthetic fixture.
+        source: input.origin ?? "human_edit",
         versionId: v.id,
         versionNumber: v.versionNumber,
         basedOnVersionId: base?.id ?? null,
@@ -143,6 +154,7 @@ export async function createDraftVersion(
 export async function exportAssetMarkdown(actor: Actor, db: Db, assetId: string) {
   const tdb = tenantDb(actor, db);
   const rec = await tdb.assets.getRecord(assetId);
+  assertDeliverable(rec.type);
   const { snapshot } = await tdb.knowledge.snapshot();
   const names = await tdb.memberNames([...new Set(rec.approvals.map((a) => a.reviewerId))]);
   const markdown = exportApprovedMarkdown(rec, actor, snapshot, (id) => names.get(id) ?? "Former member");
@@ -181,16 +193,10 @@ export async function transitionClaimState(actor: Actor, db: Db, input: { claimI
 }
 
 /**
- * Demo tenant only: v2 of the battlecard from the prepared, SYNTHETIC
- * correction fixture. Stored as a human_edit version (a person chose to apply
- * it) and audited as "prepared_correction_simulated".
+ * Demo tenant only: the prepared, SYNTHETIC correction for the battlecard.
+ * It is only used to PRE-FILL the editor; nothing is stored until the editor
+ * saves, which creates a human_edit version like any other edit.
  */
-export async function loadPreparedCorrection(actor: Actor, db: Db, assetId: string) {
-  const tdb = tenantDb(actor, db);
-  const [tenant, rec] = await Promise.all([tdb.tenant.get(), tdb.assets.getRecord(assetId)]);
-  if (!tenant.isDemo) throw new HttpError(403, "forbidden", "Prepared corrections exist only for demo tenants.");
-  if (rec.type !== "competitive_battlecard") {
-    throw new HttpError(409, "not_applicable", "A prepared correction exists only for the competitive battlecard.");
-  }
-  return createDraftVersion(actor, db, { assetId, content: SIMULATED_BATTLECARD_CORRECTED, source: "prepared_correction_simulated" });
+export function preparedCorrectionFor(tenant: { isDemo: boolean }, assetType: string): unknown | null {
+  return tenant.isDemo && assetType === "competitive_battlecard" ? structuredClone(SIMULATED_BATTLECARD_CORRECTED) : null;
 }

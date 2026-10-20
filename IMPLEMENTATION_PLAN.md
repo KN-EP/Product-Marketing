@@ -40,11 +40,13 @@ the domain half of H.
 - Each output goes through `addVersion` → gates → `pending_review`. Workflow "completed" ≠ content approved.
 - `OrchestratorAdapter` interface for a future n8n implementation (no dependency).
 
-## M6 — UI 🔍 in review
+## M6 — UI ✅
 Pages per PRODUCT_SPEC §Pages. `/demo` is the guided 15-step walkthrough.
 
-## M7 — Seed, tests, hardening
-- `prisma/seed.ts` loads `src/demo/fixtures.ts` + users (editor, reviewer, admin) + a second tenant for isolation tests.
-- Vitest integration tests against a test database; Playwright E2E for the demo flow.
-- Rate limits, body-size limits, log sanitizer, security headers.
-- Completion report.
+## M7 — Demo correctness, demo reset, hardening, E2E 🔍 in review
+- QA fixes: three deliverables (Agent A brief is an internal input), prepared correction only pre-fills the editor,
+  no pre-selected decision, grouped findings, tenant-aware banner, synthetic product features, responsive layout.
+- `npm run demo:reset` (demo tenants only; refuses in production).
+- Automatic stale-run sweep; rate limits; body-size limits; security headers; central log sanitizer.
+- Vitest unit + integration against the test database; Playwright E2E for the review loop.
+- Completion report: `COMPLETION_REPORT.md`.

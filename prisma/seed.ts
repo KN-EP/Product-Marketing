@@ -28,6 +28,34 @@ import type { Role } from "../src/domain/actor";
 import { createPrismaClient, type Db } from "../src/server/db/client";
 import { hashPassword } from "../src/server/auth/password";
 
+/** [SYNTHETIC] features of the demo AI Governance product and the claims they group. */
+export const DEMO_FEATURES = [
+  {
+    id: "ftr_demo_register",
+    name: "[SYNTHETIC] AI system register",
+    description: "[SYNTHETIC] Central inventory of AI systems in use.",
+    claimIds: ["clm_register"],
+  },
+  {
+    id: "ftr_demo_risk_ownership",
+    name: "[SYNTHETIC] Risk category and ownership",
+    description: "[SYNTHETIC] Risk category and responsible owner per AI system.",
+    claimIds: ["clm_risk_owner", "clm_automated_classification"],
+  },
+  {
+    id: "ftr_demo_doc_pack",
+    name: "[SYNTHETIC] Documentation pack",
+    description: "[SYNTHETIC] Exportable documentation pack per AI system.",
+    claimIds: ["clm_doc_pack"],
+  },
+  {
+    id: "ftr_demo_audit_trail",
+    name: "[SYNTHETIC] Approval audit trail",
+    description: "[SYNTHETIC] Approvals recorded with reviewer identity and timestamp.",
+    claimIds: ["clm_audit_trail"],
+  },
+] as const;
+
 export const OTHER_TENANT_NAME = "Other Demo Tenant – Synthetic";
 const ROLES: Role[] = ["editor", "reviewer", "admin"];
 
@@ -95,7 +123,14 @@ const OTHER_SOURCE: SourceRecord = {
   content: "SYNTHETIC DEMO SOURCE. This record belongs to the second demo tenant and exists only to test isolation.",
 };
 
-async function upsertKnowledge(db: Db, tenantId: string, productId: string, sources: SourceRecord[], claims: ClaimRecord[]) {
+async function upsertKnowledge(
+  db: Db,
+  tenantId: string,
+  productId: string,
+  sources: SourceRecord[],
+  claims: ClaimRecord[],
+  featureOf: Record<string, string> = {},
+) {
   for (const s of sources) {
     const data = {
       kind: "synthetic_demo" as const,
@@ -109,7 +144,7 @@ async function upsertKnowledge(db: Db, tenantId: string, productId: string, sour
     await db.source.upsert({ where: { id: s.id }, create: { id: s.id, tenantId, ...data }, update: data });
   }
   for (const c of claims) {
-    const data = { productId, text: c.text, category: c.category, state: c.state, isSynthetic: true };
+    const data = { productId, featureId: featureOf[c.id] ?? null, text: c.text, category: c.category, state: c.state, isSynthetic: true };
     await db.claim.upsert({ where: { id: c.id }, create: { id: c.id, tenantId, ...data }, update: data });
     for (const [i, e] of c.evidence.entries()) {
       const id = `${c.id}_ev${i}`;
@@ -187,7 +222,19 @@ export async function seed(db: Db, opts: { password: string }): Promise<void> {
     create: { id: demoProduct, tenantId: DEMO_TENANT_ID, ...productData },
     update: productData,
   });
-  await upsertKnowledge(db, DEMO_TENANT_ID, demoProduct, DEMO_SOURCES, DEMO_CLAIMS);
+  // Synthetic product features; every demo claim belongs to one of them.
+  for (const f of DEMO_FEATURES) {
+    const data = { productId: demoProduct, name: f.name, description: f.description, isSynthetic: true };
+    await db.productFeature.upsert({ where: { id: f.id }, create: { id: f.id, tenantId: DEMO_TENANT_ID, ...data }, update: data });
+  }
+  await upsertKnowledge(
+    db,
+    DEMO_TENANT_ID,
+    demoProduct,
+    DEMO_SOURCES,
+    DEMO_CLAIMS,
+    Object.fromEntries(DEMO_FEATURES.flatMap((f) => f.claimIds.map((c) => [c, f.id]))),
+  );
 
   await upsertRunContext(db, DEMO_TENANT_ID, {
     persona: { name: "[SYNTHETIC] CISO, German mid-sized company", role: "CISO", market: "DACH mid-market" },

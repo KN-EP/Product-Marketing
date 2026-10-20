@@ -19,8 +19,8 @@ This repository is being built milestone by milestone (see `IMPLEMENTATION_PLAN.
 | M3 | Next.js app shell, auth, tenant-scoped data-access layer | ✅ done, integration test H passing |
 | M4 | LLM provider abstraction (Anthropic + simulated), agents A/B/C | ✅ done |
 | M5 | Workflow engine, persistence, run history, review persistence | ✅ done |
-| M6 | UI pages, review screen, guided `/demo`, human_edit provenance | 🔍 in review |
-| M7 | Seed, integration and Playwright E2E tests, hardening | ⏳ |
+| M6 | UI pages, review screen, guided `/demo`, human_edit provenance | ✅ done |
+| M7 | Demo correctness (QA), demo reset, hardening, Playwright E2E | 🔍 in review |
 
 ## Requirements
 
@@ -92,7 +92,9 @@ it is hard-disabled when `NODE_ENV=production`.
 ```bash
 npm run check             # prisma generate + typecheck + unit tests + schema validation
 npm run build             # prisma generate + next build
-npm run test:integration  # migrates TEST_DATABASE_URL, runs tests/integration (H, workflow, E/F/G) in simulated mode
+npm run test:integration  # migrates TEST_DATABASE_URL, runs tests/integration in simulated mode
+npm run test:e2e          # builds, starts next against TEST_DATABASE_URL (simulated), runs Playwright
+npm run demo:reset        # demo tenants only: delete runs/assets/versions/approvals + their audit events, re-seed
 ```
 
 `test:integration` exits with code 2 and prints `NOT EXECUTED` if `TEST_DATABASE_URL` is

@@ -1,11 +1,24 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getDb } from "@/server/db";
 import { isCredentialsLoginEnabled, isDemoSwitcherEnabled } from "@/server/auth/demo-mode";
 import { authenticateDemoUser, demoIdentityForUser, type LoginIdentity } from "@/server/auth/login";
 import { getSession } from "@/server/auth/session";
+import { HttpError } from "@/server/errors";
+import { enforceRateLimit } from "@/server/http/rate-limit";
+
+/** Best-effort client IP (first X-Forwarded-For hop when behind a proxy). */
+async function clientIp(): Promise<string> {
+  try {
+    const h = await headers();
+    return h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "local";
+  } catch {
+    return "local";
+  }
+}
 
 export interface LoginState {
   error?: string;
@@ -28,6 +41,12 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
   if (!isCredentialsLoginEnabled()) return { error: "Login is disabled." };
   const parsed = LoginInput.safeParse({ email: formData.get("email"), password: formData.get("password") });
   if (!parsed.success) return { error: "Invalid e-mail or password." };
+  try {
+    enforceRateLimit("login", `${await clientIp()}:${parsed.data.email.toLowerCase()}`);
+  } catch (e) {
+    if (e instanceof HttpError) return { error: "Too many sign-in attempts. Please wait a few minutes and try again." };
+    throw e;
+  }
   const identity = await authenticateDemoUser(getDb(), parsed.data.email, parsed.data.password);
   if (!identity) return { error: "Invalid e-mail or password." };
   await startSession(identity);

@@ -44,6 +44,7 @@ import {
 } from "@/demo/fixtures";
 import type { Actor, Role } from "@/domain/actor";
 import { getDb } from "@/server/db";
+import { resetRateLimits } from "@/server/http/rate-limit";
 import { tenantDb } from "@/server/db/tenant-scope";
 import { LlmOutputInvalidError } from "@/server/llm/errors";
 import { SimulatedProvider } from "@/server/llm/simulated";
@@ -114,13 +115,14 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  resetRateLimits();
   delete jar.userId;
   delete jar.tenantId;
   await resetWorkflowData();
 });
 
 describe("full run (simulated)", () => {
-  it("creates 4 assets in pending_review with gate reports; run completed ≠ approved", async () => {
+  it("creates 3 deliverables in pending_review + the internal input brief (draft); run completed ≠ approved", async () => {
     const { run, details } = await runToCompletion();
     expect(run).toMatchObject({ status: "completed", generationMode: "simulated", attempts: 1, error: null, costEstimateUsd: 0 });
     expect(run.startedAt).toBeInstanceOf(Date);
@@ -135,7 +137,11 @@ describe("full run (simulated)", () => {
       "product_intelligence_brief",
       "regulatory_gtm_brief",
     ]);
-    expect(details.outputs.every((o) => o.assetState === "pending_review")).toBe(true);
+    const deliverables = details.outputs.filter((o) => !o.internal);
+    expect(deliverables.map((o) => o.assetType).sort()).toEqual(["competitive_battlecard", "messaging_framework", "regulatory_gtm_brief"]);
+    expect(deliverables.every((o) => o.assetState === "pending_review")).toBe(true);
+    // Agent A brief: stored for traceability, never enters review.
+    expect(details.outputs.filter((o) => o.internal)).toEqual([expect.objectContaining({ assetType: "product_intelligence_brief", assetState: "draft" })]);
     expect(details.history.map((h) => h.action)).toEqual([
       "workflow.created",
       "workflow.queued",
@@ -183,7 +189,7 @@ describe("full run (simulated)", () => {
     }
     expect(status).toBe("completed");
     const details = await json(await getRun(runId));
-    expect((details.body.outputs as unknown[]).length).toBe(4);
+    expect((details.body.outputs as { internal: boolean }[]).filter((o) => !o.internal)).toHaveLength(3);
 
     const repeat = await json(await postRun(input));
     expect(repeat.status).toBe(200);
@@ -344,7 +350,8 @@ describe("review persistence (acceptance E, F, G)", () => {
   it("export refuses assets without an approved version", async () => {
     const { details } = await runToCompletion();
     signInAs(REVIEWER_A);
-    expect(await exportMarkdownAction(details.outputs[0]!.assetId)).toMatchObject({ ok: false, status: 409, error: "not_approved" });
+    const mf = details.outputs.find((o) => o.assetType === "messaging_framework")!;
+    expect(await exportMarkdownAction(mf.assetId)).toMatchObject({ ok: false, status: 409, error: "not_approved" });
   });
 
   it("claim decisions go through the domain and are audited", async () => {
@@ -370,8 +377,9 @@ describe("review persistence (acceptance E, F, G)", () => {
 describe("cross-tenant: tenant-B user gets 404 for tenant-A runs, assets, claims and actions", () => {
   it("routes and actions", async () => {
     const { run, details } = await runToCompletion();
-    const assetId = details.outputs[0]!.assetId;
-    const versionId = details.outputs[0]!.versionId;
+    const target = details.outputs.find((o) => !o.internal)!;
+    const assetId = target.assetId;
+    const versionId = target.versionId;
 
     signInAs(ADMIN_B);
     expect((await getRun(run.id)).status).toBe(404);

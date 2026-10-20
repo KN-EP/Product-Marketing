@@ -54,6 +54,8 @@ export async function runPmmPipeline(
   provider: LlmProvider,
   budget: CostBudget,
   progress: PipelineProgress = newProgress(),
+  /** Called after every completed agent step (heartbeat). */
+  onStep?: () => Promise<unknown>,
 ): Promise<PipelineProgress> {
   const step = async <T>(template: PromptTemplate, input: AgentInput, run: () => Promise<AgentResult<T>>) => {
     budget.reserve(promptChars(template, input));
@@ -70,6 +72,7 @@ export async function runPmmPipeline(
     progress.llmRequests += r.llm.attempts;
     progress.modelId = r.llm.modelId;
     progress.promptVersions[r.prompt.id] = r.prompt.version;
+    await onStep?.();
     return r;
   };
 

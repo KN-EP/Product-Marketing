@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 const GROUPS: { label: string; links: { href: string; label: string }[] }[] = [
@@ -27,14 +28,14 @@ const GROUPS: { label: string; links: { href: string; label: string }[] }[] = [
   { label: "Admin", links: [{ href: "/settings", label: "Settings" }] },
 ];
 
-export function AppNav() {
+function AppNav() {
   const pathname = usePathname();
   return (
-    <nav aria-label="Main" className="-mx-1 flex flex-row gap-1 overflow-x-auto pb-1 text-sm md:mx-0 md:flex-col md:gap-5 md:overflow-visible md:pb-0">
+    <nav aria-label="Main" className="flex flex-col gap-5 text-sm">
       {GROUPS.map((g) => (
-        <div key={g.label} className="flex shrink-0 flex-col gap-1">
-          <p className="hidden px-2 text-xs font-medium uppercase tracking-wide text-muted-foreground md:block">{g.label}</p>
-          <ul className="flex flex-row md:flex-col">
+        <div key={g.label} className="flex flex-col gap-1">
+          <p className="px-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{g.label}</p>
+          <ul className="flex flex-col">
             {g.links.map((l) => {
               const active = pathname === l.href || pathname.startsWith(`${l.href}/`);
               return (
@@ -43,7 +44,7 @@ export function AppNav() {
                     href={l.href}
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "block whitespace-nowrap rounded-md px-2 py-1.5 outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
+                      "block rounded-md px-2 py-1.5 outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
                       active && "bg-muted font-medium",
                     )}
                   >
@@ -56,5 +57,32 @@ export function AppNav() {
         </div>
       ))}
     </nav>
+  );
+}
+
+/**
+ * Sidebar navigation on ≥768 px; below that a compact "Menu" disclosure
+ * (closed by default, closes on navigation). `footer` holds identity + sign out.
+ */
+export function NavShell({ footer }: { footer: React.ReactNode }) {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  useEffect(() => setOpen(false), [pathname]);
+  return (
+    <>
+      <button
+        type="button"
+        className="absolute right-3 top-3 rounded-md border bg-background px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+        aria-expanded={open}
+        aria-controls="app-nav"
+        onClick={() => setOpen((o) => !o)}
+      >
+        {open ? "Close menu" : "Menu"}
+      </button>
+      <div id="app-nav" className={cn(open ? "block" : "hidden", "mt-3 md:mt-0 md:block")}>
+        <AppNav />
+        {footer}
+      </div>
+    </>
   );
 }

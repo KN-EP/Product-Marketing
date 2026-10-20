@@ -37,19 +37,29 @@ export function DecisionForm({
   const router = useRouter();
   const ids = { reasons: useId(), comment: useId(), ack: useId(), status: useId() };
   const approveBlocked = approveBlockedReasons.length > 0;
-  const [decision, setDecision] = useState<Decision>(approveBlocked ? "changes_requested" : "approved");
+  // No pre-selection: the reviewer must choose explicitly.
+  const [decision, setDecision] = useState<Decision | null>(null);
   const [comment, setComment] = useState("");
   const [ack, setAck] = useState(false);
   const [message, setMessage] = useState<{ kind: "error" | "ok"; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const needsComment = decision !== "approved";
+  const needsComment = decision !== null && decision !== "approved";
   const needsAck = decision === "approved" && requiresExpertReview;
-  const canSubmit = !pending && (!needsComment || comment.trim().length > 0) && (!needsAck || ack) && !(decision === "approved" && approveBlocked);
+  const canSubmit =
+    decision !== null && !pending && (!needsComment || comment.trim().length > 0) && (!needsAck || ack) && !(decision === "approved" && approveBlocked);
+  const hint =
+    decision === null
+      ? "Choose a decision."
+      : needsComment && !comment.trim()
+        ? "A comment is required for this decision."
+        : needsAck && !ack
+          ? "Confirm the expert review to approve."
+          : null;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit || decision === null) return;
     setMessage(null);
     startTransition(async () => {
       const res = await decideAction({
@@ -62,6 +72,7 @@ export function DecisionForm({
       if (res.ok) {
         setMessage({ kind: "ok", text: `Decision recorded: ${decision.replace("_", " ")}.` });
         setComment("");
+        setDecision(null);
         router.refresh();
       } else {
         setMessage({ kind: "error", text: actionErrorText(res) });
@@ -129,9 +140,14 @@ export function DecisionForm({
       </div>
 
       <div className="flex items-center gap-3">
-        <Button type="submit" disabled={!canSubmit}>
+        <Button type="submit" disabled={!canSubmit} aria-describedby={hint ? `${ids.status}-hint` : undefined}>
           {pending ? "Saving…" : "Record decision"}
         </Button>
+        {hint ? (
+          <span id={`${ids.status}-hint`} className="text-xs text-muted-foreground">
+            {hint}
+          </span>
+        ) : null}
         <p id={ids.status} role="status" aria-live="polite" className={message?.kind === "error" ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>
           {message?.text}
         </p>

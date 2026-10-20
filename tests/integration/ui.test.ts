@@ -42,11 +42,12 @@ import ProductsPage from "@/app/(app)/products/page";
 import SettingsPage from "@/app/(app)/settings/page";
 import WorkflowRunPage from "@/app/(app)/workflows/[id]/page";
 import WorkflowsPage from "@/app/(app)/workflows/page";
-import { createDraftVersionAction, decideAction, exportMarkdownAction, loadPreparedCorrectionAction } from "@/app/actions/review";
+import { createDraftVersionAction, decideAction, exportMarkdownAction } from "@/app/actions/review";
 import { markRunFailedAction, startWorkflowAction } from "@/app/actions/workflow";
 import { DEMO_TENANT_ID, OTHER_TENANT_ID, SIMULATED_BATTLECARD_CORRECTED } from "@/demo/fixtures";
 import type { Actor, Role } from "@/domain/actor";
 import { getDb } from "@/server/db";
+import { resetRateLimits } from "@/server/http/rate-limit";
 import { tenantDb } from "@/server/db/tenant-scope";
 import { SimulatedProvider } from "@/server/llm/simulated";
 import { InProcessOrchestrator } from "@/server/workflow/orchestrator";
@@ -116,6 +117,7 @@ afterAll(async () => {
   await getDb().$disconnect();
 });
 beforeEach(async () => {
+  resetRateLimits();
   delete jar.userId;
   delete jar.tenantId;
   await resetWorkflowData();
@@ -139,7 +141,7 @@ describe("pages render for a signed-in user (simulated mode)", () => {
 describe("cross-tenant: every id page and UI action → 404", () => {
   it("id pages: foreign and missing ids are 404, own ids render", async () => {
     const run = await completedRun();
-    const assetId = run.outputs[0]!.assetId;
+    const assetId = run.outputs.find((o) => !o.internal)!.assetId;
 
     signInAs(ADMIN_B);
     expect(await render(() => ProductPage(p(A.product)))).toEqual({ status: 404 });
@@ -162,7 +164,7 @@ describe("cross-tenant: every id page and UI action → 404", () => {
     const bc = run.outputs.find((o) => o.assetType === "competitive_battlecard")!;
     signInAs(ADMIN_B);
     const notFound = { ok: false, status: 404, error: "not_found" };
-    expect(await loadPreparedCorrectionAction(bc.assetId)).toEqual(notFound);
+    expect(await createDraftVersionAction(bc.assetId, SIMULATED_BATTLECARD_CORRECTED, "prepared_correction_simulated")).toEqual(notFound);
     expect(await markRunFailedAction(run.run.id)).toEqual(notFound);
     expect(await startWorkflowAction(runInput())).toEqual(notFound);
   });
@@ -192,8 +194,8 @@ describe("provenance: human_edit", () => {
   });
 });
 
-describe("demo: Load prepared correction (simulated)", () => {
-  it("creates v2 from the prepared fixture as human_edit (demo tenant, battlecard only)", async () => {
+describe("demo: prepared correction is saved only by the editor (origin label validated server-side)", () => {
+  it("save with origin=prepared_correction_simulated → v2 human_edit (demo tenant, battlecard only)", async () => {
     const run = await completedRun();
     const bc = run.outputs.find((o) => o.assetType === "competitive_battlecard")!;
     const mf = run.outputs.find((o) => o.assetType === "messaging_framework")!;
@@ -201,8 +203,14 @@ describe("demo: Load prepared correction (simulated)", () => {
     await decideAction({ assetId: bc.assetId, versionId: bc.versionId, decision: "changes_requested", comment: "Fix comparison" });
 
     signInAs(EDITOR_A);
-    expect(await loadPreparedCorrectionAction(mf.assetId)).toMatchObject({ ok: false, status: 409, error: "not_applicable" });
-    const res = await loadPreparedCorrectionAction(bc.assetId);
+    expect(await createDraftVersionAction(mf.assetId, SIMULATED_BATTLECARD_CORRECTED, "prepared_correction_simulated")).toMatchObject({
+      ok: false,
+      status: 409,
+      error: "not_applicable",
+    });
+    // Nothing was stored for the messaging framework.
+    expect((await tenantDb(EDITOR_A, getDb()).assets.getRecord(mf.assetId)).versions).toHaveLength(1);
+    const res = await createDraftVersionAction(bc.assetId, SIMULATED_BATTLECARD_CORRECTED, "prepared_correction_simulated");
     expect(res).toMatchObject({ ok: true, data: { versionNumber: 2, gatesPassed: true, state: "draft" } });
     const v2 = (await tenantDb(EDITOR_A, getDb()).assets.getRecord(bc.assetId)).versions[1]!;
     expect(v2.generationMode).toBe("human_edit");

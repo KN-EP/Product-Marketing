@@ -1,4 +1,5 @@
 import { getActor } from "@/server/auth/actor";
+import { enforceRateLimit } from "@/server/http/rate-limit";
 import { JsonResult, jsonRoute, readJsonBody } from "@/server/http/route";
 import { getOrchestrator, runInBackground } from "@/server/workflow/runtime";
 
@@ -9,6 +10,7 @@ import { getOrchestrator, runInBackground } from "@/server/workflow/runtime";
 export async function POST(req: Request) {
   return jsonRoute(async () => {
     const actor = await getActor();
+    enforceRateLimit("workflowStart", `${actor.tenantId}:${actor.userId}`);
     const body = await readJsonBody(req);
     const orchestrator = getOrchestrator();
     const { run, created } = await orchestrator.start(actor, body);

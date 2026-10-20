@@ -1,6 +1,7 @@
 import { KindBadge } from "@/components/app/badges";
 import { Badge } from "@/components/ui/badge";
 import { childPath, humanise, statementAnchor } from "@/lib/content-paths";
+import { groupFindings } from "@/lib/findings";
 import { cn } from "@/lib/utils";
 import type { Finding } from "@/domain/quality-gates/gates";
 
@@ -125,9 +126,10 @@ function Statement({ s, path, label, findings }: { s: StatementLike; path: strin
               claim:{c}
             </a>
           ))}
-          {evidence.map((e, i) => (
-            <a key={`${e.sourceId}-${i}`} href={`#ev-src-${e.sourceId}`} className="underline underline-offset-2">
-              source:{e.sourceId}
+          {[...new Map(evidence.map((e) => [e.sourceId, evidence.filter((x) => x.sourceId === e.sourceId).length])).entries()].map(([sourceId, n]) => (
+            <a key={sourceId} href={`#ev-src-${sourceId}`} className="underline underline-offset-2">
+              source:{sourceId}
+              {n > 1 ? ` (${n} excerpts)` : ""}
             </a>
           ))}
           {s.competitorEvidenceIds?.map((c) => (
@@ -141,9 +143,10 @@ function Statement({ s, path, label, findings }: { s: StatementLike; path: strin
       )}
       {findings.length ? (
         <ul className="mt-2 flex flex-col gap-1 text-xs" aria-label="Findings for this statement">
-          {findings.map((f, i) => (
+          {groupFindings(findings).map((f, i) => (
             <li key={i} className={f.severity === "critical" ? "text-destructive" : "text-muted-foreground"}>
               <span className="font-medium uppercase">{f.severity}</span> · {f.message}
+              {f.count > 1 ? ` (×${f.count})` : ""}
             </li>
           ))}
         </ul>

@@ -1,24 +1,17 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/app/page-header";
-import { LoadPreparedCorrectionButton } from "@/components/review/asset-actions";
-import { StructuredEditor, type EditableStatement } from "@/components/review/structured-editor";
+import { StructuredEditor } from "@/components/review/structured-editor";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { hasRole } from "@/domain/actor";
 import { currentVersion } from "@/domain/assets/asset-state";
-import { collectStatements } from "@/domain/schemas/agents";
-import { humanise, parsePath } from "@/lib/content-paths";
 import { requirePageActor } from "@/server/auth/actor";
+import { isInternalAssetType } from "@/server/assets/deliverables";
 import { getDb } from "@/server/db";
 import { tenantDb } from "@/server/db/tenant-scope";
 import { or404 } from "@/server/http/page";
+import { preparedCorrectionFor } from "@/server/review/service";
 
 export const dynamic = "force-dynamic";
-
-function labelFor(path: string): string {
-  return parsePath(path)
-    .map((seg) => (typeof seg === "number" ? `#${seg + 1}` : humanise(seg)))
-    .join(" › ");
-}
 
 export default async function EditAssetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -34,41 +27,41 @@ export default async function EditAssetPage({ params }: { params: Promise<{ id: 
     </Link>
   );
 
-  if (!hasRole(actor, "editor") || !base || rec.state === "pending_review" || rec.state === "archived") {
+  const reason = isInternalAssetType(rec.type)
+    ? "The input brief is internal and cannot be edited."
+    : !hasRole(actor, "editor")
+      ? "Only editors can create new versions."
+      : rec.state === "pending_review"
+        ? "The current version is under review. A reviewer must decide first (e.g. request changes)."
+        : !base || rec.state === "archived"
+          ? "This asset has no editable version."
+          : null;
+
+  if (reason || !base) {
     return (
       <>
-        <PageHeader title={`Create corrected version — ${rec.title}`} actions={back} />
+        <PageHeader title={<span className="line-clamp-2">Create corrected version — {rec.title}</span>} actions={back} />
         <Alert>
           <AlertTitle>Editing is not available</AlertTitle>
-          <AlertDescription>
-            {!hasRole(actor, "editor")
-              ? "Only editors can create new versions."
-              : rec.state === "pending_review"
-                ? "The current version is under review. A reviewer must decide first (e.g. request changes)."
-                : "This asset has no editable version."}
-          </AlertDescription>
+          <AlertDescription>{reason}</AlertDescription>
         </Alert>
       </>
     );
   }
 
-  const statements: EditableStatement[] = collectStatements(base.content).map(({ path, s }) => ({
-    path,
-    label: labelFor(path),
-    text: s.text,
-    kind: s.kind,
-    refs: [...s.claimIds.map((c) => `claim:${c}`), ...s.evidence.map((e) => `source:${e.sourceId}`), ...s.competitorEvidenceIds.map((c) => `competitor-evidence:${c}`)].join(", "),
-  }));
-
   return (
     <>
       <PageHeader
-        title={`Create corrected version — ${rec.title}`}
+        title={<span className="line-clamp-2" title={rec.title}>Create corrected version — {rec.title}</span>}
         description={`Based on v${base.versionNumber}. Saving creates v${rec.versions.length + 1} as a human edit; v${base.versionNumber} stays unchanged.`}
         actions={back}
       />
-      {tenant.isDemo && rec.type === "competitive_battlecard" ? <LoadPreparedCorrectionButton assetId={rec.id} /> : null}
-      <StructuredEditor assetId={rec.id} baseVersionNumber={base.versionNumber} content={base.content} statements={statements} />
+      <StructuredEditor
+        assetId={rec.id}
+        baseVersionNumber={base.versionNumber}
+        content={base.content}
+        preparedCorrection={preparedCorrectionFor(tenant, rec.type)}
+      />
     </>
   );
 }

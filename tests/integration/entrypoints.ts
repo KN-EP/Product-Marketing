@@ -28,7 +28,6 @@ export const SERVER_ACTIONS: Record<string, string> = {
   "src/app/actions/review.ts#createDraftVersionAction": "workflow.test.ts: foreign asset id → 404",
   "src/app/actions/review.ts#exportMarkdownAction": "workflow.test.ts: foreign asset id → 404",
   "src/app/actions/review.ts#transitionClaimAction": "workflow.test.ts: foreign claim id → 404",
-  "src/app/actions/review.ts#loadPreparedCorrectionAction": "ui.test.ts: foreign asset id → 404",
   "src/app/actions/workflow.ts#retryWorkflowRunAction": "workflow.test.ts: foreign run id → 404",
   "src/app/actions/workflow.ts#startWorkflowAction": "ui.test.ts: foreign product/persona/... ids → 404",
   "src/app/actions/workflow.ts#markRunFailedAction": "ui.test.ts: foreign run id → 404",

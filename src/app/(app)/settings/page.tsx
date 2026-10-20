@@ -71,9 +71,9 @@ export default async function SettingsPage() {
           <TableBody>
             {members.map((m) => (
               <TableRow key={m.user.id}>
-                <TableCell>{m.user.name}</TableCell>
-                <TableCell>{m.user.email}</TableCell>
-                <TableCell>{m.role}</TableCell>
+                <TableCell data-label="Name">{m.user.name}</TableCell>
+                <TableCell data-label="E-mail">{m.user.email}</TableCell>
+                <TableCell data-label="Role">{m.role}</TableCell>
               </TableRow>
             ))}
           </TableBody>

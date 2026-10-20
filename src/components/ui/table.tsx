@@ -11,7 +11,8 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
     >
       <table
         data-slot="table"
-        className={cn("w-full caption-bottom text-sm", className)}
+        // stack-table: rows become labelled cards below 768 px (globals.css)
+        className={cn("stack-table w-full caption-bottom text-sm", className)}
         {...props}
       />
     </div>
@@ -82,7 +83,7 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
     <td
       data-slot="table-cell"
       className={cn(
-        "p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        "p-2 align-middle break-words whitespace-normal [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}

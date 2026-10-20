@@ -29,16 +29,16 @@ export default async function ProductsPage() {
           <TableBody>
             {products.map((p) => (
               <TableRow key={p.id}>
-                <TableCell className="whitespace-normal">
+                <TableCell data-label="Product" className="whitespace-normal">
                   <Link href={`/products/${p.id}`} className="font-medium underline-offset-4 hover:underline">
                     {p.name}
                   </Link>{" "}
                   {p.isSynthetic ? <SyntheticTag /> : null}
                   <p className="text-xs text-muted-foreground">{p.description}</p>
                 </TableCell>
-                <TableCell>{p.area}</TableCell>
-                <TableCell className="text-right tabular-nums">{p._count.features}</TableCell>
-                <TableCell className="text-right tabular-nums">{p._count.claims}</TableCell>
+                <TableCell data-label="Area">{p.area}</TableCell>
+                <TableCell data-label="Features" className="text-right tabular-nums">{p._count.features}</TableCell>
+                <TableCell data-label="Claims" className="text-right tabular-nums">{p._count.claims}</TableCell>
               </TableRow>
             ))}
           </TableBody>

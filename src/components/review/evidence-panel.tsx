@@ -3,6 +3,7 @@ import { StateBadge } from "@/components/app/badges";
 import { EmptyState } from "@/components/app/page-header";
 import { excerptExistsInSource, type KnowledgeSnapshot } from "@/domain/knowledge/snapshot";
 import { collectStatements } from "@/domain/schemas/agents";
+import { groupBy } from "@/lib/findings";
 
 function Verified({ ok }: { ok: boolean }) {
   return ok ? (
@@ -46,17 +47,25 @@ export function EvidencePanel({ content, kb }: { content: unknown; kb: Knowledge
                       {c.evidence.length === 0 ? (
                         <p className="mt-1 text-xs text-destructive">Claim has no evidence.</p>
                       ) : (
-                        c.evidence.map((e, i) => {
-                          const src = kb.sources.get(e.sourceId);
+                        // Multiple excerpts from one source are grouped under that source.
+                        groupBy(c.evidence, (e) => e.sourceId).map(([sourceId, items]) => {
+                          const src = kb.sources.get(sourceId);
                           return (
-                            <div key={i} className="mt-2">
-                              <blockquote className="border-l-2 pl-3 italic">&ldquo;{e.excerpt}&rdquo;</blockquote>
-                              <p className="pl-3 text-xs text-muted-foreground">
-                                <Link href={`/knowledge/sources#src-${e.sourceId}`} className="underline underline-offset-2">
-                                  {src?.title ?? e.sourceId}
-                                </Link>{" "}
-                                · <Verified ok={!!src && excerptExistsInSource(e.excerpt, src)} />
+                            <div key={sourceId} className="mt-2">
+                              <p className="text-xs text-muted-foreground">
+                                <Link href={`/knowledge/sources#src-${sourceId}`} className="underline underline-offset-2">
+                                  {src?.title ?? sourceId}
+                                </Link>
+                                {items.length > 1 ? ` · ${items.length} excerpts` : ""}
                               </p>
+                              {items.map((e, i) => (
+                                <div key={i} className="mt-1">
+                                  <blockquote className="border-l-2 pl-3 italic">&ldquo;{e.excerpt}&rdquo;</blockquote>
+                                  <p className="pl-3">
+                                    <Verified ok={!!src && excerptExistsInSource(e.excerpt, src)} />
+                                  </p>
+                                </div>
+                              ))}
                             </div>
                           );
                         })

@@ -19,6 +19,7 @@ import { requirePageActor } from "@/server/auth/actor";
 import { getDb } from "@/server/db";
 import { tenantDb } from "@/server/db/tenant-scope";
 import { or404 } from "@/server/http/page";
+import { INPUT_BRIEF_LABEL, isInternalAssetType } from "@/server/assets/deliverables";
 
 export const dynamic = "force-dynamic";
 
@@ -60,17 +61,23 @@ export default async function AssetPage({
     : [];
 
   const statementPaths = new Set(viewed ? collectStatements(viewed.content).map((x) => x.path) : []);
-  const showDecision = rec.state === "pending_review" && isCurrent && canReview(actor);
-  const showSubmit = (rec.state === "draft" || rec.state === "changes_requested") && isCurrent && hasRole(actor, "editor");
-  const showEdit = hasRole(actor, "editor") && rec.state !== "archived" && rec.state !== "pending_review";
+  // The Agent A input brief is internal: no review, no edits, no export.
+  const internal = isInternalAssetType(rec.type);
+  const showDecision = !internal && rec.state === "pending_review" && isCurrent && canReview(actor);
+  const showSubmit = !internal && (rec.state === "draft" || rec.state === "changes_requested") && isCurrent && hasRole(actor, "editor");
+  const showEdit = !internal && hasRole(actor, "editor") && rec.state !== "archived" && rec.state !== "pending_review";
 
   return (
     <>
       <PageHeader
-        title={rec.title}
+        title={
+          <span className="line-clamp-2" title={rec.title}>
+            {rec.title}
+          </span>
+        }
         description={
           <span className="flex flex-wrap items-center gap-2">
-            {ASSET_TYPE_LABEL[rec.type]} · <StateBadge state={rec.state} /> · {rec.versions.length} version(s)
+            {internal ? "Input brief (internal)" : ASSET_TYPE_LABEL[rec.type]} · {internal ? null : <StateBadge state={rec.state} />} · {rec.versions.length} version(s)
           </span>
         }
         actions={
@@ -80,13 +87,21 @@ export default async function AssetPage({
                 Create corrected version
               </Link>
             ) : null}
-            {approved ? (
+            {approved && !internal ? (
               <ExportMarkdownButton assetId={rec.id} versionNumber={approved.version.versionNumber} fileStem={rec.type.replace(/_/g, "-")} />
             ) : null}
           </>
         }
       />
 
+      {internal ? (
+        <Alert>
+          <AlertTitle>{INPUT_BRIEF_LABEL}</AlertTitle>
+          <AlertDescription>
+            Agent A output used as input for the deliverables. It is not reviewed, approved or exported and must not be used externally.
+          </AlertDescription>
+        </Alert>
+      ) : null}
       {rec.state === "approved" && approved ? (
         <Alert>
           <AlertTitle>Approved: v{approved.version.versionNumber}</AlertTitle>
@@ -174,13 +189,13 @@ export default async function AssetPage({
               const runId = runs.get(v.id);
               return (
                 <TableRow key={v.id} aria-current={v.id === viewed?.id ? "true" : undefined}>
-                  <TableCell>
+                  <TableCell data-label="Version">
                     <Link href={`/assets/${rec.id}?v=${v.id}`} className="font-medium underline-offset-4 hover:underline">
                       v{v.versionNumber}
                     </Link>
                     {v.id === current?.id ? <span className="ml-2 text-xs text-muted-foreground">current</span> : null}
                   </TableCell>
-                  <TableCell className="whitespace-normal">
+                  <TableCell data-label="Origin" className="whitespace-normal">
                     <ModeBadge mode={v.generationMode} label={generationLabel(rec, v)} />
                     {runId ? (
                       <Link href={`/workflows/${runId}`} className="ml-2 text-xs underline underline-offset-2">
@@ -188,11 +203,11 @@ export default async function AssetPage({
                       </Link>
                     ) : null}
                   </TableCell>
-                  <TableCell>{fmtDate(v.createdAt)}</TableCell>
-                  <TableCell>
+                  <TableCell data-label="Created">{fmtDate(v.createdAt)}</TableCell>
+                  <TableCell data-label="Checks">
                     <GatesBadge passed={v.gatesPassed} />
                   </TableCell>
-                  <TableCell className="whitespace-normal text-xs">
+                  <TableCell data-label="Decisions" className="whitespace-normal text-xs">
                     {decisions.length === 0
                       ? "—"
                       : decisions.map((d, i) => (

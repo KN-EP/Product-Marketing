@@ -9,6 +9,8 @@ import type { Db } from "../db/client";
 import { tenantDb, withTenantTx, type TenantDb } from "../db/tenant-scope";
 import { HttpError } from "../errors";
 import type { LlmProvider } from "../llm/types";
+import { INPUT_BRIEF_LABEL, isInternalAssetType } from "../assets/deliverables";
+import { log } from "../log";
 import { sanitizeError } from "./errors";
 import { PMM_THREE_ASSET, PROMPT_VERSIONS, StartWorkflowInput, type RunInputRefs } from "./input";
 import { assertCanRetry, assertConcurrencyAvailable, CostBudget, costCapUsd } from "./limits";
@@ -37,7 +39,8 @@ export interface RunSummary {
 export interface RunDetails {
   run: RunSummary;
   history: { action: string; at: Date; metadata: unknown }[];
-  outputs: { assetId: string; versionId: string; assetType: string; assetState: string; title: string; gatesPassed: boolean }[];
+  /** internal = the Agent A input brief (not a deliverable, never reviewed or exported). */
+  outputs: { assetId: string; versionId: string; assetType: string; assetState: string; title: string; gatesPassed: boolean; internal: boolean }[];
 }
 
 /**
@@ -53,6 +56,8 @@ export interface OrchestratorAdapter {
   retry(actor: Actor, runId: string): Promise<RunSummary>;
   /** Admin only: an active run with no progress for STALE_RUN_AFTER_MS → failed. */
   markStaleRunFailed(actor: Actor, runId: string): Promise<RunSummary>;
+  /** Marks the tenant's stale runs failed (runs automatically on every workflow request). */
+  sweepStaleRuns(actor: Actor): Promise<number>;
   get(actor: Actor, runId: string): Promise<RunDetails>;
 }
 
@@ -65,6 +70,8 @@ const ASSET_LABEL: Record<AssetType, string> = {
 
 /** An active run whose row has not changed for this long is considered stale. */
 export const STALE_RUN_AFTER_MS = 10 * 60 * 1000;
+
+export const STALE_AUTO_ERROR = "stale: No progress for 10 minutes; marked as failed automatically. Retry if needed.";
 
 export function isStale(run: { status: WorkflowStatus; updatedAt: Date }, now: Date): boolean {
   return ACTIVE_RUN_STATUSES.includes(run.status) && now.getTime() - run.updatedAt.getTime() >= STALE_RUN_AFTER_MS;
@@ -127,6 +134,7 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
 
   async start(actor: Actor, raw: unknown): Promise<{ run: RunSummary; created: boolean }> {
     requireEditor(actor);
+    await this.sweepStaleRuns(actor);
     const parsed = StartWorkflowInput.safeParse(raw);
     if (!parsed.success) {
       throw new HttpError(400, "invalid_input", "Invalid workflow input.", parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })));
@@ -222,6 +230,7 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
         provider,
         budget,
         progress,
+        () => tdb.workflowRuns.touch(runId),
       );
 
       await tdb.workflowRuns.transition(runId, "running", "validation", null, this.metrics(progress), {
@@ -229,19 +238,23 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
       });
       status = "validation";
 
-      // Gates + persistence for all outputs in ONE transaction: either all four
-      // assets exist in pending_review, or none (a retry cannot duplicate them).
+      // Gates + persistence for all outputs in ONE transaction: either the three
+      // deliverables are in pending_review and the internal input brief is stored,
+      // or nothing is (a retry cannot duplicate them).
       const now = this.now();
       await withTenantTx(actor, this.deps.db, async (t) => {
         for (const r of progress.results) {
           const prefix = r.llm.mode === "simulated" ? "[SIMULATED] " : "";
-          const title = `${prefix}${ASSET_LABEL[r.assetType]} — ${product.name} (${persona.name}, ${refs.market})`;
+          const internal = isInternalAssetType(r.assetType);
+          const label = internal ? INPUT_BRIEF_LABEL : ASSET_LABEL[r.assetType];
+          const title = `${prefix}${label} — ${product.name} (${persona.name}, ${refs.market})`;
           const { id: assetId } = await t.assets.create({ type: r.assetType, title });
           let rec: AssetRecord = { id: assetId, tenantId: actor.tenantId, type: r.assetType, title, state: "draft", currentVersionId: null, versions: [], approvals: [] };
           rec = addVersion(rec, r.output, systemActor(actor.tenantId), snapshot, { id: randomUUID(), generationMode: r.llm.mode, now });
           const v = currentVersion(rec)!;
           await t.assets.insertVersion(v, runId);
-          rec = submitForReview(rec, systemActor(actor.tenantId));
+          // The internal input brief never enters review; it stays a stored draft.
+          if (!internal) rec = submitForReview(rec, systemActor(actor.tenantId));
           await t.assets.setState(assetId, ["draft"], rec.state, v.id);
           await t.audit.record({
             actorId: null,
@@ -258,11 +271,14 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
               requiresExpertReview: v.gateReport.requiresExpertReview,
               promptId: r.prompt.id,
               promptVersion: r.prompt.version,
+              internal,
             },
           });
-          await t.audit.record({ actorId: null, action: "asset.pending_review", entityType: "Asset", entityId: assetId, metadata: { from: "draft", to: rec.state, versionId: v.id } });
+          if (!internal) {
+            await t.audit.record({ actorId: null, action: "asset.pending_review", entityType: "Asset", entityId: assetId, metadata: { from: "draft", to: rec.state, versionId: v.id } });
+          }
         }
-        await t.workflowRuns.transition(runId, "validation", "pending_review", null, {}, { assets: progress.results.length });
+        await t.workflowRuns.transition(runId, "validation", "pending_review", null, {}, { deliverables: progress.results.filter((r) => !isInternalAssetType(r.assetType)).length });
       });
       status = "pending_review";
 
@@ -270,7 +286,7 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
       await tdb.workflowRuns.transition(runId, "pending_review", "completed", null, { completedAt: this.now() });
     } catch (e) {
       if (status === "queued") throw e; // never started; nothing to record
-      console.error(`[workflow] run ${runId} failed:`, e instanceof Error ? e.name : "unknown error");
+      log.error("workflow run failed", { runId, error: e });
       try {
         await tdb.workflowRuns.transition(runId, status, "failed", null, {
           ...this.metrics(progress),
@@ -278,7 +294,7 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
           completedAt: this.now(),
         });
       } catch (inner) {
-        console.error(`[workflow] could not mark run ${runId} failed:`, inner instanceof Error ? inner.name : "unknown error");
+        log.error("could not mark workflow run failed", { runId, error: inner });
       }
     }
     return summary(await tdb.workflowRuns.getById(runId));
@@ -295,6 +311,7 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
 
   async retry(actor: Actor, runId: string): Promise<RunSummary> {
     requireEditor(actor);
+    await this.sweepStaleRuns(actor);
     return withTenantTx(actor, this.deps.db, async (t) => {
       await t.workflowRuns.lockTenant();
       const run = await t.workflowRuns.getById(runId);
@@ -303,6 +320,27 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
       await t.workflowRuns.transition(runId, "failed", "queued", actor.userId, { error: null }, { retry: true });
       return summary(await t.workflowRuns.getById(runId));
     });
+  }
+
+  /**
+   * Stale-run sweep: active runs with no progress for STALE_RUN_AFTER_MS are
+   * marked failed with a sanitized error. Runs on every workflow request of the
+   * tenant; executing runs send a heartbeat after each agent step.
+   */
+  async sweepStaleRuns(actor: Actor): Promise<number> {
+    const tdb = tenantDb(actor, this.deps.db);
+    const now = this.now();
+    const stale = await tdb.workflowRuns.listStale(new Date(now.getTime() - STALE_RUN_AFTER_MS));
+    let swept = 0;
+    for (const r of stale) {
+      try {
+        await tdb.workflowRuns.transition(r.id, r.status, "failed", null, { error: STALE_AUTO_ERROR, completedAt: now }, { stale: true, automatic: true });
+        swept++;
+      } catch (e) {
+        if (!(e instanceof HttpError)) throw e; // ConflictError: the run moved on meanwhile
+      }
+    }
+    return swept;
   }
 
   async markStaleRunFailed(actor: Actor, runId: string): Promise<RunSummary> {
@@ -327,6 +365,7 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
   }
 
   async get(actor: Actor, runId: string): Promise<RunDetails> {
+    await this.sweepStaleRuns(actor);
     const tdb = tenantDb(actor, this.deps.db);
     const run = await tdb.workflowRuns.getById(runId);
     const [history, outputs] = await Promise.all([tdb.audit.listFor("WorkflowRun", runId), tdb.workflowRuns.outputs(runId)]);
@@ -340,6 +379,7 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
         assetState: o.asset.state,
         title: o.asset.title,
         gatesPassed: o.gatesPassed,
+        internal: isInternalAssetType(o.asset.type),
       })),
     };
   }

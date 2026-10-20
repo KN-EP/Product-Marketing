@@ -38,20 +38,20 @@ export default async function ApprovalsPage() {
                 const report = v?.gateReport as unknown as GateReport | undefined;
                 return (
                   <TableRow key={a.id}>
-                    <TableCell className="whitespace-normal">
-                      <Link href={`/assets/${a.id}`} className="font-medium underline-offset-4 hover:underline">
+                    <TableCell data-label="Asset" className="whitespace-normal">
+                      <Link href={`/assets/${a.id}`} className="line-clamp-2 font-medium underline-offset-4 hover:underline">
                         {a.title}
                       </Link>
                     </TableCell>
-                    <TableCell>{ASSET_TYPE_LABEL[a.type]}</TableCell>
-                    <TableCell>{v ? <span className="flex items-center gap-1.5">v{v.versionNumber} <ModeBadge mode={v.generationMode} /></span> : "—"}</TableCell>
-                    <TableCell>
+                    <TableCell data-label="Type">{ASSET_TYPE_LABEL[a.type]}</TableCell>
+                    <TableCell data-label="Version">{v ? <span className="flex items-center gap-1.5">v{v.versionNumber} <ModeBadge mode={v.generationMode} /></span> : "—"}</TableCell>
+                    <TableCell data-label="Checks">
                       <span className="flex flex-wrap gap-1.5">
                         {v ? <GatesBadge passed={v.gatesPassed} /> : null}
                         {report?.requiresExpertReview ? <Badge variant="outline">expert review</Badge> : null}
                       </span>
                     </TableCell>
-                    <TableCell>{fmtDate(a.updatedAt)}</TableCell>
+                    <TableCell data-label="Waiting since">{fmtDate(a.updatedAt)}</TableCell>
                   </TableRow>
                 );
               })}
@@ -75,17 +75,17 @@ export default async function ApprovalsPage() {
             <TableBody>
               {decisions.map((d) => (
                 <TableRow key={d.id}>
-                  <TableCell>
+                  <TableCell data-label="Decision">
                     <StateBadge state={d.decision} />
                   </TableCell>
-                  <TableCell className="whitespace-normal">
+                  <TableCell data-label="Asset" className="whitespace-normal">
                     <Link href={`/assets/${d.assetVersion.asset.id}`} className="underline-offset-4 hover:underline">
                       {d.assetVersion.asset.title}
                     </Link>{" "}
                     <span className="text-muted-foreground">v{d.assetVersion.versionNumber}</span>
                   </TableCell>
-                  <TableCell>{d.reviewer.name}</TableCell>
-                  <TableCell>{fmtDate(d.createdAt)}</TableCell>
+                  <TableCell data-label="Reviewer">{d.reviewer.name}</TableCell>
+                  <TableCell data-label="When">{fmtDate(d.createdAt)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

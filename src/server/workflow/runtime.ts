@@ -2,6 +2,7 @@ import "server-only";
 import { after } from "next/server";
 import { WORKFLOW_LIMITS } from "../../domain/workflow/workflow-state";
 import { getDb } from "../db";
+import { log } from "../log";
 import { createLlmProvider } from "../llm";
 import { InProcessOrchestrator, type OrchestratorAdapter } from "./orchestrator";
 
@@ -22,7 +23,7 @@ export function getOrchestrator(): OrchestratorAdapter {
  */
 export function runInBackground(task: () => Promise<unknown>): void {
   const safe = () =>
-    task().catch((e: unknown) => console.error("[workflow] background task failed:", e instanceof Error ? e.name : "unknown error"));
+    task().catch((e: unknown) => log.error("workflow background task failed", { error: e }));
   try {
     after(safe);
   } catch {

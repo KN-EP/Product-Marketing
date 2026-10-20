@@ -3,11 +3,11 @@
 import { z } from "zod";
 import { getDb } from "@/server/db";
 import { runAction } from "@/server/http/action";
+import { enforceRateLimit } from "@/server/http/rate-limit";
 import {
   createDraftVersion,
   decideAsset,
   exportAssetMarkdown,
-  loadPreparedCorrection,
   submitAssetForReview,
   transitionClaimState,
 } from "@/server/review/service";
@@ -27,16 +27,21 @@ const DecideInput = z.strictObject({
 });
 
 export async function decideAction(input: z.input<typeof DecideInput>) {
-  return runAction((actor) => decideAsset(actor, getDb(), DecideInput.parse(input)));
+  return runAction((actor) => {
+    enforceRateLimit("decision", `${actor.tenantId}:${actor.userId}`);
+    return decideAsset(actor, getDb(), DecideInput.parse(input));
+  });
 }
 
-export async function createDraftVersionAction(assetId: string, content: unknown) {
-  return runAction((actor) => createDraftVersion(actor, getDb(), { assetId: Id.parse(assetId), content }));
-}
+const Origin = z.enum(["human_edit", "prepared_correction_simulated"]).default("human_edit");
 
-/** Demo tenant only: create v2 of the battlecard from the prepared (simulated) correction. */
-export async function loadPreparedCorrectionAction(assetId: string) {
-  return runAction((actor) => loadPreparedCorrection(actor, getDb(), Id.parse(assetId)));
+/**
+ * Saves the editor content as a NEW version (human_edit). `origin` only labels
+ * the audit event; "prepared_correction_simulated" is accepted for a demo
+ * tenant's battlecard only (checked server-side).
+ */
+export async function createDraftVersionAction(assetId: string, content: unknown, origin?: z.input<typeof Origin>) {
+  return runAction((actor) => createDraftVersion(actor, getDb(), { assetId: Id.parse(assetId), content, origin: Origin.parse(origin) }));
 }
 
 export async function exportMarkdownAction(assetId: string) {
@@ -50,5 +55,8 @@ const ClaimInput = z.strictObject({
 });
 
 export async function transitionClaimAction(input: z.input<typeof ClaimInput>) {
-  return runAction((actor) => transitionClaimState(actor, getDb(), ClaimInput.parse(input)));
+  return runAction((actor) => {
+    enforceRateLimit("decision", `${actor.tenantId}:${actor.userId}`);
+    return transitionClaimState(actor, getDb(), ClaimInput.parse(input));
+  });
 }

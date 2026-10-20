@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { runAction } from "@/server/http/action";
+import { enforceRateLimit } from "@/server/http/rate-limit";
 import { getOrchestrator, runInBackground } from "@/server/workflow/runtime";
 
 const RunId = z.string().trim().min(1).max(64);
@@ -9,6 +10,7 @@ const RunId = z.string().trim().min(1).max(64);
 /** Start a pmm_three_asset run (same validation, idempotency and limits as POST /api/workflows). */
 export async function startWorkflowAction(input: unknown) {
   return runAction(async (actor) => {
+    enforceRateLimit("workflowStart", `${actor.tenantId}:${actor.userId}`);
     const orchestrator = getOrchestrator();
     const { run, created } = await orchestrator.start(actor, input);
     if (created) runInBackground(() => orchestrator.execute(actor, run.id));

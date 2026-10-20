@@ -1,5 +1,9 @@
 import type { DbTx } from "./tenant-scope";
 import { NotFoundError } from "../errors";
+import { INTERNAL_ASSET_TYPES } from "../assets/deliverables";
+
+/** Deliverables only: the internal input brief is never listed, queued or counted. */
+const DELIVERABLE = { type: { notIn: [...INTERNAL_ASSET_TYPES] } };
 
 /**
  * Read-only queries for the UI pages. Only reachable through tenantDb(actor).views,
@@ -38,7 +42,17 @@ export function tenantViews(tenantId: string, db: DbTx) {
             description: true,
             isSynthetic: true,
             version: true,
-            features: { where: { tenantId }, orderBy: { name: "asc" }, select: { id: true, name: true, description: true, isSynthetic: true } },
+            features: {
+              where: { tenantId },
+              orderBy: { name: "asc" },
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                isSynthetic: true,
+                claims: { where: { tenantId }, orderBy: { createdAt: "asc" }, select: { id: true, text: true, state: true } },
+              },
+            },
             claims: {
               where: { tenantId },
               orderBy: { createdAt: "asc" },
@@ -130,7 +144,7 @@ export function tenantViews(tenantId: string, db: DbTx) {
 
     assets: () =>
       db.asset.findMany({
-        where: { tenantId },
+        where: { tenantId, ...DELIVERABLE },
         orderBy: { updatedAt: "desc" },
         select: {
           id: true,
@@ -161,7 +175,7 @@ export function tenantViews(tenantId: string, db: DbTx) {
 
     reviewQueue: () =>
       db.asset.findMany({
-        where: { tenantId, state: "pending_review" },
+        where: { tenantId, state: "pending_review", ...DELIVERABLE },
         orderBy: { updatedAt: "asc" },
         select: {
           id: true,
@@ -225,12 +239,26 @@ export function tenantViews(tenantId: string, db: DbTx) {
         "tenant",
       ),
 
+    /** Latest Agent A input brief generated for a product (internal; shown on the product page). */
+    inputBriefForProduct: async (productId: string) => {
+      const runs = await db.workflowRun.findMany({
+        where: { tenantId, inputRefs: { path: ["productId"], equals: productId } },
+        select: { id: true },
+      });
+      if (runs.length === 0) return null;
+      return db.assetVersion.findFirst({
+        where: { tenantId, workflowRunId: { in: runs.map((r) => r.id) }, asset: { type: { in: [...INTERNAL_ASSET_TYPES] } } },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, content: true, gateReport: true, generationMode: true, createdAt: true, workflowRunId: true, asset: { select: { id: true } } },
+      });
+    },
+
     /** Counters for the guided demo checklist. */
     demoProgress: async () => {
       const [runsCompleted, assetsPending, assetsApproved, humanEdits, exports, claimsApproved] = await Promise.all([
         db.workflowRun.count({ where: { tenantId, status: "completed" } }),
-        db.asset.count({ where: { tenantId, state: "pending_review" } }),
-        db.asset.count({ where: { tenantId, state: "approved" } }),
+        db.asset.count({ where: { tenantId, state: "pending_review", ...DELIVERABLE } }),
+        db.asset.count({ where: { tenantId, state: "approved", ...DELIVERABLE } }),
         db.assetVersion.count({ where: { tenantId, generationMode: "human_edit" } }),
         db.auditEvent.count({ where: { tenantId, action: "asset.exported" } }),
         db.claim.count({ where: { tenantId, state: "approved" } }),

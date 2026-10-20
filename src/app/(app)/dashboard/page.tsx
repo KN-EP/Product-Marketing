@@ -84,14 +84,14 @@ export default async function DashboardPage() {
             <TableBody>
               {queue.map((a) => (
                 <TableRow key={a.id}>
-                  <TableCell>
-                    <Link href={`/assets/${a.id}`} className="underline-offset-4 hover:underline">
+                  <TableCell data-label="Asset">
+                    <Link href={`/assets/${a.id}`} className="line-clamp-2 underline-offset-4 hover:underline">
                       {a.title}
                     </Link>
                   </TableCell>
-                  <TableCell>{ASSET_TYPE_LABEL[a.type]}</TableCell>
-                  <TableCell>v{a.versions[0]?.versionNumber}</TableCell>
-                  <TableCell>{a.versions[0] ? <GatesBadge passed={a.versions[0].gatesPassed} /> : null}</TableCell>
+                  <TableCell data-label="Type">{ASSET_TYPE_LABEL[a.type]}</TableCell>
+                  <TableCell data-label="Version">v{a.versions[0]?.versionNumber}</TableCell>
+                  <TableCell data-label="Checks">{a.versions[0] ? <GatesBadge passed={a.versions[0].gatesPassed} /> : null}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -114,15 +114,15 @@ export default async function DashboardPage() {
             <TableBody>
               {runs.map((r) => (
                 <TableRow key={r.id}>
-                  <TableCell>
+                  <TableCell data-label="Run">
                     <Link href={`/workflows/${r.id}`} className="font-mono text-xs underline-offset-4 hover:underline">
                       {r.id}
                     </Link>
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Status">
                     <StateBadge state={r.status} />
                   </TableCell>
-                  <TableCell>{fmtDate(r.createdAt)}</TableCell>
+                  <TableCell data-label="Started">{fmtDate(r.createdAt)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
