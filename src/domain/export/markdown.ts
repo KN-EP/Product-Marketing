@@ -2,6 +2,7 @@ import { DomainError, type Actor } from "../actor";
 import { generationLabel, latestApprovedVersion, type AssetRecord } from "../assets/asset-state";
 import type { KnowledgeSnapshot } from "../knowledge/snapshot";
 import { collectStatements } from "../schemas/agents";
+import { orderedEntries } from "../schemas/display-order";
 
 const LABEL: Record<string, string> = {
   fact: "FACT",
@@ -69,7 +70,8 @@ export function exportApprovedMarkdown(asset: AssetRecord, actor: Actor, kb: Kno
         lines.push(`- **[${LABEL[o.kind] ?? o.kind}]** ${o.text}${refs.length ? ` _(${refs.join(", ")})_` : ""}`);
         return;
       }
-      for (const [k, v] of Object.entries(o)) {
+      // Schema order, not storage order (jsonb sorts keys by length).
+      for (const [k, v] of orderedEntries(o, asset.type)) {
         if (k === "schemaVersion") continue;
         if (typeof v === "string") {
           lines.push(`**${humanise(k)}:** ${v}`, "");

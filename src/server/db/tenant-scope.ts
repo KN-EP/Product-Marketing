@@ -4,6 +4,7 @@ import type { ClaimRecord, ClaimState, CompetitorEvidenceRecord, KnowledgeSnapsh
 import { buildSnapshot } from "../../domain/knowledge/snapshot";
 import type { GateReport } from "../../domain/quality-gates/gates";
 import type { AssetType } from "../../domain/schemas/agents";
+import type { CampaignType } from "../../domain/schemas/campaign";
 import { assertWorkflowTransition, type WorkflowStatus } from "../../domain/workflow/workflow-state";
 import type { Prisma } from "../../generated/prisma/client";
 import type { DataClassification, ExternalModelPolicy } from "../llm/classification";
@@ -135,6 +136,46 @@ export function tenantDb(actor: Actor, db: DbTx) {
       getById: async (id: string) =>
         orNotFound(await db.competitor.findFirst({ where: { id, tenantId }, select: { id: true, name: true } }), "competitor"),
     },
+    campaigns: {
+      /** The briefing a campaign_gtm run works from. Product and persona share the tenant (composite FKs). */
+      getById: async (id: string) => {
+        const c = orNotFound(
+          await db.campaign.findFirst({
+            where: { id, tenantId },
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              objective: true,
+              market: true,
+              channels: true,
+              startsOn: true,
+              endsOn: true,
+              budgetEur: true,
+              isSynthetic: true,
+              product: { select: { id: true, name: true } },
+              persona: { select: { id: true, name: true, role: true } },
+            },
+          }),
+          "campaign",
+        );
+        return { ...c, budgetEur: c.budgetEur === null ? null : c.budgetEur.toNumber() };
+      },
+      /** Product and persona must already be resolved through this DAL (404 on a foreign id). */
+      create: (data: {
+        name: string;
+        type: CampaignType;
+        objective: string;
+        productId: string;
+        personaId: string;
+        market: string;
+        channels: string[];
+        startsOn: Date | null;
+        endsOn: Date | null;
+        budgetEur: number | null;
+        isSynthetic?: boolean;
+      }) => db.campaign.create({ data: { ...data, tenantId }, select: { id: true } }),
+    },
 
     knowledge: {
       /**
@@ -242,8 +283,38 @@ export function tenantDb(actor: Actor, db: DbTx) {
           approvals,
         };
       },
-      create: (data: { type: AssetType; title: string }) =>
-        db.asset.create({ data: { tenantId, type: data.type, title: data.title, state: "draft" }, select: { id: true } }),
+      create: (data: { type: AssetType; title: string; campaignId?: string | null }) =>
+        db.asset.create({
+          data: { tenantId, type: data.type, title: data.title, state: "draft", campaignId: data.campaignId ?? null },
+          select: { id: true },
+        }),
+      /**
+       * Content of the most recently APPROVED version of an asset of this type
+       * that was generated for the given product and persona (via its run's
+       * inputRefs) — e.g. the messaging framework used as campaign context.
+       */
+      latestApprovedContent: async (
+        type: AssetType,
+        forRun: { productId: string; personaId: string },
+      ): Promise<{ assetId: string; versionId: string; content: unknown } | null> => {
+        const runMatches = {
+          tenantId,
+          AND: [
+            { inputRefs: { path: ["productId"], equals: forRun.productId } },
+            { inputRefs: { path: ["personaId"], equals: forRun.personaId } },
+          ],
+        };
+        const a = await db.approval.findFirst({
+          where: {
+            tenantId,
+            decision: "approved",
+            assetVersion: { tenantId, asset: { tenantId, type, versions: { some: { tenantId, workflowRun: runMatches } } } },
+          },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          select: { assetVersion: { select: { id: true, assetId: true, content: true } } },
+        });
+        return a ? { assetId: a.assetVersion.assetId, versionId: a.assetVersion.id, content: a.assetVersion.content } : null;
+      },
       /** AssetVersion rows are insert-only: there is no update path. */
       insertVersion: (v: AssetVersionRecord, workflowRunId: string | null = null) => {
         if (v.tenantId !== tenantId) throw new NotFoundError("asset");
@@ -355,11 +426,14 @@ export function tenantDb(actor: Actor, db: DbTx) {
         generationMode: "live" | "simulated";
         promptVersions: Record<string, string>;
         inputRefs: Record<string, unknown>;
+        /** campaign_gtm only; the campaign must already be resolved through this DAL. */
+        campaignId?: string | null;
       }) =>
         db.workflowRun.create({
           data: {
             tenantId,
             kind: data.kind,
+            campaignId: data.campaignId ?? null,
             status: "created",
             idempotencyKey: data.idempotencyKey,
             generationMode: data.generationMode,

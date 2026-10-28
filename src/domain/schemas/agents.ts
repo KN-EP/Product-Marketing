@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CampaignPlanV1, ContentMatrixV1, SalesPlayV1 } from "./campaign";
 import { ProofPoint, Statement } from "./common";
 
 // ── Agent A: Product & Market Intelligence ──
@@ -67,6 +68,10 @@ export const ASSET_SCHEMAS = {
   messaging_framework: MessagingFrameworkV1,
   competitive_battlecard: CompetitiveBattlecardV1,
   regulatory_gtm_brief: RegulatoryGtmBriefV1,
+  // M8–M10 campaign package (src/domain/schemas/campaign.ts)
+  campaign_plan: CampaignPlanV1,
+  content_matrix: ContentMatrixV1,
+  sales_play: SalesPlayV1,
 } as const;
 
 export type AssetType = keyof typeof ASSET_SCHEMAS;

@@ -41,9 +41,16 @@ export default async function DemoPage() {
     { n: "15", title: "Source evidence, run history, approval status", what: "Evidence panel on each asset, status timeline and prompt versions on the run, decisions in the version history.", href: "/workflows", linkText: "Run history" },
   ];
 
+  const campaignSteps: Step[] = [
+    { n: "16", title: "Campaign briefing", what: "Open the seeded campaign or create one: type, objective, persona, channels, timeframe, budget. The briefing is human input — agents treat it as data, not evidence.", href: "/campaigns", linkText: "Campaigns", done: p.campaigns > 0 },
+    { n: "17", title: "Generate the campaign package", what: "On the campaign, “Generate campaign package”: Agent D writes the campaign plan, Agent E the content matrix, Agent F the sales play (outreach for demand campaigns; retention and loyalty plays list the customer data they still need). If a messaging framework was approved in step 13, it is reused as context.", href: "/campaigns", linkText: "Generate", done: p.campaignRunsCompleted > 0 },
+    { n: "18", title: "Content matrix: unsupported promise blocked", what: "Content matrix v1 contains a “guaranteed” compliance headline → the gates block approval. As reviewer, request changes; as editor, “Create corrected version” → “Load prepared correction (simulated)” → save v2 → submit.", href: "/approvals", linkText: "Review queue" },
+    { n: "19", title: "Approve and export the campaign package", what: "Plan and content mention the AI Act → expert acknowledgement required. Export each approved deliverable as Markdown. Nothing is sent, posted or booked from the system.", href: "/campaigns", linkText: "Campaigns", done: p.campaignAssetsApproved > 0 },
+  ];
+
   return (
     <>
-      <PageHeader title="Guided demo" description="P0 demonstration flow, ~15 minutes. Every step opens the real page." />
+      <PageHeader title="Guided demo" description="P0 demonstration flow (steps 1–15, ~15 minutes) and the campaign package (steps 16–19, ~10 minutes). Every step opens the real page." />
       <Alert>
         <AlertTitle>Say this up front</AlertTitle>
         <AlertDescription>
@@ -57,30 +64,37 @@ export default async function DemoPage() {
           <AlertDescription>The walkthrough is designed for a demo tenant. Sign in as one of its demo users.</AlertDescription>
         </Alert>
       ) : null}
-      <Section title="Steps">
-        <ol className="flex flex-col divide-y rounded-lg border">
-          {steps.map((s) => (
-            <li key={s.n} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <p className="text-sm font-medium">
-                  <span className="mr-2 inline-block min-w-10 font-mono text-muted-foreground">{s.n}</span>
-                  {s.title}
-                  {s.done ? <span className="ml-2 text-xs font-normal text-muted-foreground">✓ done</span> : null}
-                </p>
-                <p className="mt-1 pl-12 text-sm text-muted-foreground">{s.what}</p>
-              </div>
-              <Link href={s.href} className={buttonVariants({ variant: "outline", size: "sm" })}>
-                {s.linkText}
-              </Link>
-            </li>
-          ))}
-        </ol>
-      </Section>
+      <StepList title="Steps" steps={steps} />
+      <StepList title="Campaign package (M8–M10)" steps={campaignSteps} />
       <Section title="Isolation check (optional)">
         <p className="text-sm text-muted-foreground">
-          Sign in as a user of the second demo tenant and open an asset or run URL of the first demo tenant: it returns 404, exactly like an id that does not exist.
+          Sign in as a user of the second demo tenant and open an asset, run or campaign URL of the first demo tenant: it returns 404, exactly like an id that does not exist.
         </p>
       </Section>
     </>
+  );
+}
+
+function StepList({ title, steps }: { title: string; steps: Step[] }) {
+  return (
+    <Section title={title}>
+      <ol className="flex flex-col divide-y rounded-lg border">
+        {steps.map((s) => (
+          <li key={s.n} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">
+                <span className="mr-2 inline-block min-w-10 font-mono text-muted-foreground">{s.n}</span>
+                {s.title}
+                {s.done ? <span className="ml-2 text-xs font-normal text-muted-foreground">✓ done</span> : null}
+              </p>
+              <p className="mt-1 pl-12 text-sm text-muted-foreground">{s.what}</p>
+            </div>
+            <Link href={s.href} className={buttonVariants({ variant: "outline", size: "sm" })}>
+              {s.linkText}
+            </Link>
+          </li>
+        ))}
+      </ol>
+    </Section>
   );
 }

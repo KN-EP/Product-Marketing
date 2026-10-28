@@ -12,6 +12,8 @@ export const RATE_LIMITS = {
   workflowStart: { limit: 10, windowMs: 60_000 },
   /** per tenant + user */
   decision: { limit: 30, windowMs: 60_000 },
+  /** per tenant + user (createCampaignAction) */
+  campaignCreate: { limit: 20, windowMs: 60_000 },
 } as const;
 
 export type RateLimitKind = keyof typeof RATE_LIMITS;

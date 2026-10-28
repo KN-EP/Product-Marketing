@@ -58,6 +58,29 @@ export async function idempotencyKey(parts: {
     competitorIds: [...parts.competitorIds].sort(),
     promptVersions: Object.fromEntries(Object.entries(parts.promptVersions).sort()),
   });
+  return sha256Hex(canonical);
+}
+
+/**
+ * Idempotency key for a campaign_gtm run: same campaign, same prompt
+ * versions (and no new nonce) → same run.
+ */
+export async function campaignIdempotencyKey(parts: {
+  tenantId: string;
+  kind: string;
+  campaignId: string;
+  promptVersions: Record<string, string>;
+  requestNonce?: string;
+}): Promise<string> {
+  return sha256Hex(
+    JSON.stringify({
+      ...parts,
+      promptVersions: Object.fromEntries(Object.entries(parts.promptVersions).sort()),
+    }),
+  );
+}
+
+async function sha256Hex(canonical: string): Promise<string> {
   const bytes = new TextEncoder().encode(canonical);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Buffer.from(digest).toString("hex");

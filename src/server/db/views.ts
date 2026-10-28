@@ -135,6 +135,71 @@ export function tenantViews(tenantId: string, db: DbTx) {
         },
       }),
 
+    campaigns: () =>
+      db.campaign.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          market: true,
+          startsOn: true,
+          endsOn: true,
+          isSynthetic: true,
+          product: { select: { name: true } },
+          persona: { select: { name: true, role: true } },
+          assets: { where: { tenantId }, select: { state: true } },
+          _count: { select: { workflowRuns: { where: { tenantId } } } },
+        },
+      }),
+
+    /** Campaign briefing + its runs and deliverables (all filtered on the tenant). */
+    campaign: async (id: string) =>
+      orNotFound(
+        await db.campaign.findFirst({
+          where: { id, tenantId },
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            objective: true,
+            market: true,
+            channels: true,
+            startsOn: true,
+            endsOn: true,
+            budgetEur: true,
+            isSynthetic: true,
+            createdAt: true,
+            product: { select: { id: true, name: true } },
+            persona: { select: { id: true, name: true, role: true } },
+            workflowRuns: {
+              where: { tenantId },
+              orderBy: { createdAt: "desc" },
+              select: { id: true, status: true, generationMode: true, createdAt: true, completedAt: true, error: true },
+            },
+            assets: {
+              where: { tenantId },
+              orderBy: { createdAt: "asc" },
+              select: {
+                id: true,
+                title: true,
+                type: true,
+                state: true,
+                updatedAt: true,
+                versions: {
+                  where: { tenantId },
+                  orderBy: { versionNumber: "desc" },
+                  take: 1,
+                  select: { id: true, versionNumber: true, gatesPassed: true, generationMode: true },
+                },
+              },
+            },
+          },
+        }),
+        "campaign",
+      ),
+
     regulatoryTriggers: () =>
       db.regulatoryTrigger.findMany({
         where: { tenantId },
@@ -220,6 +285,7 @@ export function tenantViews(tenantId: string, db: DbTx) {
           createdAt: true,
           completedAt: true,
           error: true,
+          campaign: { select: { id: true, name: true } },
         },
       }),
 
@@ -255,15 +321,18 @@ export function tenantViews(tenantId: string, db: DbTx) {
 
     /** Counters for the guided demo checklist. */
     demoProgress: async () => {
-      const [runsCompleted, assetsPending, assetsApproved, humanEdits, exports, claimsApproved] = await Promise.all([
-        db.workflowRun.count({ where: { tenantId, status: "completed" } }),
+      const [runsCompleted, assetsPending, assetsApproved, humanEdits, exports, claimsApproved, campaigns, campaignRunsCompleted, campaignAssetsApproved] = await Promise.all([
+        db.workflowRun.count({ where: { tenantId, status: "completed", kind: "pmm_three_asset" } }),
         db.asset.count({ where: { tenantId, state: "pending_review", ...DELIVERABLE } }),
         db.asset.count({ where: { tenantId, state: "approved", ...DELIVERABLE } }),
         db.assetVersion.count({ where: { tenantId, generationMode: "human_edit" } }),
         db.auditEvent.count({ where: { tenantId, action: "asset.exported" } }),
         db.claim.count({ where: { tenantId, state: "approved" } }),
+        db.campaign.count({ where: { tenantId } }),
+        db.workflowRun.count({ where: { tenantId, status: "completed", kind: "campaign_gtm" } }),
+        db.asset.count({ where: { tenantId, state: "approved", campaignId: { not: null } } }),
       ]);
-      return { runsCompleted, assetsPending, assetsApproved, humanEdits, exports, claimsApproved };
+      return { runsCompleted, assetsPending, assetsApproved, humanEdits, exports, claimsApproved, campaigns, campaignRunsCompleted, campaignAssetsApproved };
     },
   };
 }

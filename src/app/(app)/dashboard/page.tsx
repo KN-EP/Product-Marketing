@@ -41,6 +41,9 @@ export default async function DashboardPage() {
                 Guided demo
               </Link>
             ) : null}
+            <Link href="/campaigns" className={buttonVariants({ variant: "outline" })}>
+              Campaigns
+            </Link>
             <Link href="/workflows" className={buttonVariants()}>
               Start workflow
             </Link>

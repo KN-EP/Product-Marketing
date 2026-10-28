@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { StartWorkflowForm } from "@/components/workflow/start-form";
 import { hasRole } from "@/domain/actor";
 import { WORKFLOW_LIMITS } from "@/domain/workflow/workflow-state";
-import { fmtDate, fmtUsd } from "@/lib/format";
+import { fmtDate, fmtUsd, RUN_KIND_LABEL } from "@/lib/format";
 import { requirePageActor } from "@/server/auth/actor";
 import { getDb } from "@/server/db";
 import { tenantDb } from "@/server/db/tenant-scope";
@@ -31,9 +31,9 @@ export default async function WorkflowsPage() {
     <>
       <PageHeader
         title="Workflows"
-        description={`One run produces three deliverables — messaging framework (Agent B), competitive battlecard and regulatory GTM brief (Agent C) — from an internal input brief (Agent A, not a deliverable). Limits: ${WORKFLOW_LIMITS.maxConcurrentRunsPerTenant} active runs per tenant, ${WORKFLOW_LIMITS.maxAttempts} attempts, cost cap per run.`}
+        description={`A PMM core run produces three deliverables — messaging framework (Agent B), competitive battlecard and regulatory GTM brief (Agent C) — from an internal input brief (Agent A, not a deliverable). Campaign packages are started from a campaign. Limits: ${WORKFLOW_LIMITS.maxConcurrentRunsPerTenant} active runs per tenant, ${WORKFLOW_LIMITS.maxAttempts} attempts, cost cap per run.`}
       />
-      <Section title="Start a run" description="A completed run means the outputs are waiting for human review — never that they are approved.">
+      <Section title="Start a PMM core run" description="A completed run means the outputs are waiting for human review — never that they are approved. For a campaign package, open a campaign.">
         {!canStart ? (
           <EmptyState>Only editors can start runs.</EmptyState>
         ) : products.length && personas.length && triggers.length && competitors.length >= 3 ? (
@@ -56,6 +56,7 @@ export default async function WorkflowsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Run</TableHead>
+                <TableHead>Kind</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Mode</TableHead>
                 <TableHead className="text-right">Attempts</TableHead>
@@ -70,6 +71,14 @@ export default async function WorkflowsPage() {
                     <Link href={`/workflows/${r.id}`} className="font-mono text-xs underline-offset-4 hover:underline">
                       {r.id}
                     </Link>
+                  </TableCell>
+                  <TableCell data-label="Kind" className="whitespace-normal">
+                    {RUN_KIND_LABEL[r.kind] ?? r.kind}
+                    {r.campaign ? (
+                      <Link href={`/campaigns/${r.campaign.id}`} className="mt-0.5 block text-xs text-muted-foreground underline-offset-4 hover:underline">
+                        {r.campaign.name}
+                      </Link>
+                    ) : null}
                   </TableCell>
                   <TableCell data-label="Status">
                     <StateBadge state={r.status} />

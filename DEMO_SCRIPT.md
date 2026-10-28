@@ -22,5 +22,20 @@ DataGuard has not reviewed it. Simulated mode replays prepared outputs — nothi
 10. **Export** the Messaging Framework as Markdown: version, approver, claim and source references, synthetic label.
 11. **Isolation:** switch to the second demo tenant; the DataGuard demo URLs return 404.
 
-Current state (M7): every step runs in the UI and is covered by the Playwright E2E suite. Before a demo,
+**Campaign package (M8–M10, ~10 more minutes)**
+
+12. **/campaigns:** open the seeded campaign "[SYNTHETIC] AI inventory campaign — CISOs DACH"
+    (demand generation · CISO · LinkedIn, Email, Webinar, Sales outreach). The briefing is human input.
+13. **Generate campaign package:** agent D writes the campaign plan, E the content matrix, F the sales
+    play (outreach sequence). The messaging framework approved in step 6 is reused as context.
+14. **Campaign plan:** KPI targets are proposals ("To be set by the team"), the AI Act statement needs
+    expert acknowledgement.
+15. **Content matrix v1:** the webinar headline "Become EU AI Act compliant in 30 days — guaranteed."
+    is blocked (fact without claim, absolute promise, regulatory fact without excerpt). Request changes;
+    as editor load the prepared correction, save v2, submit; approve with acknowledgement.
+16. **Sales play:** every product fact references an approved claim; opt-out handling; no automated
+    sending. Optional: create a *retention* campaign → the play lists the customer data it needs.
+17. **Export** an approved campaign deliverable as Markdown.
+
+Current state (M10): every step runs in the UI; steps 1–11 and the campaign generation, the blocked content matrix and campaign isolation are covered by the Playwright E2E suite. Before a demo,
 run `npm run demo:reset` for a clean state (demo tenants only).

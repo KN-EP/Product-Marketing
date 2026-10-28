@@ -63,3 +63,45 @@ A dashboard + demo selection · B inspect knowledge/evidence · C start three-as
 D schema-valid simulated outputs · E unsupported critical claim cannot be approved ·
 F reject → request changes → approve corrected version · G export with version + sources ·
 H cross-tenant access blocked · I missing API key does not break demo · J tests, typecheck, build green.
+
+---
+
+# Extension M8–M10 — campaign package (sales-near campaigns, digital activation, GTM)
+
+## Purpose
+Turn a human campaign briefing into three reviewable deliverables, with the same evidence rules,
+gates and human approval as the P0 assets. AI drafts; people decide, send and publish.
+
+| Capability | Area | Deliverable | Agent |
+|---|---|---|---|
+| F1 Campaigns for demand, conversion and retention | a, b, d | `campaign_plan.v1`: objective, audience, core message, channel mix × funnel stage, phases, KPI proposals, asset list | D — Campaign planning |
+| F4 Target-group content and communication concepts | b, d | `content_matrix.v1`: content pillars, items per channel and funnel stage (headline, body, CTA), tone of voice, do-not-say | E — Content & communication |
+| F2 Sales, retention and loyalty measures | a | `sales_play.v1`: outreach sequence, retention play or loyalty play (by campaign type) with steps, objections, discovery questions, success signals, data requirements, hand-off rules | F — Sales & CS enablement |
+
+Not in this extension (see `IMPLEMENTATION_PLAN.md`, M11/M12): F5 KPI analysis (needs CSV import or
+CRM/analytics data) and F3 channel audit / social strategy.
+
+## Rules
+- **Campaign** = human briefing (name, type, objective, product, persona, market, channels, optional
+  timeframe and budget). Passed to agents as untrusted data, never as evidence.
+- Run kind `campaign_gtm`: D → E → F. E and F receive D's plan only after it re-validates against
+  `campaign_plan.v1`. The latest **approved** messaging framework for the same product and persona (if
+  any) is context for all three; an unapproved one is never used.
+- Headlines, bodies, messages, objectives and rationales are Statements → gates G1–G9 apply unchanged
+  (product facts need approved claims, regulatory statements need excerpts + expert review, no absolute
+  promises, comparisons need approved competitor evidence).
+- KPI targets are proposals ("To be set by the team" without a baseline), never promised results.
+- Retention and loyalty plays must list `dataRequirements`; until that data exists they are generic.
+- No automated sending: no integration in this extension writes to an external channel.
+
+## Pages
+/campaigns (briefing form + list) · /campaigns/[id] (briefing, campaign package, runs, "Generate").
+/workflows shows the run kind; /demo has steps 16–19.
+
+## Acceptance tests
+K create a campaign (editor; viewer 403; foreign product/persona 404; injected tenantId 400) ·
+L campaign run → plan, content matrix, sales play in `pending_review`, linked to the campaign ·
+M content matrix v1 blocked (unsupported, absolute regulatory promise) → changes requested →
+prepared correction → v2 approved with expert acknowledgement → Markdown export ·
+N approved messaging framework (same product + persona) used as context; unapproved or other-persona one not ·
+O cross-tenant campaign page / campaign run → 404.

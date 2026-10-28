@@ -74,6 +74,7 @@ export const SEED_IDS = {
     persona: "per_demo_ciso",
     regulatoryTrigger: "rtr_demo_eu_ai_act",
     competitors: ["cmp_a", "cmp_b", "cmp_c"],
+    campaign: "cmpg_demo_ai_inventory",
   },
   [OTHER_TENANT_ID]: {
     asset: "ast_other_brief",
@@ -83,6 +84,7 @@ export const SEED_IDS = {
     persona: "per_other_buyer",
     regulatoryTrigger: "rtr_other",
     competitors: ["cmp_other_1", "cmp_other_2", "cmp_other_3"],
+    campaign: "cmpg_other_demo",
   },
 } as const;
 
@@ -104,6 +106,29 @@ async function upsertRunContext(
     const c = { name: data.competitorNames[i]!, isPlaceholder: true };
     await db.competitor.upsert({ where: { id }, create: { id, tenantId, ...c }, update: c });
   }
+}
+
+/** A synthetic campaign briefing per tenant (M8): the starting point of the campaign_gtm run. */
+async function upsertCampaign(
+  db: Db,
+  tenantId: keyof typeof SEED_IDS,
+  data: { name: string; type: "demand_generation" | "conversion" | "retention" | "loyalty" | "sales_enablement"; objective: string; market: string; channels: string[]; startsOn?: string; endsOn?: string; budgetEur?: number },
+) {
+  const ids = SEED_IDS[tenantId];
+  const c = {
+    name: data.name,
+    type: data.type,
+    objective: data.objective,
+    productId: ids.product,
+    personaId: ids.persona,
+    market: data.market,
+    channels: data.channels,
+    startsOn: data.startsOn ? new Date(`${data.startsOn}T00:00:00Z`) : null,
+    endsOn: data.endsOn ? new Date(`${data.endsOn}T00:00:00Z`) : null,
+    budgetEur: data.budgetEur ?? null,
+    isSynthetic: true,
+  };
+  await db.campaign.upsert({ where: { id: ids.campaign }, create: { id: ids.campaign, tenantId, ...c }, update: c });
 }
 
 export function seedUserEmail(tenantIndex: 0 | 1, role: Role): string {
@@ -246,6 +271,17 @@ export async function seed(db: Db, opts: { password: string }): Promise<void> {
     },
     competitorNames: ["Competitor A (placeholder)", "Competitor B (placeholder)", "Competitor C (placeholder)"],
   });
+  await upsertCampaign(db, DEMO_TENANT_ID, {
+    name: "[SYNTHETIC] AI inventory campaign — CISOs DACH",
+    type: "demand_generation",
+    objective:
+      "[SYNTHETIC] Start qualified conversations with CISOs in German mid-sized companies who need an overview of the AI systems in use.",
+    market: "DACH mid-market",
+    channels: ["LinkedIn", "Email", "Webinar", "Sales outreach"],
+    startsOn: "2027-01-11",
+    endsOn: "2027-03-05",
+    budgetEur: 15000,
+  });
   for (const e of DEMO_COMPETITOR_EVIDENCE) {
     const data = { competitorId: e.competitorId, sourceId: e.sourceId, assertion: e.assertion, excerpt: e.excerpt, state: e.state };
     await db.competitorEvidence.upsert({ where: { id: e.id }, create: { id: e.id, tenantId: DEMO_TENANT_ID, ...data }, update: data });
@@ -282,6 +318,13 @@ export async function seed(db: Db, opts: { password: string }): Promise<void> {
     persona: { name: "[SYNTHETIC] Other tenant buyer", role: "Buyer", market: "Synthetic" },
     trigger: { name: "[SYNTHETIC] Other trigger", jurisdiction: "N/A", summary: "[SYNTHETIC] Isolation test record.", sourceIds: ["src_other_note"] },
     competitorNames: ["[SYNTHETIC] Other competitor 1", "[SYNTHETIC] Other competitor 2", "[SYNTHETIC] Other competitor 3"],
+  });
+  await upsertCampaign(db, OTHER_TENANT_ID, {
+    name: "[SYNTHETIC] Other tenant campaign",
+    type: "retention",
+    objective: "[SYNTHETIC] Isolation test record for campaigns.",
+    market: "Synthetic",
+    channels: ["Email"],
   });
   const otherKb = buildSnapshot({ tenantId: OTHER_TENANT_ID, sources: [OTHER_SOURCE], claims: [FOREIGN_CLAIM] });
   const otherContent = { ...SIMULATED_MESSAGING_FRAMEWORK, pillars: [], objections: [] };

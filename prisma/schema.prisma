@@ -63,6 +63,19 @@ enum AssetType {
   competitive_battlecard
   regulatory_gtm_brief
   product_intelligence_brief
+  /// M8–M10: campaign package (campaign_gtm run)
+  campaign_plan
+  content_matrix
+  sales_play
+}
+
+/// What a campaign is meant to move. Drives the campaign plan and the sales play type.
+enum CampaignType {
+  demand_generation
+  conversion
+  retention
+  loyalty
+  sales_enablement
 }
 
 enum AssetState {
@@ -127,6 +140,7 @@ model Tenant {
   productFeatures        ProductFeature[]
   claimEvidence          ClaimEvidence[]
   valuePropositionClaims ValuePropositionClaim[]
+  campaigns              Campaign[]
 }
 
 model User {
@@ -169,9 +183,10 @@ model Product {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  features ProductFeature[]
-  claims   Claim[]
+  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  features  ProductFeature[]
+  claims    Claim[]
+  campaigns Campaign[]
 
   @@unique([id, tenantId])
   @@index([tenantId])
@@ -288,6 +303,7 @@ model Persona {
   tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   buyerProblems     BuyerProblem[]
   valuePropositions ValueProposition[]
+  campaigns         Campaign[]
 
   @@unique([id, tenantId])
   @@index([tenantId])
@@ -397,6 +413,39 @@ model RegulatoryTrigger {
   @@index([tenantId])
 }
 
+// ───────────────────────── Campaigns (M8–M10) ─────────────────────────
+
+/// Human-entered campaign briefing. The campaign_gtm run turns it into three
+/// deliverables (campaign plan, content matrix, sales play) that go through the
+/// same gates and human review as every other asset. Nothing is sent or
+/// published from here: deliverables leave the system only as approved exports.
+model Campaign {
+  id          String       @id @default(cuid())
+  tenantId    String
+  name        String
+  type        CampaignType
+  objective   String
+  productId   String
+  personaId   String
+  market      String
+  channels    String[]
+  startsOn    DateTime?    @db.Date
+  endsOn      DateTime?    @db.Date
+  budgetEur   Decimal?     @db.Decimal(12, 2)
+  isSynthetic Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product      Product       @relation(fields: [productId, tenantId], references: [id, tenantId])
+  persona      Persona       @relation(fields: [personaId, tenantId], references: [id, tenantId])
+  assets       Asset[]
+  workflowRuns WorkflowRun[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+}
+
 // ───────────────────────── Assets, runs, approvals ─────────────────────────
 
 model Asset {
@@ -406,14 +455,19 @@ model Asset {
   title            String
   state            AssetState @default(draft)
   currentVersionId String?
+  /// Set for campaign deliverables (same tenant, composite FK).
+  campaignId       String?
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
   tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  /// Restrict (not SetNull): SetNull would also null tenantId of the composite key.
+  campaign Campaign?      @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: Restrict)
   versions AssetVersion[]
 
   @@unique([id, tenantId])
   @@index([tenantId, state])
+  @@index([tenantId, campaignId])
 }
 
 /// Immutable. The data-access layer exposes no update path for content fields.
@@ -459,16 +513,20 @@ model WorkflowRun {
   costEstimateUsd Decimal?       @db.Decimal(10, 4)
   error           String?
   attempts        Int            @default(0)
+  /// Set for campaign_gtm runs (same tenant, composite FK).
+  campaignId      String?
   startedAt       DateTime?
   completedAt     DateTime?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaign      Campaign?      @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: Restrict)
   assetVersions AssetVersion[]
 
   @@unique([tenantId, idempotencyKey])
   @@index([tenantId, status])
+  @@index([tenantId, campaignId])
 }
 
 model Approval {

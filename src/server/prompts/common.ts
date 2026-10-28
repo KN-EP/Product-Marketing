@@ -11,8 +11,14 @@ export interface AgentBrief {
 export interface PromptInput {
   snapshot: KnowledgeSnapshot;
   brief: AgentBrief;
-  /** Agent B output (schema-validated by the caller), given to agent C as context. */
+  /**
+   * Agent B output (schema-validated by the caller), given to agent C as
+   * context — and to the campaign agents D–F when an APPROVED messaging
+   * framework exists.
+   */
   messagingFramework?: unknown;
+  /** Agent D output (schema-validated by the caller), given to agents E and F as context. */
+  campaignPlan?: unknown;
 }
 
 export interface PromptTemplate {
@@ -41,7 +47,7 @@ Truthfulness:
 /** Neutralise anything that could close or open one of our delimiter tags. */
 export function escapeDelimiters(text: string): string {
   return text.replace(
-    /<\s*\/?\s*(brief|knowledge_base|untrusted_sources|source|claim|competitor_evidence|evidence|messaging_framework)\b[^>]*>/gi,
+    /<\s*\/?\s*(brief|knowledge_base|untrusted_sources|source|claim|competitor_evidence|evidence|messaging_framework|campaign_plan)\b[^>]*>/gi,
     "[removed tag]",
   );
 }
@@ -91,4 +97,13 @@ export function renderMessagingFramework(mf: unknown): string {
 Draft messaging from agent B (not yet human-approved). Use it for consistent positioning only; it is NOT evidence. Facts still need approved claim ids.
 ${escapeDelimiters(JSON.stringify(mf, null, 2))}
 </messaging_framework>`;
+}
+
+/** Agent D output as context for agents E and F. Model-generated → untrusted data, never a source of facts. */
+export function renderCampaignPlan(plan: unknown): string {
+  if (plan === undefined) return "";
+  return `<campaign_plan>
+Draft campaign plan from agent D (not yet human-approved). Use it to keep channels, funnel stages and wording consistent; it is NOT evidence. Facts still need approved claim ids.
+${escapeDelimiters(JSON.stringify(plan, null, 2))}
+</campaign_plan>`;
 }

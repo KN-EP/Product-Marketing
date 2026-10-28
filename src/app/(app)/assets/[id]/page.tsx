@@ -130,7 +130,7 @@ export default async function AssetPage({
               title={`Content — v${viewed.versionNumber}`}
               description={`${generationLabel(rec, viewed)} · created ${fmtDate(viewed.createdAt)} · schema ${viewed.schemaVersion}`}
             >
-              <AssetContent content={viewed.content} findings={viewed.gateReport.findings} />
+              <AssetContent content={viewed.content} findings={viewed.gateReport.findings} assetType={rec.type} />
             </Section>
             <Section id="evidence" title="Source evidence" description="The stored excerpt behind every reference in this version.">
               <EvidencePanel content={viewed.content} kb={snapshot} />

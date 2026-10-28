@@ -29,7 +29,15 @@ const html = (el: Parameters<typeof renderToStaticMarkup>[0]) => renderToStaticM
 describe("A1 — three deliverables; the input brief is internal", () => {
   it("only the Agent A brief is internal", () => {
     expect(isInternalAssetType("product_intelligence_brief")).toBe(true);
-    expect(DELIVERABLE_ASSET_TYPES).toEqual(["messaging_framework", "competitive_battlecard", "regulatory_gtm_brief"]);
+    expect(DELIVERABLE_ASSET_TYPES).toEqual([
+      "messaging_framework",
+      "competitive_battlecard",
+      "regulatory_gtm_brief",
+      // M8–M10 campaign package
+      "campaign_plan",
+      "content_matrix",
+      "sales_play",
+    ]);
     expect(() => assertDeliverable("product_intelligence_brief")).toThrow(expect.objectContaining({ status: 409, code: "internal_input" }));
     expect(() => assertDeliverable("competitive_battlecard")).not.toThrow();
   });

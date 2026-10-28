@@ -3,7 +3,9 @@ import { hasRole, type Actor } from "../../domain/actor";
 import { ACTIVE_RUN_STATUSES } from "../db/tenant-scope";
 import { addVersion, currentVersion, submitForReview, type AssetRecord } from "../../domain/assets/asset-state";
 import type { AssetType } from "../../domain/schemas/agents";
-import { idempotencyKey, WORKFLOW_LIMITS, type WorkflowStatus } from "../../domain/workflow/workflow-state";
+import { campaignBriefNotes } from "../../domain/campaigns/campaign";
+import { MessagingFrameworkV1 } from "../../domain/schemas/agents";
+import { campaignIdempotencyKey, idempotencyKey, WORKFLOW_LIMITS, type WorkflowStatus } from "../../domain/workflow/workflow-state";
 import { Prisma } from "../../generated/prisma/client";
 import type { Db } from "../db/client";
 import { tenantDb, withTenantTx, type TenantDb } from "../db/tenant-scope";
@@ -12,9 +14,17 @@ import type { LlmProvider } from "../llm/types";
 import { INPUT_BRIEF_LABEL, isInternalAssetType } from "../assets/deliverables";
 import { log } from "../log";
 import { sanitizeError } from "./errors";
-import { PMM_THREE_ASSET, PROMPT_VERSIONS, StartWorkflowInput, type RunInputRefs } from "./input";
+import {
+  CAMPAIGN_GTM,
+  CAMPAIGN_PROMPT_VERSIONS,
+  PMM_THREE_ASSET,
+  PROMPT_VERSIONS,
+  StartWorkflowInput,
+  type CampaignRunInputRefs,
+  type RunInputRefs,
+} from "./input";
 import { assertCanRetry, assertConcurrencyAvailable, CostBudget, costCapUsd } from "./limits";
-import { newProgress, runPmmPipeline } from "./pipeline";
+import { newProgress, runCampaignPipeline, runPmmPipeline } from "./pipeline";
 
 type Env = Record<string, string | undefined>;
 
@@ -66,6 +76,9 @@ const ASSET_LABEL: Record<AssetType, string> = {
   messaging_framework: "Messaging framework",
   competitive_battlecard: "Competitive battlecard",
   regulatory_gtm_brief: "Regulatory GTM brief",
+  campaign_plan: "Campaign plan",
+  content_matrix: "Content matrix",
+  sales_play: "Sales play",
 };
 
 /** An active run whose row has not changed for this long is considered stale. */
@@ -139,17 +152,45 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
     if (!parsed.success) {
       throw new HttpError(400, "invalid_input", "Invalid workflow input.", parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })));
     }
-    const { kind, requestNonce, ...refs } = parsed.data;
     const tdb = tenantDb(actor, this.deps.db);
-    await this.resolve(tdb, refs);
 
-    const key = await idempotencyKey({
-      tenantId: actor.tenantId,
-      kind,
-      ...refs,
-      promptVersions: PROMPT_VERSIONS,
-      ...(requestNonce ? { requestNonce } : {}),
-    });
+    // Per kind: resolve every referenced id (404 on any miss), then derive the idempotency key.
+    let admission: { kind: string; key: string; promptVersions: Record<string, string>; inputRefs: Record<string, unknown>; campaignId: string | null };
+    if (parsed.data.kind === CAMPAIGN_GTM) {
+      const { kind, requestNonce, ...refs } = parsed.data;
+      const campaign = await tdb.campaigns.getById(refs.campaignId);
+      admission = {
+        kind,
+        key: await campaignIdempotencyKey({
+          tenantId: actor.tenantId,
+          kind,
+          campaignId: campaign.id,
+          promptVersions: CAMPAIGN_PROMPT_VERSIONS,
+          ...(requestNonce ? { requestNonce } : {}),
+        }),
+        promptVersions: CAMPAIGN_PROMPT_VERSIONS,
+        inputRefs: refs,
+        campaignId: campaign.id,
+      };
+    } else {
+      const { kind, requestNonce, ...refs } = parsed.data;
+      await this.resolve(tdb, refs);
+      admission = {
+        kind,
+        key: await idempotencyKey({
+          tenantId: actor.tenantId,
+          kind,
+          ...refs,
+          promptVersions: PROMPT_VERSIONS,
+          ...(requestNonce ? { requestNonce } : {}),
+        }),
+        promptVersions: PROMPT_VERSIONS,
+        inputRefs: refs,
+        campaignId: null,
+      };
+    }
+
+    const { key } = admission;
     const existing = await tdb.workflowRuns.findByKey(key);
     if (existing) return { run: summary(existing), created: false };
 
@@ -161,13 +202,20 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
         if (again) return { run: summary(again), created: false };
         assertConcurrencyAvailable(await t.workflowRuns.countActive());
         const run = await t.workflowRuns.create({
-          kind,
+          kind: admission.kind,
           idempotencyKey: key,
           generationMode: mode,
-          promptVersions: PROMPT_VERSIONS,
-          inputRefs: refs,
+          promptVersions: admission.promptVersions,
+          inputRefs: admission.inputRefs,
+          campaignId: admission.campaignId,
         });
-        await t.audit.record({ actorId: actor.userId, action: "workflow.created", entityType: "WorkflowRun", entityId: run.id, metadata: { kind } });
+        await t.audit.record({
+          actorId: actor.userId,
+          action: "workflow.created",
+          entityType: "WorkflowRun",
+          entityId: run.id,
+          metadata: { kind: admission.kind, ...(admission.campaignId ? { campaignId: admission.campaignId } : {}) },
+        });
         await t.workflowRuns.transition(run.id, "created", "queued", actor.userId);
         return { run: summary(await t.workflowRuns.getById(run.id)), created: true };
       });
@@ -209,48 +257,25 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
       status = "running";
 
       const budget = new CostBudget(costCapUsd(this.deps.env ?? process.env), provider);
-      const refs = run.inputRefs as unknown as RunInputRefs;
-      const { product, persona, trigger, competitors } = await this.resolve(tdb, refs);
-      const [{ snapshot, sourceClassifications }, policy] = await Promise.all([
-        tdb.knowledge.snapshot({ competitorIds: refs.competitorIds }),
-        tdb.tenant.policy(),
-      ]);
-      await runPmmPipeline(
-        {
-          snapshot,
-          sourceClassifications,
-          policy,
-          brief: {
-            productName: product.name,
-            market: refs.market,
-            persona: `${persona.name} (${persona.role})`,
-            notes: `Regulatory trigger: ${trigger.name} (${trigger.jurisdiction}): ${trigger.summary}\nCompetitors: ${competitors.map((c) => c.name).join(", ")}`,
-          },
-        },
-        provider,
-        budget,
-        progress,
-        () => tdb.workflowRuns.touch(runId),
-      );
+      const work = await this.prepare(tdb, run.kind, run.inputRefs);
+      await work.run(provider, budget, progress, () => tdb.workflowRuns.touch(runId));
 
-      await tdb.workflowRuns.transition(runId, "running", "validation", null, this.metrics(progress), {
-        messagingFrameworkPassedToC: progress.messagingFrameworkPassedToC,
-      });
+      await tdb.workflowRuns.transition(runId, "running", "validation", null, this.metrics(progress), work.validationMeta(progress));
       status = "validation";
 
       // Gates + persistence for all outputs in ONE transaction: either the three
-      // deliverables are in pending_review and the internal input brief is stored,
-      // or nothing is (a retry cannot duplicate them).
+      // deliverables are in pending_review (and, for pmm_three_asset, the internal
+      // input brief is stored), or nothing is (a retry cannot duplicate them).
       const now = this.now();
       await withTenantTx(actor, this.deps.db, async (t) => {
         for (const r of progress.results) {
           const prefix = r.llm.mode === "simulated" ? "[SIMULATED] " : "";
           const internal = isInternalAssetType(r.assetType);
           const label = internal ? INPUT_BRIEF_LABEL : ASSET_LABEL[r.assetType];
-          const title = `${prefix}${label} — ${product.name} (${persona.name}, ${refs.market})`;
-          const { id: assetId } = await t.assets.create({ type: r.assetType, title });
+          const title = `${prefix}${label} — ${work.titleSuffix}`;
+          const { id: assetId } = await t.assets.create({ type: r.assetType, title, campaignId: work.campaignId });
           let rec: AssetRecord = { id: assetId, tenantId: actor.tenantId, type: r.assetType, title, state: "draft", currentVersionId: null, versions: [], approvals: [] };
-          rec = addVersion(rec, r.output, systemActor(actor.tenantId), snapshot, { id: randomUUID(), generationMode: r.llm.mode, now });
+          rec = addVersion(rec, r.output, systemActor(actor.tenantId), work.snapshot, { id: randomUUID(), generationMode: r.llm.mode, now });
           const v = currentVersion(rec)!;
           await t.assets.insertVersion(v, runId);
           // The internal input brief never enters review; it stays a stored draft.
@@ -272,6 +297,7 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
               promptId: r.prompt.id,
               promptVersion: r.prompt.version,
               internal,
+              ...(work.campaignId ? { campaignId: work.campaignId } : {}),
             },
           });
           if (!internal) {
@@ -298,6 +324,75 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
       }
     }
     return summary(await tdb.workflowRuns.getById(runId));
+  }
+
+  /**
+   * Everything a run kind needs to execute: tenant-scoped inputs (resolved via
+   * the DAL, 404 on any miss), the pipeline, how outputs are titled and linked.
+   */
+  private async prepare(tdb: TenantDb, kind: string, inputRefs: unknown) {
+    if (kind === PMM_THREE_ASSET) {
+      const refs = inputRefs as RunInputRefs;
+      const { product, persona, trigger, competitors } = await this.resolve(tdb, refs);
+      const [{ snapshot, sourceClassifications }, policy] = await Promise.all([
+        tdb.knowledge.snapshot({ competitorIds: refs.competitorIds }),
+        tdb.tenant.policy(),
+      ]);
+      const base = {
+        snapshot,
+        sourceClassifications,
+        policy,
+        brief: {
+          productName: product.name,
+          market: refs.market,
+          persona: `${persona.name} (${persona.role})`,
+          notes: `Regulatory trigger: ${trigger.name} (${trigger.jurisdiction}): ${trigger.summary}\nCompetitors: ${competitors.map((c) => c.name).join(", ")}`,
+        },
+      };
+      return {
+        snapshot,
+        titleSuffix: `${product.name} (${persona.name}, ${refs.market})`,
+        campaignId: null,
+        run: (provider: LlmProvider, budget: CostBudget, progress: ReturnType<typeof newProgress>, onStep: () => Promise<unknown>) =>
+          runPmmPipeline(base, provider, budget, progress, onStep),
+        validationMeta: (p: ReturnType<typeof newProgress>) => ({ messagingFrameworkPassedToC: p.messagingFrameworkPassedToC }),
+      };
+    }
+    if (kind === CAMPAIGN_GTM) {
+      const refs = inputRefs as CampaignRunInputRefs;
+      const campaign = await tdb.campaigns.getById(refs.campaignId);
+      const [{ snapshot, sourceClassifications }, policy, approvedMf] = await Promise.all([
+        tdb.knowledge.snapshot(),
+        tdb.tenant.policy(),
+        tdb.assets.latestApprovedContent("messaging_framework", { productId: campaign.product.id, personaId: campaign.persona.id }),
+      ]);
+      // Only a human-approved, schema-valid messaging framework for the same product and persona becomes context.
+      const mf = approvedMf ? MessagingFrameworkV1.safeParse(approvedMf.content) : null;
+      const base = {
+        snapshot,
+        sourceClassifications,
+        policy,
+        brief: {
+          productName: campaign.product.name,
+          market: campaign.market,
+          persona: `${campaign.persona.name} (${campaign.persona.role})`,
+          notes: campaignBriefNotes(campaign),
+        },
+        ...(mf?.success ? { messagingFramework: mf.data } : {}),
+      };
+      return {
+        snapshot,
+        titleSuffix: campaign.name,
+        campaignId: campaign.id,
+        run: (provider: LlmProvider, budget: CostBudget, progress: ReturnType<typeof newProgress>, onStep: () => Promise<unknown>) =>
+          runCampaignPipeline(base, provider, budget, progress, onStep),
+        validationMeta: (p: ReturnType<typeof newProgress>) => ({
+          campaignPlanPassedOn: p.campaignPlanPassedOn,
+          approvedMessagingFrameworkVersionId: mf?.success ? approvedMf!.versionId : null,
+        }),
+      };
+    }
+    throw new HttpError(409, "unknown_kind", `Unknown run kind: ${kind}.`);
   }
 
   private metrics(p: ReturnType<typeof newProgress>) {
@@ -385,4 +480,4 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
   }
 }
 
-export { PMM_THREE_ASSET };
+export { CAMPAIGN_GTM, PMM_THREE_ASSET };

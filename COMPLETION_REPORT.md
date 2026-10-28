@@ -120,3 +120,35 @@ compact menu and stacked tables at 375 px.
 3. Nonce-based CSP; external penetration test of tenant isolation.
 4. Source management UI (upload, re-verification, stale propagation to claims) and reference editing in the editor.
 5. Live-mode evaluation set for agents A/B/C before enabling external models for real customer data.
+
+---
+
+# Addendum — M8–M10 campaign package (branch `feature/m8-gtm-capabilities`, 2026-10-28)
+
+Status: implemented, in review. All campaign demo content is **synthetic** as well.
+
+## What was added
+
+| Area | What it does |
+|---|---|
+| Data model | `Campaign` (briefing), `Asset.campaignId`, `WorkflowRun.campaignId` — composite `(id, tenantId)` FKs, ON DELETE RESTRICT; asset types `campaign_plan`, `content_matrix`, `sales_play`; migration `20261028190000_campaigns` |
+| Agents | D campaign plan (F1), E content matrix (F4), F sales play (F2: outreach / retention / loyalty). Versioned prompts; the campaign plan is passed to E and F as delimited untrusted data; the latest approved messaging framework for the same product and persona is context for all three |
+| Workflow | Run kind `campaign_gtm` (`{ kind, campaignId }`): same admission, idempotency, limits, cost cap, gates, single-transaction persistence and audit as `pmm_three_asset` |
+| UI | `/campaigns` (briefing form, list), `/campaigns/[id]` (briefing, campaign package, runs, generate), run kind on `/workflows`, guided demo steps 16–19 |
+| Review | Content matrix v1 is blocked by the gates (unsupported, absolute regulatory promise); prepared correction for the demo tenant; approval and Markdown export unchanged |
+| Display | UI and Markdown export render object keys in schema order (jsonb does not keep key order) |
+
+## Test results (2026-10-28, local Postgres 16, simulated mode)
+
+| Suite | Result |
+|---|---|
+| `npm run check` | typecheck OK · **157/157** unit tests (8 files) · schema valid |
+| `npm run build` | OK (built with the Google font stubbed — fonts.googleapis.com was not reachable from the build sandbox; no code change) |
+| Integration | **121/121** (5 files) — migrations applied with `psql` because binaries.prisma.sh was blocked; `prisma migrate deploy` still to be run once against Neon |
+| E2E (Playwright) | **11/11** (4 new campaign tests + the 7 existing) |
+
+## Known limitations of this extension
+- Simulated mode replays one fixture per deliverable (the sales play by requested play type).
+- KPI analysis (F5) and channel audit / social strategy (F3) are not part of it (M11, M12).
+- The migration was written by hand in Prisma's format; run `prisma migrate dev` once locally to
+  confirm there is no drift before deploying.

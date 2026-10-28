@@ -11,7 +11,7 @@ import {
 import { transitionClaim } from "../../domain/claims/claim-state";
 import type { ClaimState } from "../../domain/knowledge/snapshot";
 import { exportApprovedMarkdown } from "../../domain/export/markdown";
-import { SIMULATED_BATTLECARD_CORRECTED } from "../../demo/fixtures";
+import { SIMULATED_BATTLECARD_CORRECTED, SIMULATED_CONTENT_MATRIX_CORRECTED } from "../../demo/fixtures";
 import type { Db } from "../db/client";
 import { tenantDb, withTenantTx } from "../db/tenant-scope";
 import { assertDeliverable } from "../assets/deliverables";
@@ -115,7 +115,7 @@ export async function createDraftVersion(
     if (input.origin === "prepared_correction_simulated") {
       const tenant = await t.tenant.get();
       if (!preparedCorrectionFor(tenant, rec.type)) {
-        throw new HttpError(409, "not_applicable", "A prepared correction exists only for the battlecard of a demo tenant.");
+        throw new HttpError(409, "not_applicable", "A prepared correction exists only for the battlecard and the content matrix of a demo tenant.");
       }
     }
     const base = currentVersion(rec);
@@ -192,11 +192,18 @@ export async function transitionClaimState(actor: Actor, db: Db, input: { claimI
   });
 }
 
+const PREPARED_CORRECTIONS: Record<string, unknown> = {
+  competitive_battlecard: SIMULATED_BATTLECARD_CORRECTED,
+  content_matrix: SIMULATED_CONTENT_MATRIX_CORRECTED,
+};
+
 /**
- * Demo tenant only: the prepared, SYNTHETIC correction for the battlecard.
+ * Demo tenant only: the prepared, SYNTHETIC correction for the battlecard and
+ * the content matrix (the two deliverables whose simulated v1 fails the gates).
  * It is only used to PRE-FILL the editor; nothing is stored until the editor
  * saves, which creates a human_edit version like any other edit.
  */
 export function preparedCorrectionFor(tenant: { isDemo: boolean }, assetType: string): unknown | null {
-  return tenant.isDemo && assetType === "competitive_battlecard" ? structuredClone(SIMULATED_BATTLECARD_CORRECTED) : null;
+  const fixture = tenant.isDemo ? PREPARED_CORRECTIONS[assetType] : undefined;
+  return fixture === undefined ? null : structuredClone(fixture);
 }

@@ -9,13 +9,14 @@
 export const ID_ENTRYPOINTS = [
   "src/app/(app)/assets/[id]/edit/page.tsx", // ui.test.ts
   "src/app/(app)/assets/[id]/page.tsx", // tenant-isolation.test.ts, ui.test.ts
+  "src/app/(app)/campaigns/[id]/page.tsx", // campaign.test.ts
   "src/app/(app)/products/[id]/page.tsx", // ui.test.ts
   "src/app/(app)/workflows/[id]/page.tsx", // ui.test.ts
   "src/app/api/assets/[id]/route.ts", // tenant-isolation.test.ts
   "src/app/api/claims/[id]/route.ts", // tenant-isolation.test.ts
   "src/app/api/sources/[id]/route.ts", // tenant-isolation.test.ts
   "src/app/api/workflows/[id]/route.ts", // workflow.test.ts
-  "src/app/api/workflows/route.ts", // workflow.test.ts (foreign product/persona/... ids → 404)
+  "src/app/api/workflows/route.ts", // workflow.test.ts (foreign product/persona/... ids → 404), campaign.test.ts (foreign campaign id → 404)
 ] as const;
 
 /** Every exported server action, with how it is covered. */
@@ -23,12 +24,13 @@ export const SERVER_ACTIONS: Record<string, string> = {
   "src/app/actions/auth.ts#loginAction": "tenant from Membership; injected tenantId field ignored",
   "src/app/actions/auth.ts#switchDemoUserAction": "tenant from Membership; disabled in production",
   "src/app/actions/auth.ts#logoutAction": "no input",
+  "src/app/actions/campaign.ts#createCampaignAction": "campaign.test.ts: foreign product/persona ids → 404; injected tenantId rejected; viewer 403",
   "src/app/actions/review.ts#submitForReviewAction": "workflow.test.ts: foreign asset id → 404",
   "src/app/actions/review.ts#decideAction": "workflow.test.ts: foreign asset id → 404",
   "src/app/actions/review.ts#createDraftVersionAction": "workflow.test.ts: foreign asset id → 404",
   "src/app/actions/review.ts#exportMarkdownAction": "workflow.test.ts: foreign asset id → 404",
   "src/app/actions/review.ts#transitionClaimAction": "workflow.test.ts: foreign claim id → 404",
   "src/app/actions/workflow.ts#retryWorkflowRunAction": "workflow.test.ts: foreign run id → 404",
-  "src/app/actions/workflow.ts#startWorkflowAction": "ui.test.ts: foreign product/persona/... ids → 404",
+  "src/app/actions/workflow.ts#startWorkflowAction": "ui.test.ts: foreign product/persona/... ids → 404; campaign.test.ts: foreign campaign id → 404",
   "src/app/actions/workflow.ts#markRunFailedAction": "ui.test.ts: foreign run id → 404",
 };

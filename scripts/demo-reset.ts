@@ -1,8 +1,8 @@
 /**
  * npm run demo:reset [-- --tenant <slug> ...]
  *
- * Deletes workflow runs, assets, versions, approvals and their audit events
- * for DEMO tenants only (isDemo = true), then re-seeds the synthetic demo data.
+ * Deletes workflow runs, assets, versions, approvals, campaigns and their audit
+ * events for DEMO tenants only (isDemo = true), then re-seeds the synthetic demo data.
  * Refuses when NODE_ENV=production or when a named tenant is not a demo tenant.
  * Prints counts only — never connection strings.
  */
@@ -30,7 +30,7 @@ async function main() {
     console.log(`Demo tenants reset: ${counts.tenants.join(", ") || "(none found)"}`);
     console.log(
       `Deleted: ${counts.workflowRuns} workflow runs, ${counts.assets} assets, ${counts.assetVersions} versions, ` +
-        `${counts.approvals} approvals, ${counts.auditEvents} audit events.`,
+        `${counts.approvals} approvals, ${counts.campaigns} campaigns, ${counts.auditEvents} audit events.`,
     );
     await seed(db, { password });
     console.log("Re-seeded synthetic demo data.");

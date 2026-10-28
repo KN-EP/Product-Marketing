@@ -7,6 +7,7 @@ import {
   ProductIntelligenceBriefV1,
   RegulatoryGtmBriefV1,
 } from "../../domain/schemas/agents";
+import { CampaignPlanV1, ContentMatrixV1, SalesPlayV1 } from "../../domain/schemas/campaign";
 import { promptClassification, type DataClassification, type ExternalModelPolicy } from "../llm/classification";
 import type { LlmMode, LlmProvider, LlmUsage, OutputSpec } from "../llm/types";
 import {
@@ -14,8 +15,12 @@ import {
   AGENT_B_PROMPT,
   AGENT_C_BATTLECARD_PROMPT,
   AGENT_C_REGULATORY_PROMPT,
+  AGENT_D_CAMPAIGN_PLAN_PROMPT,
+  AGENT_E_CONTENT_MATRIX_PROMPT,
+  AGENT_F_SALES_PLAY_PROMPT,
   renderPrompt,
   type AgentBrief,
+  type PromptInput,
   type PromptTemplate,
 } from "../prompts";
 
@@ -26,8 +31,23 @@ export interface AgentInput {
   policy: ExternalModelPolicy;
   /** Classifications of the sources in the snapshot (from Source.classification). */
   sourceClassifications: DataClassification[];
-  /** Agent B output for agent C. Only pass it after MessagingFrameworkV1 validation. */
+  /**
+   * Agent B output for agent C (only after MessagingFrameworkV1 validation), or
+   * the latest APPROVED messaging framework (same product and persona) for the campaign agents D–F.
+   */
   messagingFramework?: z.infer<typeof MessagingFrameworkV1>;
+  /** Agent D output for agents E and F. Only pass it after CampaignPlanV1 validation. */
+  campaignPlan?: z.infer<typeof CampaignPlanV1>;
+}
+
+/** The prompt input an agent sees: only the context blocks that are set. */
+export function promptInputOf(input: AgentInput): PromptInput {
+  return {
+    snapshot: input.snapshot,
+    brief: input.brief,
+    ...(input.messagingFramework ? { messagingFramework: input.messagingFramework } : {}),
+    ...(input.campaignPlan ? { campaignPlan: input.campaignPlan } : {}),
+  };
 }
 
 /**
@@ -66,6 +86,24 @@ export const OUTPUT_SPECS = {
     toolName: "submit_regulatory_gtm_brief",
     toolDescription: "Submit the regulatory GTM brief (regulatory_gtm_brief.v1).",
   },
+  campaign_plan: {
+    assetType: "campaign_plan",
+    schema: CampaignPlanV1,
+    toolName: "submit_campaign_plan",
+    toolDescription: "Submit the campaign plan (campaign_plan.v1).",
+  },
+  content_matrix: {
+    assetType: "content_matrix",
+    schema: ContentMatrixV1,
+    toolName: "submit_content_matrix",
+    toolDescription: "Submit the content matrix (content_matrix.v1).",
+  },
+  sales_play: {
+    assetType: "sales_play",
+    schema: SalesPlayV1,
+    toolName: "submit_sales_play",
+    toolDescription: "Submit the sales play (sales_play.v1).",
+  },
 } as const satisfies Record<string, OutputSpec>;
 
 async function runAgent<S extends z.ZodType>(
@@ -77,11 +115,7 @@ async function runAgent<S extends z.ZodType>(
   if (input.policy.tenantId !== input.snapshot.tenantId) {
     throw new DomainError("tenant_mismatch", "Agent policy and knowledge snapshot belong to different tenants.");
   }
-  const prompt = renderPrompt(template, {
-    snapshot: input.snapshot,
-    brief: input.brief,
-    ...(input.messagingFramework ? { messagingFramework: input.messagingFramework } : {}),
-  });
+  const prompt = renderPrompt(template, promptInputOf(input));
   const res = await provider.generate(spec, prompt, {
     dataPolicy: { tenant: input.policy, dataClassification: promptClassification(input.sourceClassifications) },
   });
@@ -109,3 +143,15 @@ export function runAgentC(input: AgentInput, provider: LlmProvider, kind: "battl
     ? runAgent(OUTPUT_SPECS.competitive_battlecard, AGENT_C_BATTLECARD_PROMPT, input, provider)
     : runAgent(OUTPUT_SPECS.regulatory_gtm_brief, AGENT_C_REGULATORY_PROMPT, input, provider);
 }
+
+/** Agent D — Campaign planning (F1). */
+export const runAgentD = (input: AgentInput, provider: LlmProvider) =>
+  runAgent(OUTPUT_SPECS.campaign_plan, AGENT_D_CAMPAIGN_PLAN_PROMPT, input, provider);
+
+/** Agent E — Content & communication (F4). Receives agent D's plan when it is schema-valid. */
+export const runAgentE = (input: AgentInput, provider: LlmProvider) =>
+  runAgent(OUTPUT_SPECS.content_matrix, AGENT_E_CONTENT_MATRIX_PROMPT, input, provider);
+
+/** Agent F — Sales, retention & loyalty enablement (F2). Receives agent D's plan when it is schema-valid. */
+export const runAgentF = (input: AgentInput, provider: LlmProvider) =>
+  runAgent(OUTPUT_SPECS.sales_play, AGENT_F_SALES_PLAY_PROMPT, input, provider);

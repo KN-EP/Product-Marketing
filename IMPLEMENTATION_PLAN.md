@@ -50,3 +50,32 @@ Pages per PRODUCT_SPEC §Pages. `/demo` is the guided 15-step walkthrough.
 - Automatic stale-run sweep; rate limits; body-size limits; security headers; central log sanitizer.
 - Vitest unit + integration against the test database; Playwright E2E for the review loop.
 - Completion report: `COMPLETION_REPORT.md`.
+
+---
+
+# Extension plan (M8+)
+
+Source: capability check "vertriebsnahe Kampagnen / digitale Aktivierung / Go-to-Market" (Oct 2026).
+Same principle: every milestone ends green; human approval stays the only way to "approved".
+
+## M8 — Data model + content (F4) ✅ (review)
+- `Campaign` model, `Asset.campaignId`, `WorkflowRun.campaignId` (composite FKs), asset types
+  `campaign_plan`, `content_matrix`, `sales_play`; migration `20261028190000_campaigns`.
+- `content_matrix.v1` + agent E; demo v1 fails the gates (unsupported "guaranteed" compliance headline),
+  prepared correction for the demo tenant.
+
+## M9 — Campaigns (F1) ✅ (review)
+- Campaign briefing (`CampaignInput`, `/campaigns`), `campaign_plan.v1` + agent D, run kind
+  `campaign_gtm` (D → E → F), approved messaging framework as context.
+
+## M10 — Sales plays (F2) ✅ (review)
+- `sales_play.v1` + agent F: outreach sequence; retention / loyalty play by campaign type, with
+  `dataRequirements`. Export only — no automated sending.
+- Guided demo steps 16–19, unit + integration + E2E tests.
+
+## M11 — KPI analysis (F5), next
+- KPI tree per campaign (from the approved plan), CSV import of measurements, deviation analysis
+  → recommendation (reviewed like any asset). Later: GA4, CRM, LinkedIn Ads (read-only).
+
+## M12 — Channel audit & social/digital strategy (F3), next
+- Channel audit (CSV/URL input), content pillars, editorial calendar; retention plays with CRM data.

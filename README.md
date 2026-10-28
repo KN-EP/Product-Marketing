@@ -21,6 +21,7 @@ This repository is being built milestone by milestone (see `IMPLEMENTATION_PLAN.
 | M5 | Workflow engine, persistence, run history, review persistence | ✅ done |
 | M6 | UI pages, review screen, guided `/demo`, human_edit provenance | ✅ done |
 | M7 | Demo correctness (QA), demo reset, hardening, Playwright E2E | 🔍 in review |
+| M8–M10 | Campaign package: campaigns, agents D/E/F (campaign plan, content matrix, sales play), `/campaigns`, guided demo steps 16–19 | 🔍 in review (`feature/m8-gtm-capabilities`) |
 
 ## Requirements
 
@@ -67,6 +68,13 @@ approved — only a human reviewer can approve, via `decideAction`. Repeating a 
 run (`requestNonce` deliberately starts a new one). Limits (`WORKFLOW_LIMITS`): 3 attempts, cost cap
 checked before every model call, 2 active runs per tenant. Failed runs are retried only explicitly.
 
+`POST /api/workflows` with `{ kind: "campaign_gtm", campaignId }` (or "Generate campaign package" on
+`/campaigns/[id]`) starts a **campaign package** run for a Campaign briefing: agent D (campaign plan) →
+E (content matrix) → F (sales play: outreach sequence, or a retention/loyalty play for those campaign
+types). E and F get D's plan as context; all three get the latest **approved** messaging framework for the same
+product and persona, if there is one. The three deliverables go through the same gates and human review. Nothing is sent,
+posted or booked — approved deliverables leave the system only as Markdown exports.
+
 Before any external call the classification gate checks the tenant's
 `externalModelsApproved` and `maxExternalModelClass`; restricted data never leaves the server
 unless an admin raises the limit.
@@ -94,7 +102,7 @@ npm run check             # prisma generate + typecheck + unit tests + schema va
 npm run build             # prisma generate + next build
 npm run test:integration  # migrates TEST_DATABASE_URL, runs tests/integration in simulated mode
 npm run test:e2e          # builds, starts next against TEST_DATABASE_URL (simulated), runs Playwright
-npm run demo:reset        # demo tenants only: delete runs/assets/versions/approvals + their audit events, re-seed
+npm run demo:reset        # demo tenants only: delete runs/assets/versions/approvals/campaigns + their audit events, re-seed
 ```
 
 `test:integration` exits with code 2 and prints `NOT EXECUTED` if `TEST_DATABASE_URL` is
