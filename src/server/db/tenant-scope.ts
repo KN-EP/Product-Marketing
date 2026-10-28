@@ -5,6 +5,7 @@ import { buildSnapshot } from "../../domain/knowledge/snapshot";
 import type { GateReport } from "../../domain/quality-gates/gates";
 import type { AssetType } from "../../domain/schemas/agents";
 import type { CampaignType } from "../../domain/schemas/campaign";
+import type { KpiPatch, KpiSeed } from "../../domain/kpis/kpi";
 import { assertWorkflowTransition, type WorkflowStatus } from "../../domain/workflow/workflow-state";
 import type { Prisma } from "../../generated/prisma/client";
 import type { DataClassification, ExternalModelPolicy } from "../llm/classification";
@@ -177,6 +178,57 @@ export function tenantDb(actor: Actor, db: DbTx) {
       }) => db.campaign.create({ data: { ...data, tenantId }, select: { id: true } }),
     },
 
+    kpis: {
+      /** The campaign's KPI tree with its measurements (YYYY-MM-DD, number). */
+      listForCampaign: async (campaignId: string) => {
+        const rows = await db.kpi.findMany({
+          where: { tenantId, campaignId },
+          orderBy: [{ position: "asc" }, { createdAt: "asc" }, { name: "asc" }],
+          select: {
+            id: true,
+            name: true,
+            funnelStage: true,
+            definition: true,
+            dataSource: true,
+            unit: true,
+            direction: true,
+            aggregation: true,
+            target: true,
+            baseline: true,
+            measurements: { where: { tenantId }, orderBy: { periodStart: "asc" }, select: { periodStart: true, value: true } },
+          },
+        });
+        return rows.map((k) => ({
+          ...k,
+          target: k.target === null ? null : k.target.toNumber(),
+          baseline: k.baseline === null ? null : k.baseline.toNumber(),
+          measurements: k.measurements.map((m) => ({ periodStart: m.periodStart.toISOString().slice(0, 10), value: m.value.toNumber() })),
+        }));
+      },
+      getById: async (id: string) =>
+        orNotFound(await db.kpi.findFirst({ where: { id, tenantId }, select: { id: true, campaignId: true, name: true } }), "kpi"),
+      count: (campaignId: string) => db.kpi.count({ where: { tenantId, campaignId } }),
+      countMeasurements: (campaignId: string) => db.kpiMeasurement.count({ where: { tenantId, kpi: { tenantId, campaignId } } }),
+      /** The campaign must already be resolved through this DAL. */
+      createFromPlan: (campaignId: string, seeds: KpiSeed[], sourceVersionId: string) =>
+        db.kpi.createMany({ data: seeds.map((k, position) => ({ ...k, position, tenantId, campaignId, sourceVersionId })) }),
+      update: async (id: string, patch: KpiPatch) => {
+        const r = await db.kpi.updateMany({ where: { id, tenantId }, data: patch });
+        if (r.count !== 1) throw new NotFoundError("kpi");
+      },
+      /** Same KPI + period start → the value is replaced (and attributed to this import). */
+      upsertMeasurement: (m: { kpiId: string; periodStart: Date; value: number; importId: string }) =>
+        db.kpiMeasurement.upsert({
+          where: { kpiId_periodStart: { kpiId: m.kpiId, periodStart: m.periodStart } },
+          create: { tenantId, ...m },
+          update: { value: m.value, importId: m.importId },
+        }),
+      createImport: (data: { campaignId: string; fileName: string; rowCount: number; acceptedRows: number; rejectedRows: unknown; importedById: string | null }) =>
+        db.kpiImport.create({ data: { tenantId, ...data, rejectedRows: json(data.rejectedRows) }, select: { id: true } }),
+      latestImportId: async (campaignId: string) =>
+        (await db.kpiImport.findFirst({ where: { tenantId, campaignId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: { id: true } }))?.id ?? null,
+    },
+
     knowledge: {
       /**
        * Tenant-scoped read model for gates and agents, plus the classifications
@@ -293,6 +345,15 @@ export function tenantDb(actor: Actor, db: DbTx) {
        * that was generated for the given product and persona (via its run's
        * inputRefs) — e.g. the messaging framework used as campaign context.
        */
+      /** Most recently APPROVED version of a campaign deliverable of this type (e.g. the campaign plan). */
+      latestApprovedForCampaign: async (type: AssetType, campaignId: string): Promise<{ assetId: string; versionId: string; versionNumber: number; content: unknown } | null> => {
+        const a = await db.approval.findFirst({
+          where: { tenantId, decision: "approved", assetVersion: { tenantId, asset: { tenantId, type, campaignId } } },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          select: { assetVersion: { select: { id: true, assetId: true, versionNumber: true, content: true } } },
+        });
+        return a ? { assetId: a.assetVersion.assetId, versionId: a.assetVersion.id, versionNumber: a.assetVersion.versionNumber, content: a.assetVersion.content } : null;
+      },
       latestApprovedContent: async (
         type: AssetType,
         forRun: { productId: string; personaId: string },

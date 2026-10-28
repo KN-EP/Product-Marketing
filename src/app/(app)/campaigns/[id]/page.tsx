@@ -3,6 +3,7 @@ import { GatesBadge, ModeBadge, StateBadge, SyntheticTag } from "@/components/ap
 import { EmptyState, PageHeader, Section } from "@/components/app/page-header";
 import { GenerateCampaignPackageButton } from "@/components/campaign/generate-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { buttonVariants } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { hasRole } from "@/domain/actor";
 import { playTypeFor } from "@/domain/campaigns/campaign";
@@ -27,6 +28,8 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
   const c = await or404(tenantDb(actor, getDb()).views.campaign(id));
   const canGenerate = hasRole(actor, "editor");
   const play = playTypeFor(c.type);
+  // Performance reviews are listed on the performance page.
+  const packageAssets = c.assets.filter((a) => a.type !== "performance_review");
 
   const briefing: [string, React.ReactNode][] = [
     ["Type", CAMPAIGN_TYPE_LABEL[c.type]],
@@ -58,7 +61,14 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
             {CAMPAIGN_TYPE_LABEL[c.type]} · {c.persona.name} · {c.market} {c.isSynthetic ? <SyntheticTag /> : null}
           </span>
         }
-        actions={canGenerate ? <GenerateCampaignPackageButton campaignId={c.id} hasRuns={c.workflowRuns.length > 0} /> : null}
+        actions={
+          <>
+            <Link href={`/campaigns/${c.id}/performance`} className={buttonVariants({ variant: "outline" })}>
+              Performance (KPIs)
+            </Link>
+            {canGenerate ? <GenerateCampaignPackageButton campaignId={c.id} hasRuns={c.workflowRuns.length > 0} /> : null}
+          </>
+        }
       />
 
       <Alert>
@@ -88,7 +98,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
         title="Campaign package"
         description="Campaign plan (F1), content matrix (F4) and sales play (F2). Open a deliverable to review the gate report, the evidence and the decision."
       >
-        {c.assets.length === 0 ? (
+        {packageAssets.length === 0 ? (
           <EmptyState>No deliverables yet. {canGenerate ? "Generate the campaign package to create them." : "An editor can generate them."}</EmptyState>
         ) : (
           <Table>
@@ -101,7 +111,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
               </TableRow>
             </TableHeader>
             <TableBody>
-              {c.assets.map((a) => {
+              {packageAssets.map((a) => {
                 const v = a.versions[0];
                 return (
                   <TableRow key={a.id}>

@@ -10,6 +10,7 @@ import {
   SIMULATED_SALES_PLAY_OUTREACH,
   SIMULATED_SALES_PLAY_RETENTION,
 } from "../../demo/fixtures";
+import { kpiResultsFromPrompt, simulatedPerformanceReview } from "../../demo/performance";
 import type { AssetType } from "../../domain/schemas/agents";
 import { LlmOutputInvalidError } from "./errors";
 import { ZERO_USAGE, type GenerateOptions, type LlmProvider, type LlmResult, type OutputSpec, type RenderedPrompt } from "./types";
@@ -42,6 +43,8 @@ const DEFAULT_FIXTURES: Record<AssetType, unknown | ((prompt: RenderedPrompt) =>
   // Campaign storyline: content matrix v1 contains an unsupported compliance promise → blocked.
   content_matrix: SIMULATED_CONTENT_MATRIX_FLAWED,
   sales_play: (prompt: RenderedPrompt) => SALES_PLAYS[requestedPlayType(prompt)],
+  // M11: template-based review from the KPI results in the prompt (quotes only those numbers).
+  performance_review: (prompt: RenderedPrompt) => simulatedPerformanceReview(kpiResultsFromPrompt(prompt.user)),
 };
 
 /**

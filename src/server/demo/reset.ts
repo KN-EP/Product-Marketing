@@ -54,8 +54,9 @@ export async function resetDemoData(
       const assets = await tx.asset.deleteMany({ where });
       const workflowRuns = await tx.workflowRun.deleteMany({ where });
       // After assets and runs: both reference campaigns (ON DELETE RESTRICT).
+      // KPIs, imports and measurements go with their campaign (ON DELETE CASCADE).
       const campaigns = await tx.campaign.deleteMany({ where });
-      const auditEvents = await tx.auditEvent.deleteMany({ where: { ...where, entityType: { in: ["Asset", "WorkflowRun", "Campaign"] } } });
+      const auditEvents = await tx.auditEvent.deleteMany({ where: { ...where, entityType: { in: ["Asset", "WorkflowRun", "Campaign", "Kpi"] } } });
       return {
         tenants: tenants.map((t) => t.slug),
         approvals: approvals.count,

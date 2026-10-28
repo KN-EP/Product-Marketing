@@ -3,6 +3,7 @@ import { AGENT_B_PROMPT } from "./agent-b";
 import { AGENT_C_BATTLECARD_PROMPT, AGENT_C_REGULATORY_PROMPT } from "./agent-c";
 import { AGENT_D_CAMPAIGN_PLAN_PROMPT, AGENT_E_CONTENT_MATRIX_PROMPT, AGENT_F_SALES_PLAY_PROMPT } from "./campaign";
 import type { PromptInput, PromptTemplate } from "./common";
+import { AGENT_G_PERFORMANCE_PROMPT } from "./performance";
 import type { RenderedPrompt } from "../llm/types";
 
 export {
@@ -13,6 +14,7 @@ export {
   AGENT_D_CAMPAIGN_PLAN_PROMPT,
   AGENT_E_CONTENT_MATRIX_PROMPT,
   AGENT_F_SALES_PLAY_PROMPT,
+  AGENT_G_PERFORMANCE_PROMPT,
 };
 export type { AgentBrief, PromptInput, PromptTemplate } from "./common";
 
@@ -24,6 +26,7 @@ export const PROMPT_TEMPLATES: readonly PromptTemplate[] = [
   AGENT_D_CAMPAIGN_PLAN_PROMPT,
   AGENT_E_CONTENT_MATRIX_PROMPT,
   AGENT_F_SALES_PLAY_PROMPT,
+  AGENT_G_PERFORMANCE_PROMPT,
 ];
 
 export function renderPrompt(t: PromptTemplate, input: PromptInput): RenderedPrompt {

@@ -8,6 +8,7 @@ import {
   RegulatoryGtmBriefV1,
 } from "../../domain/schemas/agents";
 import { CampaignPlanV1, ContentMatrixV1, SalesPlayV1 } from "../../domain/schemas/campaign";
+import { PerformanceReviewDraftV1, type KpiResult } from "../../domain/schemas/performance";
 import { promptClassification, type DataClassification, type ExternalModelPolicy } from "../llm/classification";
 import type { LlmMode, LlmProvider, LlmUsage, OutputSpec } from "../llm/types";
 import {
@@ -18,6 +19,7 @@ import {
   AGENT_D_CAMPAIGN_PLAN_PROMPT,
   AGENT_E_CONTENT_MATRIX_PROMPT,
   AGENT_F_SALES_PLAY_PROMPT,
+  AGENT_G_PERFORMANCE_PROMPT,
   renderPrompt,
   type AgentBrief,
   type PromptInput,
@@ -36,8 +38,10 @@ export interface AgentInput {
    * the latest APPROVED messaging framework (same product and persona) for the campaign agents D–F.
    */
   messagingFramework?: z.infer<typeof MessagingFrameworkV1>;
-  /** Agent D output for agents E and F. Only pass it after CampaignPlanV1 validation. */
+  /** Agent D output for agents E and F (only after CampaignPlanV1 validation), or the approved plan for agent G. */
   campaignPlan?: z.infer<typeof CampaignPlanV1>;
+  /** M11: server-computed KPI results for agent G. */
+  kpiResults?: { asOf: string; results: KpiResult[] };
 }
 
 /** The prompt input an agent sees: only the context blocks that are set. */
@@ -47,6 +51,7 @@ export function promptInputOf(input: AgentInput): PromptInput {
     brief: input.brief,
     ...(input.messagingFramework ? { messagingFramework: input.messagingFramework } : {}),
     ...(input.campaignPlan ? { campaignPlan: input.campaignPlan } : {}),
+    ...(input.kpiResults ? { kpiResults: input.kpiResults } : {}),
   };
 }
 
@@ -104,6 +109,13 @@ export const OUTPUT_SPECS = {
     toolName: "submit_sales_play",
     toolDescription: "Submit the sales play (sales_play.v1).",
   },
+  // The model writes the DRAFT; the server adds asOf + kpiSnapshot before the gates.
+  performance_review: {
+    assetType: "performance_review",
+    schema: PerformanceReviewDraftV1,
+    toolName: "submit_performance_review",
+    toolDescription: "Submit the performance review (performance_review.v1, without KPI numbers — those are added by the system).",
+  },
 } as const satisfies Record<string, OutputSpec>;
 
 async function runAgent<S extends z.ZodType>(
@@ -155,3 +167,7 @@ export const runAgentE = (input: AgentInput, provider: LlmProvider) =>
 /** Agent F — Sales, retention & loyalty enablement (F2). Receives agent D's plan when it is schema-valid. */
 export const runAgentF = (input: AgentInput, provider: LlmProvider) =>
   runAgent(OUTPUT_SPECS.sales_play, AGENT_F_SALES_PLAY_PROMPT, input, provider);
+
+/** Agent G — Performance analysis (F5). Writes the draft; KPI numbers come from the server. */
+export const runAgentG = (input: AgentInput, provider: LlmProvider) =>
+  runAgent(OUTPUT_SPECS.performance_review, AGENT_G_PERFORMANCE_PROMPT, input, provider);

@@ -48,9 +48,15 @@ export default async function DemoPage() {
     { n: "19", title: "Approve and export the campaign package", what: "Plan and content mention the AI Act → expert acknowledgement required. Export each approved deliverable as Markdown. Nothing is sent, posted or booked from the system.", href: "/campaigns", linkText: "Campaigns", done: p.campaignAssetsApproved > 0 },
   ];
 
+  const kpiSteps: Step[] = [
+    { n: "20", title: "KPI tree from the approved plan", what: "Approve the campaign plan (expert acknowledgement), then open “Performance (KPIs)” on the campaign and create the KPI tree. Set numeric targets — the plan only proposed them.", href: "/campaigns", linkText: "Campaigns", done: p.kpis > 0 },
+    { n: "21", title: "Import measurements", what: "Fill the import with the synthetic sample data (or upload a CSV export: kpi, date, value). Rejected rows are listed with line and reason. The target-vs-actual table is computed, not generated.", href: "/campaigns", linkText: "Campaigns", done: p.kpiImports > 0 },
+    { n: "22", title: "Performance review", what: "“Generate performance review”: Agent G writes findings and recommendations; it may only quote the computed numbers (gate G10). Review, approve and export it like every deliverable.", href: "/campaigns", linkText: "Campaigns", done: p.performanceReviews > 0 },
+  ];
+
   return (
     <>
-      <PageHeader title="Guided demo" description="P0 demonstration flow (steps 1–15, ~15 minutes) and the campaign package (steps 16–19, ~10 minutes). Every step opens the real page." />
+      <PageHeader title="Guided demo" description="P0 demonstration flow (steps 1–15, ~15 minutes) the campaign package (steps 16–19, ~10 minutes) and the KPI analysis (steps 20–22, ~5 minutes). Every step opens the real page." />
       <Alert>
         <AlertTitle>Say this up front</AlertTitle>
         <AlertDescription>
@@ -66,6 +72,7 @@ export default async function DemoPage() {
       ) : null}
       <StepList title="Steps" steps={steps} />
       <StepList title="Campaign package (M8–M10)" steps={campaignSteps} />
+      <StepList title="KPI analysis (M11)" steps={kpiSteps} />
       <Section title="Isolation check (optional)">
         <p className="text-sm text-muted-foreground">
           Sign in as a user of the second demo tenant and open an asset, run or campaign URL of the first demo tenant: it returns 404, exactly like an id that does not exist.

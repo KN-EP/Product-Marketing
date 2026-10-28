@@ -6,8 +6,18 @@ import { startWorkflowAction } from "@/app/actions/workflow";
 import { actionErrorText } from "@/components/review/action-message";
 import { Button } from "@/components/ui/button";
 
-/** Starts a campaign_gtm run for this campaign (same validation, idempotency and limits as every run). */
-export function GenerateCampaignPackageButton({ campaignId, hasRuns }: { campaignId: string; hasRuns: boolean }) {
+/** Starts a campaign-scoped run (same validation, idempotency and limits as every run) and opens it. */
+export function StartCampaignRunButton({
+  kind,
+  campaignId,
+  label,
+  variant = "default",
+}: {
+  kind: "campaign_gtm" | "campaign_performance";
+  campaignId: string;
+  label: string;
+  variant?: "default" | "outline";
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -16,12 +26,8 @@ export function GenerateCampaignPackageButton({ campaignId, hasRuns }: { campaig
     if (pending) return;
     setError(null);
     start(async () => {
-      const res = await startWorkflowAction({
-        kind: "campaign_gtm",
-        campaignId,
-        // Each click is an intentional new run; double-submits are blocked by `pending`.
-        requestNonce: crypto.randomUUID(),
-      });
+      // Each click is an intentional new run; double-submits are blocked by `pending`.
+      const res = await startWorkflowAction({ kind, campaignId, requestNonce: crypto.randomUUID() });
       if (res.ok) router.push(`/workflows/${res.data.runId}`);
       else setError(actionErrorText(res));
     });
@@ -29,12 +35,23 @@ export function GenerateCampaignPackageButton({ campaignId, hasRuns }: { campaig
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <Button type="button" onClick={go} disabled={pending}>
-        {pending ? "Starting…" : hasRuns ? "Generate new campaign package" : "Generate campaign package (3 deliverables)"}
+      <Button type="button" variant={variant} onClick={go} disabled={pending}>
+        {pending ? "Starting…" : label}
       </Button>
       <span role="status" aria-live="polite" className="text-sm text-destructive">
         {error}
       </span>
     </div>
+  );
+}
+
+/** Campaign package (M8–M10). */
+export function GenerateCampaignPackageButton({ campaignId, hasRuns }: { campaignId: string; hasRuns: boolean }) {
+  return (
+    <StartCampaignRunButton
+      kind="campaign_gtm"
+      campaignId={campaignId}
+      label={hasRuns ? "Generate new campaign package" : "Generate campaign package (3 deliverables)"}
+    />
   );
 }

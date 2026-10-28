@@ -5,7 +5,7 @@ End-to-end flow per PRODUCT_SPEC, simulated + live mode, review/approval, export
 
 ## Extension M8–M12 (campaigns, digital activation, GTM)
 - ✅ M8–M10: campaign briefings and the campaign package (campaign plan, content matrix, sales play)
-- M11: KPI tree + CSV import + deviation analysis (F5)
+- ✅ M11: KPI tree + CSV import + target vs. actual + performance review (F5)
 - M12: channel audit, editorial calendar, data-driven retention plays (F3, F2 with CRM data)
 
 ## P1

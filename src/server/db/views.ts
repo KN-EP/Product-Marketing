@@ -200,6 +200,46 @@ export function tenantViews(tenantId: string, db: DbTx) {
         "campaign",
       ),
 
+    /** Performance page (M11): campaign window, KPI imports, performance reviews, approved plan. */
+    campaignPerformance: async (id: string) => {
+      const c = orNotFound(
+        await db.campaign.findFirst({
+          where: { id, tenantId },
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            startsOn: true,
+            endsOn: true,
+            kpiImports: {
+              where: { tenantId },
+              orderBy: { createdAt: "desc" },
+              take: 10,
+              select: { id: true, fileName: true, rowCount: true, acceptedRows: true, rejectedRows: true, createdAt: true },
+            },
+            assets: {
+              where: { tenantId, type: "performance_review" },
+              orderBy: { createdAt: "desc" },
+              select: {
+                id: true,
+                title: true,
+                state: true,
+                versions: { where: { tenantId }, orderBy: { versionNumber: "desc" }, take: 1, select: { versionNumber: true, gatesPassed: true, generationMode: true } },
+              },
+            },
+          },
+        }),
+        "campaign",
+      );
+      const plan = await db.approval.findFirst({
+        where: { tenantId, decision: "approved", assetVersion: { tenantId, asset: { tenantId, type: "campaign_plan", campaignId: c.id } } },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { assetVersion: { select: { versionNumber: true, assetId: true } } },
+      });
+      const planAsset = await db.asset.findFirst({ where: { tenantId, type: "campaign_plan", campaignId: c.id }, orderBy: { createdAt: "desc" }, select: { id: true, state: true } });
+      return { ...c, approvedPlan: plan?.assetVersion ?? null, latestPlan: planAsset };
+    },
+
     regulatoryTriggers: () =>
       db.regulatoryTrigger.findMany({
         where: { tenantId },
@@ -321,7 +361,7 @@ export function tenantViews(tenantId: string, db: DbTx) {
 
     /** Counters for the guided demo checklist. */
     demoProgress: async () => {
-      const [runsCompleted, assetsPending, assetsApproved, humanEdits, exports, claimsApproved, campaigns, campaignRunsCompleted, campaignAssetsApproved] = await Promise.all([
+      const [runsCompleted, assetsPending, assetsApproved, humanEdits, exports, claimsApproved, campaigns, campaignRunsCompleted, campaignAssetsApproved, kpis, kpiImports, performanceReviews] = await Promise.all([
         db.workflowRun.count({ where: { tenantId, status: "completed", kind: "pmm_three_asset" } }),
         db.asset.count({ where: { tenantId, state: "pending_review", ...DELIVERABLE } }),
         db.asset.count({ where: { tenantId, state: "approved", ...DELIVERABLE } }),
@@ -331,8 +371,24 @@ export function tenantViews(tenantId: string, db: DbTx) {
         db.campaign.count({ where: { tenantId } }),
         db.workflowRun.count({ where: { tenantId, status: "completed", kind: "campaign_gtm" } }),
         db.asset.count({ where: { tenantId, state: "approved", campaignId: { not: null } } }),
+        db.kpi.count({ where: { tenantId } }),
+        db.kpiImport.count({ where: { tenantId, acceptedRows: { gt: 0 } } }),
+        db.asset.count({ where: { tenantId, type: "performance_review" } }),
       ]);
-      return { runsCompleted, assetsPending, assetsApproved, humanEdits, exports, claimsApproved, campaigns, campaignRunsCompleted, campaignAssetsApproved };
+      return {
+        runsCompleted,
+        assetsPending,
+        assetsApproved,
+        humanEdits,
+        exports,
+        claimsApproved,
+        campaigns,
+        campaignRunsCompleted,
+        campaignAssetsApproved,
+        kpis,
+        kpiImports,
+        performanceReviews,
+      };
     },
   };
 }

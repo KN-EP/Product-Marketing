@@ -152,3 +152,24 @@ Status: implemented, in review. All campaign demo content is **synthetic** as we
 - KPI analysis (F5) and channel audit / social strategy (F3) are not part of it (M11, M12).
 - The migration was written by hand in Prisma's format; run `prisma migrate dev` once locally to
   confirm there is no drift before deploying.
+
+---
+
+# Addendum — M11 KPI analysis (branch `feature/m11-kpi-analysis`, 2026-10-28)
+
+| Area | What it does |
+|---|---|
+| Data model | `Kpi`, `KpiMeasurement`, `KpiImport` (composite FKs, cascade with the campaign); asset type `performance_review`; migration `20261029090000_kpis` |
+| KPI tree | Created once from the approved campaign plan; targets, baselines, unit, direction and aggregation set by people |
+| Import | Strict CSV reader (`,`/`;`, ISO/German dates, EN/DE numbers), ≤ 200 KB / 5,000 rows, rejected rows by line and reason, re-import replaces |
+| Analysis | Deterministic target vs. actual, pace pro rata to the campaign time, status thresholds 95 % / 75 % |
+| Agent G | `campaign_performance` run; draft from the model, `kpiSnapshot` + `asOf` from the server; human edits keep the server numbers |
+| Gates | `kpiRefs` on statements; G2 for unknown KPIs; **G10** blocks facts quoting numbers not in the referenced KPI results |
+| UI | `/campaigns/[id]/performance` (KPI tree editor, import, results table, reviews), KPI table in the review and in the Markdown export, demo steps 20–22 |
+
+Test results (local Postgres 16, simulated mode): `npm run check` 180/180 unit · integration 127/127 ·
+E2E 15/15 · build OK (Google font stubbed for the sandbox build only). The migration is hand-written in
+Prisma's format — confirm with `prisma migrate dev --create-only` before deploying.
+
+Also fixed on this branch: the Markdown export now renders numeric fields (e.g. a sales play's
+`dayOffset`), which were silently dropped before.

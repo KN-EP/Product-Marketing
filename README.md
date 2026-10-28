@@ -22,6 +22,7 @@ This repository is being built milestone by milestone (see `IMPLEMENTATION_PLAN.
 | M6 | UI pages, review screen, guided `/demo`, human_edit provenance | ✅ done |
 | M7 | Demo correctness (QA), demo reset, hardening, Playwright E2E | 🔍 in review |
 | M8–M10 | Campaign package: campaigns, agents D/E/F (campaign plan, content matrix, sales play), `/campaigns`, guided demo steps 16–19 | 🔍 in review (`feature/m8-gtm-capabilities`) |
+| M11 | KPI analysis: KPI tree from the approved plan, CSV import, computed target vs. actual, agent G performance review (gate G10), demo steps 20–22 | 🔍 in review (`feature/m11-kpi-analysis`, stacked on M8–M10) |
 
 ## Requirements
 
@@ -74,6 +75,13 @@ E (content matrix) → F (sales play: outreach sequence, or a retention/loyalty 
 types). E and F get D's plan as context; all three get the latest **approved** messaging framework for the same
 product and persona, if there is one. The three deliverables go through the same gates and human review. Nothing is sent,
 posted or booked — approved deliverables leave the system only as Markdown exports.
+
+**KPI analysis (M11).** On `/campaigns/[id]/performance` an editor creates the KPI tree from the
+**approved** campaign plan, sets numeric targets (the plan only proposes them) and imports
+measurements as CSV (`kpi,date,value`; `,` or `;`; ≤ 200 KB / 5,000 rows). Target vs. actual and
+pace are computed in code. `{ kind: "campaign_performance", campaignId }` runs agent G, which writes
+findings and recommendations; the server attaches the computed `kpiSnapshot`, and gate **G10**
+blocks any fact that quotes a number not found in the referenced KPI results.
 
 Before any external call the classification gate checks the tenant's
 `externalModelsApproved` and `maxExternalModelClass`; restricted data never leaves the server

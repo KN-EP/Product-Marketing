@@ -12,7 +12,7 @@ import { requirePageActor } from "@/server/auth/actor";
 import { getDb } from "@/server/db";
 import { ACTIVE_RUN_STATUSES, tenantDb } from "@/server/db/tenant-scope";
 import { or404 } from "@/server/http/page";
-import { CAMPAIGN_GTM, isStale, STALE_RUN_AFTER_MS } from "@/server/workflow/orchestrator";
+import { CAMPAIGN_GTM, CAMPAIGN_PERFORMANCE, isStale, STALE_RUN_AFTER_MS } from "@/server/workflow/orchestrator";
 import { getOrchestrator } from "@/server/workflow/runtime";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +42,13 @@ export default async function WorkflowRunPage({ params }: { params: Promise<{ id
   const usage = (run.usage ?? null) as Record<string, number> | null;
   const promptVersions = (run.promptVersions ?? {}) as Record<string, string>;
   const refs = (run.inputRefs ?? {}) as { market?: string };
-  const isCampaign = run.kind === CAMPAIGN_GTM;
+  const isCampaign = run.kind === CAMPAIGN_GTM || run.kind === CAMPAIGN_PERFORMANCE;
+  const deliverablesText =
+    run.kind === CAMPAIGN_PERFORMANCE
+      ? "Performance review (numbers computed from the imported KPI data)"
+      : run.kind === CAMPAIGN_GTM
+        ? "Campaign plan, content matrix and sales play"
+        : "Messaging framework, competitive battlecard and regulatory GTM brief";
 
   return (
     <>
@@ -138,7 +144,7 @@ export default async function WorkflowRunPage({ params }: { params: Promise<{ id
 
       <Section
         title={`Deliverables (${deliverables.length})`}
-        description={`${isCampaign ? "Campaign plan, content matrix and sales play" : "Messaging framework, competitive battlecard and regulatory GTM brief"}. Each was checked by the quality gates on generation and waits for human review — a failed check blocks approval, not review.`}
+        description={`${deliverablesText}. Each was checked by the quality gates on generation and waits for human review — a failed check blocks approval, not review.`}
       >
         {deliverables.length === 0 ? (
           <EmptyState>{active ? "Deliverables appear here when the run reaches review." : "This run produced no deliverables."}</EmptyState>

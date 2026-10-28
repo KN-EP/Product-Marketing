@@ -3,6 +3,7 @@ import { generationLabel, latestApprovedVersion, type AssetRecord } from "../ass
 import type { KnowledgeSnapshot } from "../knowledge/snapshot";
 import { collectStatements } from "../schemas/agents";
 import { orderedEntries } from "../schemas/display-order";
+import type { KpiResult } from "../schemas/performance";
 
 const LABEL: Record<string, string> = {
   fact: "FACT",
@@ -48,7 +49,7 @@ export function exportApprovedMarkdown(asset: AssetRecord, actor: Actor, kb: Kno
   const sourceIds = new Set<string>();
   const render = (value: unknown, depth: number): void => {
     if (value === null || value === undefined) return;
-    if (typeof value === "string") {
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
       lines.push(`- ${value}`);
       return;
     }
@@ -66,6 +67,7 @@ export function exportApprovedMarkdown(asset: AssetRecord, actor: Actor, kb: Kno
             return `source:${e.sourceId}`;
           }),
           ...((o.competitorEvidenceIds as string[]) ?? []).map((c) => `competitor-evidence:${c}`),
+          ...((o.kpiRefs as string[]) ?? []).map((k) => `kpi:${k}`),
         ];
         lines.push(`- **[${LABEL[o.kind] ?? o.kind}]** ${o.text}${refs.length ? ` _(${refs.join(", ")})_` : ""}`);
         return;
@@ -73,8 +75,14 @@ export function exportApprovedMarkdown(asset: AssetRecord, actor: Actor, kb: Kno
       // Schema order, not storage order (jsonb sorts keys by length).
       for (const [k, v] of orderedEntries(o, asset.type)) {
         if (k === "schemaVersion") continue;
-        if (typeof v === "string") {
+        if (k === "kpiSnapshot" && Array.isArray(v)) {
+          lines.push(`${"#".repeat(Math.min(depth + 2, 6))} KPI results`, "", ...kpiTable(v as KpiResult[]), "");
+          continue;
+        }
+        if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
           lines.push(`**${humanise(k)}:** ${v}`, "");
+        } else if (v === null) {
+          lines.push(`**${humanise(k)}:** —`, "");
         } else {
           lines.push(`${"#".repeat(Math.min(depth + 2, 6))} ${humanise(k)}`, "");
           render(v, depth + 1);
@@ -98,4 +106,18 @@ export function exportApprovedMarkdown(asset: AssetRecord, actor: Actor, kb: Kno
   }
   lines.push("", "---", "_Automated checks are supporting controls, not fact verification. Approval reflects human review of this exact version._");
   return lines.join("\n").replace(/\n{3,}/g, "\n\n") + "\n";
+}
+
+const cell = (v: number | null, suffix = "") => (v === null ? "—" : `${v}${suffix}`);
+
+/** Server-computed KPI results as a Markdown table (no model-written numbers). */
+export function kpiTable(rows: KpiResult[]): string[] {
+  return [
+    "| KPI | Stage | Actual | Target | Expected to date | Pace | Status |",
+    "|---|---|---|---|---|---|---|",
+    ...rows.map(
+      (r) =>
+        `| ${r.name.replace(/\|/g, "/")} | ${r.funnelStage} | ${cell(r.actual)} | ${cell(r.target)} | ${cell(r.expectedToDate)} | ${cell(r.pacePct, " %")} | ${r.status.replace(/_/g, " ")} |`,
+    ),
+  ];
 }

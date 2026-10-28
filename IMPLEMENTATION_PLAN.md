@@ -73,9 +73,12 @@ Same principle: every milestone ends green; human approval stays the only way to
   `dataRequirements`. Export only — no automated sending.
 - Guided demo steps 16–19, unit + integration + E2E tests.
 
-## M11 — KPI analysis (F5), next
-- KPI tree per campaign (from the approved plan), CSV import of measurements, deviation analysis
-  → recommendation (reviewed like any asset). Later: GA4, CRM, LinkedIn Ads (read-only).
+## M11 — KPI analysis (F5) ✅ (review, `feature/m11-kpi-analysis`)
+- `Kpi`, `KpiMeasurement`, `KpiImport`; asset type `performance_review`; migration `20261029090000_kpis`.
+- KPI tree from the approved plan, human targets, CSV import, deterministic target vs. actual.
+- Agent G + run kind `campaign_performance`; server-computed `kpiSnapshot`; gate G10 (numbers).
+- `/campaigns/[id]/performance`, guided demo steps 20–22; unit, integration and E2E tests.
+- Later: read-only connectors (GA4, CRM, LinkedIn Ads) feeding the same measurement table.
 
 ## M12 — Channel audit & social/digital strategy (F3), next
 - Channel audit (CSV/URL input), content pillars, editorial calendar; retention plays with CRM data.

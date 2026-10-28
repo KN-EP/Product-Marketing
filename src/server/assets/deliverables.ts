@@ -12,7 +12,9 @@ import { HttpError } from "../errors";
 export const INTERNAL_ASSET_TYPES: readonly AssetType[] = ["product_intelligence_brief"];
 export const PMM_DELIVERABLE_TYPES: readonly AssetType[] = ["messaging_framework", "competitive_battlecard", "regulatory_gtm_brief"];
 export const CAMPAIGN_DELIVERABLE_TYPES: readonly AssetType[] = ["campaign_plan", "content_matrix", "sales_play"];
-export const DELIVERABLE_ASSET_TYPES: readonly AssetType[] = [...PMM_DELIVERABLE_TYPES, ...CAMPAIGN_DELIVERABLE_TYPES];
+/** M11: performance review of a campaign (campaign_performance run). */
+export const PERFORMANCE_DELIVERABLE_TYPES: readonly AssetType[] = ["performance_review"];
+export const DELIVERABLE_ASSET_TYPES: readonly AssetType[] = [...PMM_DELIVERABLE_TYPES, ...CAMPAIGN_DELIVERABLE_TYPES, ...PERFORMANCE_DELIVERABLE_TYPES];
 
 export const INPUT_BRIEF_LABEL = "Input brief (internal — not for external use)";
 

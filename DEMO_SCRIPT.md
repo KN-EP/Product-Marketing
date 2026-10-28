@@ -37,5 +37,14 @@ DataGuard has not reviewed it. Simulated mode replays prepared outputs — nothi
     sending. Optional: create a *retention* campaign → the play lists the customer data it needs.
 17. **Export** an approved campaign deliverable as Markdown.
 
-Current state (M10): every step runs in the UI; steps 1–11 and the campaign generation, the blocked content matrix and campaign isolation are covered by the Playwright E2E suite. Before a demo,
+**KPI analysis (M11, ~5 more minutes)**
+
+18. Approve the campaign plan (expert acknowledgement). On the campaign, open **Performance (KPIs)**
+    → “Create KPI tree from approved plan”. Set targets (e.g. 400 / 100 / 50) — the plan only proposed them.
+19. “Fill with synthetic sample data” → **Import measurements**. Show the computed target-vs-actual
+    table (pace pro rata to the campaign time) and the import log.
+20. **Generate performance review**: findings quote only computed numbers (G10), causes are
+    hypotheses, recommendations suggestions. Approve and export — the Markdown has the KPI table.
+
+Current state (M11): every step runs in the UI; steps 1–11 and the campaign generation, the blocked content matrix and campaign isolation are covered by the Playwright E2E suite. Before a demo,
 run `npm run demo:reset` for a clean state (demo tenants only).

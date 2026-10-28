@@ -8,6 +8,7 @@ import {
   runAgentD,
   runAgentE,
   runAgentF,
+  runAgentG,
   type AgentInput,
   type AgentResult,
 } from "../agents";
@@ -20,6 +21,7 @@ import {
   AGENT_D_CAMPAIGN_PLAN_PROMPT,
   AGENT_E_CONTENT_MATRIX_PROMPT,
   AGENT_F_SALES_PLAY_PROMPT,
+  AGENT_G_PERFORMANCE_PROMPT,
   renderPrompt,
   type PromptTemplate,
 } from "../prompts";
@@ -130,5 +132,23 @@ export async function runCampaignPipeline(
 
   await step(AGENT_E_CONTENT_MATRIX_PROMPT, next, () => runAgentE(next, provider));
   await step(AGENT_F_SALES_PLAY_PROMPT, next, () => runAgentF(next, provider));
+  return progress;
+}
+
+/**
+ * campaign_performance (M11): agent G writes the review draft from the KPI
+ * results; the server then adds `asOf` and the deterministic `kpiSnapshot`, so
+ * the stored numbers never come from the model (gate G10 checks the text).
+ */
+export async function runPerformancePipeline(
+  base: AgentInput & { kpiResults: NonNullable<AgentInput["kpiResults"]> },
+  provider: LlmProvider,
+  budget: CostBudget,
+  progress: PipelineProgress = newProgress(),
+  onStep?: () => Promise<unknown>,
+): Promise<PipelineProgress> {
+  const step = stepper(budget, progress, onStep);
+  const g = await step(AGENT_G_PERFORMANCE_PROMPT, base, () => runAgentG(base, provider));
+  (g as AgentResult<unknown>).output = { ...g.output, asOf: base.kpiResults.asOf, kpiSnapshot: base.kpiResults.results };
   return progress;
 }

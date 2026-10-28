@@ -28,6 +28,7 @@ export const ASSET_TYPE_LABEL: Record<string, string> = {
   campaign_plan: "Campaign plan",
   content_matrix: "Content matrix",
   sales_play: "Sales play",
+  performance_review: "Performance review",
 };
 
 export const CAMPAIGN_TYPE_LABEL: Record<string, string> = {
@@ -41,6 +42,7 @@ export const CAMPAIGN_TYPE_LABEL: Record<string, string> = {
 export const RUN_KIND_LABEL: Record<string, string> = {
   pmm_three_asset: "PMM core (3 deliverables)",
   campaign_gtm: "Campaign package (3 deliverables)",
+  campaign_performance: "Performance review (KPI analysis)",
 };
 
 /** Calendar date (UTC) for date-only fields such as campaign start/end. */

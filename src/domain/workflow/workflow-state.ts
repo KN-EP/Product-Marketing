@@ -70,6 +70,8 @@ export async function campaignIdempotencyKey(parts: {
   kind: string;
   campaignId: string;
   promptVersions: Record<string, string>;
+  /** campaign_performance: the latest KPI import, so new data means a new run. */
+  dataVersion?: string;
   requestNonce?: string;
 }): Promise<string> {
   return sha256Hex(

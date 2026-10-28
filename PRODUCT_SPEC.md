@@ -105,3 +105,36 @@ M content matrix v1 blocked (unsupported, absolute regulatory promise) → chang
 prepared correction → v2 approved with expert acknowledgement → Markdown export ·
 N approved messaging framework (same product + persona) used as context; unapproved or other-persona one not ·
 O cross-tenant campaign page / campaign run → 404.
+
+---
+
+# Extension M11 — KPI analysis and performance optimisation (F5)
+
+## Flow
+1. Campaign plan approved (human) → **KPI tree** created from its KPIs (once per campaign).
+2. Team sets numeric **target**, baseline, unit, direction (higher/lower is better) and aggregation
+   (sum / latest / average) per KPI — the plan only proposed targets as text.
+3. **CSV import** of measurements: columns `kpi`, `date`, `value` (aliases accepted), separator `,`
+   or `;`, dates `YYYY-MM-DD` or `DD.MM.YYYY`, English or German number format. Same KPI and date →
+   replaced. Rejected rows are reported by line and reason (never by content).
+4. **Target vs. actual** is computed deterministically (`src/domain/kpis/analysis.ts`): actual,
+   expected to date (sum KPIs: target pro rata to the elapsed campaign time), deviation, pace and
+   status (on track ≥ 95 %, at risk ≥ 75 %, off track, no target, no data).
+5. Run kind `campaign_performance` → agent G writes the **performance review** draft (summary,
+   findings with likely causes, recommendations, data gaps). The server adds `asOf` and the computed
+   `kpiSnapshot`; human edits cannot change them.
+
+## Rules
+- Numbers are never model output. Statements reference KPIs by name (`kpiRefs`).
+- **G10**: a fact with `kpiRefs` must only quote numbers found in the referenced KPI results
+  (rounded and locale forms accepted) — otherwise critical; in hypotheses/suggestions a warning.
+  A verified percentage is not treated as an absolute promise; promise words still are.
+- KPI references outside performance reviews fail G2.
+- Causes are hypotheses; recommendations are suggestions; correlation is not causation.
+
+## Acceptance tests
+P KPI tree only from an approved plan, once; foreign campaign 404; viewer 403 ·
+Q KPI edits limited to target/baseline/unit/direction/aggregation; foreign KPI 404 ·
+R CSV import: accepted/rejected rows, replace on same date, 413 above 200 KB, 400 on a bad header ·
+S performance run needs data (409), produces a gated review with server numbers; edits keep them;
+approve → export with KPI table · T same data → same run, new import → new run.

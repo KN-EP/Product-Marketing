@@ -120,8 +120,14 @@ export async function createDraftVersion(
     }
     const base = currentVersion(rec);
     const { snapshot } = await t.knowledge.snapshot();
+    // Performance reviews: the KPI numbers are server-computed — a human edit
+    // changes the text, never the numbers it is checked against (gate G10).
+    const content =
+      rec.type === "performance_review" && base && input.content && typeof input.content === "object"
+        ? { ...(input.content as object), asOf: (base.content as { asOf?: unknown }).asOf, kpiSnapshot: (base.content as { kpiSnapshot?: unknown }).kpiSnapshot }
+        : input.content;
     // Provenance: a human edit is its own generation mode, linked to its base version.
-    const next = addVersion(rec, input.content, actor, snapshot, {
+    const next = addVersion(rec, content, actor, snapshot, {
       id: randomUUID(),
       generationMode: "human_edit",
       basedOnVersionId: base?.id ?? null,

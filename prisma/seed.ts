@@ -108,6 +108,12 @@ async function upsertRunContext(
   }
 }
 
+/** Campaign window around today: `before` days ago until `after` days ahead (YYYY-MM-DD, UTC). */
+export function seedWindow(before: number, after: number, now = new Date()): { startsOn: string; endsOn: string } {
+  const day = (offset: number) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + offset)).toISOString().slice(0, 10);
+  return { startsOn: day(-before), endsOn: day(after) };
+}
+
 /** A synthetic campaign briefing per tenant (M8): the starting point of the campaign_gtm run. */
 async function upsertCampaign(
   db: Db,
@@ -278,8 +284,8 @@ export async function seed(db: Db, opts: { password: string }): Promise<void> {
       "[SYNTHETIC] Start qualified conversations with CISOs in German mid-sized companies who need an overview of the AI systems in use.",
     market: "DACH mid-market",
     channels: ["LinkedIn", "Email", "Webinar", "Sales outreach"],
-    startsOn: "2027-01-11",
-    endsOn: "2027-03-05",
+    // Relative to the seed date, so the KPI analysis (as of today) always falls inside the campaign.
+    ...seedWindow(28, 28),
     budgetEur: 15000,
   });
   for (const e of DEMO_COMPETITOR_EVIDENCE) {

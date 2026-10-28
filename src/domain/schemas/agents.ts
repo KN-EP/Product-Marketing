@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CampaignPlanV1, ContentMatrixV1, SalesPlayV1 } from "./campaign";
 import { ProofPoint, Statement } from "./common";
+import { PerformanceReviewV1 } from "./performance";
 
 // ── Agent A: Product & Market Intelligence ──
 export const ProductIntelligenceBriefV1 = z.object({
@@ -72,6 +73,8 @@ export const ASSET_SCHEMAS = {
   campaign_plan: CampaignPlanV1,
   content_matrix: ContentMatrixV1,
   sales_play: SalesPlayV1,
+  // M11 (src/domain/schemas/performance.ts) — stored form incl. the server-computed kpiSnapshot
+  performance_review: PerformanceReviewV1,
 } as const;
 
 export type AssetType = keyof typeof ASSET_SCHEMAS;

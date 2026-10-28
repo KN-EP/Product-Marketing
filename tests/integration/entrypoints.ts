@@ -10,6 +10,7 @@ export const ID_ENTRYPOINTS = [
   "src/app/(app)/assets/[id]/edit/page.tsx", // ui.test.ts
   "src/app/(app)/assets/[id]/page.tsx", // tenant-isolation.test.ts, ui.test.ts
   "src/app/(app)/campaigns/[id]/page.tsx", // campaign.test.ts
+  "src/app/(app)/campaigns/[id]/performance/page.tsx", // kpi.test.ts
   "src/app/(app)/products/[id]/page.tsx", // ui.test.ts
   "src/app/(app)/workflows/[id]/page.tsx", // ui.test.ts
   "src/app/api/assets/[id]/route.ts", // tenant-isolation.test.ts
@@ -24,6 +25,9 @@ export const SERVER_ACTIONS: Record<string, string> = {
   "src/app/actions/auth.ts#loginAction": "tenant from Membership; injected tenantId field ignored",
   "src/app/actions/auth.ts#switchDemoUserAction": "tenant from Membership; disabled in production",
   "src/app/actions/auth.ts#logoutAction": "no input",
+  "src/app/actions/kpi.ts#createKpiTreeAction": "kpi.test.ts: foreign campaign id → 404; viewer 403",
+  "src/app/actions/kpi.ts#updateKpiAction": "kpi.test.ts: foreign KPI id → 404; injected campaignId/name rejected",
+  "src/app/actions/kpi.ts#importKpiCsvAction": "kpi.test.ts: foreign campaign id → 404; size limit 413",
   "src/app/actions/campaign.ts#createCampaignAction": "campaign.test.ts: foreign product/persona ids → 404; injected tenantId rejected; viewer 403",
   "src/app/actions/review.ts#submitForReviewAction": "workflow.test.ts: foreign asset id → 404",
   "src/app/actions/review.ts#decideAction": "workflow.test.ts: foreign asset id → 404",

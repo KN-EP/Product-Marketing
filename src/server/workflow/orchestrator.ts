@@ -4,6 +4,8 @@ import { ACTIVE_RUN_STATUSES } from "../db/tenant-scope";
 import { addVersion, currentVersion, submitForReview, type AssetRecord } from "../../domain/assets/asset-state";
 import type { AssetType } from "../../domain/schemas/agents";
 import { campaignBriefNotes } from "../../domain/campaigns/campaign";
+import { computeKpiResults } from "../../domain/kpis/analysis";
+import { CampaignPlanV1 } from "../../domain/schemas/campaign";
 import { MessagingFrameworkV1 } from "../../domain/schemas/agents";
 import { campaignIdempotencyKey, idempotencyKey, WORKFLOW_LIMITS, type WorkflowStatus } from "../../domain/workflow/workflow-state";
 import { Prisma } from "../../generated/prisma/client";
@@ -16,7 +18,9 @@ import { log } from "../log";
 import { sanitizeError } from "./errors";
 import {
   CAMPAIGN_GTM,
+  CAMPAIGN_PERFORMANCE,
   CAMPAIGN_PROMPT_VERSIONS,
+  PERFORMANCE_PROMPT_VERSIONS,
   PMM_THREE_ASSET,
   PROMPT_VERSIONS,
   StartWorkflowInput,
@@ -24,7 +28,7 @@ import {
   type RunInputRefs,
 } from "./input";
 import { assertCanRetry, assertConcurrencyAvailable, CostBudget, costCapUsd } from "./limits";
-import { newProgress, runCampaignPipeline, runPmmPipeline } from "./pipeline";
+import { newProgress, runCampaignPipeline, runPerformancePipeline, runPmmPipeline } from "./pipeline";
 
 type Env = Record<string, string | undefined>;
 
@@ -79,6 +83,7 @@ const ASSET_LABEL: Record<AssetType, string> = {
   campaign_plan: "Campaign plan",
   content_matrix: "Content matrix",
   sales_play: "Sales play",
+  performance_review: "Performance review",
 };
 
 /** An active run whose row has not changed for this long is considered stale. */
@@ -169,6 +174,27 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
           ...(requestNonce ? { requestNonce } : {}),
         }),
         promptVersions: CAMPAIGN_PROMPT_VERSIONS,
+        inputRefs: refs,
+        campaignId: campaign.id,
+      };
+    } else if (parsed.data.kind === CAMPAIGN_PERFORMANCE) {
+      const { kind, requestNonce, ...refs } = parsed.data;
+      const campaign = await tdb.campaigns.getById(refs.campaignId);
+      if ((await tdb.kpis.countMeasurements(campaign.id)) === 0) {
+        throw new HttpError(409, "no_kpi_data", "Import KPI measurements before generating a performance review.");
+      }
+      const dataVersion = (await tdb.kpis.latestImportId(campaign.id)) ?? "none";
+      admission = {
+        kind,
+        key: await campaignIdempotencyKey({
+          tenantId: actor.tenantId,
+          kind,
+          campaignId: campaign.id,
+          promptVersions: PERFORMANCE_PROMPT_VERSIONS,
+          dataVersion,
+          ...(requestNonce ? { requestNonce } : {}),
+        }),
+        promptVersions: PERFORMANCE_PROMPT_VERSIONS,
         inputRefs: refs,
         campaignId: campaign.id,
       };
@@ -392,6 +418,47 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
         }),
       };
     }
+    if (kind === CAMPAIGN_PERFORMANCE) {
+      const refs = inputRefs as CampaignRunInputRefs;
+      const campaign = await tdb.campaigns.getById(refs.campaignId);
+      const asOf = this.now().toISOString().slice(0, 10);
+      const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+      const [kpis, { snapshot, sourceClassifications }, policy, plan] = await Promise.all([
+        tdb.kpis.listForCampaign(campaign.id),
+        tdb.knowledge.snapshot(),
+        tdb.tenant.policy(),
+        tdb.assets.latestApprovedForCampaign("campaign_plan", campaign.id),
+      ]);
+      // Deterministic numbers: computed here, never by the model.
+      const results = computeKpiResults(kpis, { startsOn: day(campaign.startsOn), endsOn: day(campaign.endsOn) }, asOf);
+      const parsedPlan = plan ? CampaignPlanV1.safeParse(plan.content) : null;
+      const base = {
+        snapshot,
+        sourceClassifications,
+        policy,
+        brief: {
+          productName: campaign.product.name,
+          market: campaign.market,
+          persona: `${campaign.persona.name} (${campaign.persona.role})`,
+          notes: campaignBriefNotes(campaign),
+        },
+        kpiResults: { asOf, results },
+        ...(parsedPlan?.success ? { campaignPlan: parsedPlan.data } : {}),
+      };
+      return {
+        snapshot,
+        titleSuffix: `${campaign.name} (${asOf})`,
+        campaignId: campaign.id,
+        run: (provider: LlmProvider, budget: CostBudget, progress: ReturnType<typeof newProgress>, onStep: () => Promise<unknown>) =>
+          runPerformancePipeline(base, provider, budget, progress, onStep),
+        validationMeta: () => ({
+          asOf,
+          kpis: results.length,
+          measurements: results.reduce((n, r) => n + r.measurements, 0),
+          offTrack: results.filter((r) => r.status === "off_track").length,
+        }),
+      };
+    }
     throw new HttpError(409, "unknown_kind", `Unknown run kind: ${kind}.`);
   }
 
@@ -480,4 +547,4 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
   }
 }
 
-export { CAMPAIGN_GTM, PMM_THREE_ASSET };
+export { CAMPAIGN_GTM, CAMPAIGN_PERFORMANCE, PMM_THREE_ASSET };

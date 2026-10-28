@@ -1,5 +1,7 @@
 import { ASSET_SCHEMAS, collectStatements, type AssetType } from "../schemas/agents";
 import { excerptExistsInSource, type KnowledgeSnapshot } from "../knowledge/snapshot";
+import { allowedNumbers, unknownNumbers } from "../kpis/analysis";
+import type { KpiResult } from "../schemas/performance";
 
 /**
  * Automated quality gates. These are supporting controls: they check structure,
@@ -18,7 +20,8 @@ export type GateId =
   | "G5_unsupported_assertions"
   | "G6_fact_interpretation_separation"
   | "G7_regulatory_expert_review"
-  | "G7b_comparative_support";
+  | "G7b_comparative_support"
+  | "G10_kpi_numbers";
 
 export interface Finding {
   gate: GateId;
@@ -69,6 +72,12 @@ export function runQualityGates(
 
   const statements = collectStatements(parsed.data);
 
+  // KPI results the asset carries itself (performance reviews: server-computed,
+  // never model-written). Other asset types have none, so any kpiRef fails G2.
+  const snapshot = (parsed.data as { kpiSnapshot?: KpiResult[] }).kpiSnapshot ?? [];
+  const kpis = new Map(snapshot.map((k) => [k.name.toLowerCase(), k] as const));
+  const asOf = (parsed.data as { asOf?: string }).asOf;
+
   for (const { path, s } of statements) {
     // ── G2 + G3: claim references ──
     for (const claimId of s.claimIds) {
@@ -114,16 +123,44 @@ export function runQualityGates(
       }
     }
 
+    // ── G2 + G10: KPI references and the numbers quoted from them ──
+    const refKpis: KpiResult[] = [];
+    for (const name of s.kpiRefs) {
+      const k = kpis.get(name.toLowerCase());
+      if (!k) add("G2_references_exist", "critical", path, `Unknown KPI reference: ${name}`);
+      else refKpis.push(k);
+    }
+    let kpiFactSupported = false;
+    let kpiNumbersOk = false;
+    if (refKpis.length > 0) {
+      const unknown = unknownNumbers(s.text, allowedNumbers(refKpis, asOf));
+      if (unknown.length) {
+        add(
+          "G10_kpi_numbers",
+          s.kind === "fact" ? "critical" : "warning",
+          path,
+          `Number(s) not found in the referenced KPI results: ${unknown.slice(0, 5).join(", ")}`,
+        );
+      } else {
+        kpiNumbersOk = true;
+        kpiFactSupported = refKpis.length === s.kpiRefs.length;
+      }
+    }
+
     // ── G5: unsupported assertions ──
     // Product facts need an approved claim. Regulatory facts (statements about
-    // the law, not the product) need a verified source excerpt instead.
+    // the law, not the product) need a verified source excerpt instead. Facts
+    // about measured performance need KPI references whose numbers match (G10).
     const looksRegulatory = s.regulatory || REGULATORY_PATTERN.test(s.text);
-    const hasSupport = s.claimIds.length > 0 || s.evidence.length > 0;
+    const hasSupport = s.claimIds.length > 0 || s.evidence.length > 0 || s.kpiRefs.length > 0;
     const regulatoryFactWithEvidence = looksRegulatory && s.evidence.length > 0;
-    if (s.kind === "fact" && s.claimIds.length === 0 && !regulatoryFactWithEvidence) {
+    if (s.kind === "fact" && s.claimIds.length === 0 && !regulatoryFactWithEvidence && !kpiFactSupported) {
       add("G5_unsupported_assertions", "critical", path, "Statement labelled as fact has no approved claim behind it");
     }
-    if (ABSOLUTE_PATTERN.test(s.text) && s.claimIds.length === 0) {
+    // A percentage quoted from verified KPI results ("100 %") is a measurement, not a promise;
+    // promise words ("guaranteed", "always") are still caught.
+    const promiseText = kpiNumbersOk ? s.text.replace(/\d+(?:[.,]\d+)?\s?%/g, "") : s.text;
+    if (ABSOLUTE_PATTERN.test(promiseText) && s.claimIds.length === 0) {
       add("G5_unsupported_assertions", "critical", path, "Absolute promise without a supporting approved claim");
     }
     if (s.kind === "interpretation" && !hasSupport) {

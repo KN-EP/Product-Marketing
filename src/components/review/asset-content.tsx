@@ -5,12 +5,15 @@ import { groupFindings } from "@/lib/findings";
 import { cn } from "@/lib/utils";
 import type { Finding } from "@/domain/quality-gates/gates";
 import { orderedEntries } from "@/domain/schemas/display-order";
+import type { KpiResult } from "@/domain/schemas/performance";
+import { KpiResultsTable } from "@/components/kpi/results-table";
 
 interface StatementLike {
   text: string;
   kind: string;
   claimIds?: string[];
   competitorEvidenceIds?: string[];
+  kpiRefs?: string[];
   evidence?: { sourceId: string; excerpt: string }[];
   regulatory?: boolean;
   comparative?: boolean;
@@ -54,6 +57,14 @@ function Node({
 }) {
   if (value === null || value === undefined) return null;
   if (isStatement(value)) return <Statement s={value} path={path} label={label} findings={byPath.get(path) ?? []} />;
+  if (path === "$.kpiSnapshot" && Array.isArray(value)) {
+    return (
+      <div className="flex flex-col gap-2">
+        <Heading depth={depth}>KPI results (computed from imported data)</Heading>
+        <KpiResultsTable rows={value as KpiResult[]} />
+      </div>
+    );
+  }
   if (typeof value !== "object") {
     return label ? (
       <p className="text-sm">
@@ -135,7 +146,7 @@ function Statement({ s, path, label, findings }: { s: StatementLike; path: strin
         {s.comparative ? <Badge variant="outline">comparative</Badge> : null}
       </div>
       <p className="mt-1 text-sm">{s.text}</p>
-      {(s.claimIds?.length || evidence.length || s.competitorEvidenceIds?.length) ? (
+      {(s.claimIds?.length || evidence.length || s.competitorEvidenceIds?.length || s.kpiRefs?.length) ? (
         <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
           {s.claimIds?.map((c) => (
             <a key={c} href={`#ev-claim-${c}`} className="underline underline-offset-2">
@@ -152,6 +163,9 @@ function Statement({ s, path, label, findings }: { s: StatementLike; path: strin
             <a key={c} href={`#ev-cev-${c}`} className="underline underline-offset-2">
               competitor-evidence:{c}
             </a>
+          ))}
+          {s.kpiRefs?.map((k) => (
+            <span key={k}>kpi:{k}</span>
           ))}
         </p>
       ) : (

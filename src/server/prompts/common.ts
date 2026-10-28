@@ -19,6 +19,8 @@ export interface PromptInput {
   messagingFramework?: unknown;
   /** Agent D output (schema-validated by the caller), given to agents E and F as context. */
   campaignPlan?: unknown;
+  /** M11: server-computed KPI results for agent G. */
+  kpiResults?: { asOf: string; results: unknown[] };
 }
 
 export interface PromptTemplate {
@@ -47,7 +49,7 @@ Truthfulness:
 /** Neutralise anything that could close or open one of our delimiter tags. */
 export function escapeDelimiters(text: string): string {
   return text.replace(
-    /<\s*\/?\s*(brief|knowledge_base|untrusted_sources|source|claim|competitor_evidence|evidence|messaging_framework|campaign_plan)\b[^>]*>/gi,
+    /<\s*\/?\s*(brief|knowledge_base|untrusted_sources|source|claim|competitor_evidence|evidence|messaging_framework|campaign_plan|kpi_results)\b[^>]*>/gi,
     "[removed tag]",
   );
 }
@@ -106,4 +108,12 @@ export function renderCampaignPlan(plan: unknown): string {
 Draft campaign plan from agent D (not yet human-approved). Use it to keep channels, funnel stages and wording consistent; it is NOT evidence. Facts still need approved claim ids.
 ${escapeDelimiters(JSON.stringify(plan, null, 2))}
 </campaign_plan>`;
+}
+
+/** Server-computed KPI results for agent G. Deterministic numbers, but still delimited data. */
+export function renderKpiResults(k: { asOf: string; results: unknown[] } | undefined): string {
+  if (!k) return "";
+  return `<kpi_results as_of="${attr(k.asOf)}">
+${escapeDelimiters(JSON.stringify(k.results, null, 2))}
+</kpi_results>`;
 }

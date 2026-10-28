@@ -67,6 +67,27 @@ enum AssetType {
   campaign_plan
   content_matrix
   sales_play
+  /// M11: performance review (campaign_performance run)
+  performance_review
+}
+
+enum KpiUnit {
+  count
+  percent
+  currency_eur
+  ratio
+}
+
+enum KpiDirection {
+  higher_is_better
+  lower_is_better
+}
+
+/// How the measurements of a KPI combine into its actual value.
+enum KpiAggregation {
+  sum
+  latest
+  average
 }
 
 /// What a campaign is meant to move. Drives the campaign plan and the sales play type.
@@ -141,6 +162,9 @@ model Tenant {
   claimEvidence          ClaimEvidence[]
   valuePropositionClaims ValuePropositionClaim[]
   campaigns              Campaign[]
+  kpis                   Kpi[]
+  kpiMeasurements        KpiMeasurement[]
+  kpiImports             KpiImport[]
 }
 
 model User {
@@ -441,9 +465,85 @@ model Campaign {
   persona      Persona       @relation(fields: [personaId, tenantId], references: [id, tenantId])
   assets       Asset[]
   workflowRuns WorkflowRun[]
+  kpis         Kpi[]
+  kpiImports   KpiImport[]
 
   @@unique([id, tenantId])
   @@index([tenantId])
+}
+
+// ───────────────────────── KPIs (M11) ─────────────────────────
+
+/// One KPI of a campaign, created from the APPROVED campaign plan. The plan only
+/// proposes targets; the numeric target and baseline are set by a human.
+model Kpi {
+  id              String         @id @default(cuid())
+  tenantId        String
+  campaignId      String
+  name            String
+  funnelStage     String
+  definition      String
+  dataSource      String
+  /// Order of the KPI in the approved plan (funnel order as the plan lists it).
+  position        Int            @default(0)
+  unit            KpiUnit        @default(count)
+  direction       KpiDirection   @default(higher_is_better)
+  aggregation     KpiAggregation @default(sum)
+  target          Decimal?       @db.Decimal(18, 4)
+  baseline        Decimal?       @db.Decimal(18, 4)
+  /// Provenance only: the approved campaign_plan version the KPI came from.
+  sourceVersionId String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaign     Campaign         @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  measurements KpiMeasurement[]
+
+  @@unique([id, tenantId])
+  @@unique([campaignId, name])
+  @@index([tenantId, campaignId])
+}
+
+/// One measured value per KPI and period start. A later import of the same
+/// period replaces the value (and records which import did it).
+model KpiMeasurement {
+  id          String   @id @default(cuid())
+  tenantId    String
+  kpiId       String
+  periodStart DateTime @db.Date
+  value       Decimal  @db.Decimal(18, 4)
+  importId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  kpi    Kpi       @relation(fields: [kpiId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  import KpiImport @relation(fields: [importId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([kpiId, periodStart])
+  @@index([tenantId, kpiId])
+  @@index([importId])
+}
+
+/// A CSV import (who, when, how many rows; rejected rows with line and reason — no raw file content).
+model KpiImport {
+  id           String   @id @default(cuid())
+  tenantId     String
+  campaignId   String
+  fileName     String
+  rowCount     Int
+  acceptedRows Int
+  rejectedRows Json
+  importedById String?
+  createdAt    DateTime @default(now())
+
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaign     Campaign         @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  measurements KpiMeasurement[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, campaignId])
 }
 
 // ───────────────────────── Assets, runs, approvals ─────────────────────────
