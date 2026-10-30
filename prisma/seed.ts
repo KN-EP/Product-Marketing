@@ -75,6 +75,7 @@ export const SEED_IDS = {
     regulatoryTrigger: "rtr_demo_eu_ai_act",
     competitors: ["cmp_a", "cmp_b", "cmp_c"],
     campaign: "cmpg_demo_ai_inventory",
+    release: "rel_demo_2_4",
   },
   [OTHER_TENANT_ID]: {
     asset: "ast_other_brief",
@@ -85,6 +86,7 @@ export const SEED_IDS = {
     regulatoryTrigger: "rtr_other",
     competitors: ["cmp_other_1", "cmp_other_2", "cmp_other_3"],
     campaign: "cmpg_other_demo",
+    release: "rel_other_demo",
   },
 } as const;
 
@@ -118,7 +120,17 @@ export function seedWindow(before: number, after: number, now = new Date()): { s
 async function upsertCampaign(
   db: Db,
   tenantId: keyof typeof SEED_IDS,
-  data: { name: string; type: "demand_generation" | "conversion" | "retention" | "loyalty" | "sales_enablement"; objective: string; market: string; channels: string[]; startsOn?: string; endsOn?: string; budgetEur?: number },
+  data: {
+    name: string;
+    type: "demand_generation" | "conversion" | "retention" | "loyalty" | "sales_enablement";
+    objective: string;
+    market: string;
+    communicationChannels: string[];
+    salesChannels: string[];
+    startsOn?: string;
+    endsOn?: string;
+    budgetEur?: number;
+  },
 ) {
   const ids = SEED_IDS[tenantId];
   const c = {
@@ -128,13 +140,35 @@ async function upsertCampaign(
     productId: ids.product,
     personaId: ids.persona,
     market: data.market,
-    channels: data.channels,
+    communicationChannels: data.communicationChannels,
+    salesChannels: data.salesChannels,
     startsOn: data.startsOn ? new Date(`${data.startsOn}T00:00:00Z`) : null,
     endsOn: data.endsOn ? new Date(`${data.endsOn}T00:00:00Z`) : null,
     budgetEur: data.budgetEur ?? null,
     isSynthetic: true,
   };
   await db.campaign.upsert({ where: { id: ids.campaign }, create: { id: ids.campaign, tenantId, ...c }, update: c });
+}
+
+/** A synthetic planned release per tenant (M12): the starting point of the release_communication run. */
+async function upsertRelease(
+  db: Db,
+  tenantId: keyof typeof SEED_IDS,
+  data: {
+    name: string;
+    version: string;
+    type: "major_release" | "feature_update" | "maintenance_update" | "security_update" | "deprecation";
+    plannedOn?: string;
+    summary: string;
+    changes: string[];
+    audiences: string[];
+    communicationChannels: string[];
+    salesChannels: string[];
+  },
+) {
+  const ids = SEED_IDS[tenantId];
+  const r = { ...data, productId: ids.product, plannedOn: data.plannedOn ? new Date(`${data.plannedOn}T00:00:00Z`) : null, isSynthetic: true };
+  await db.release.upsert({ where: { id: ids.release }, create: { id: ids.release, tenantId, ...r }, update: r });
 }
 
 export function seedUserEmail(tenantIndex: 0 | 1, role: Role): string {
@@ -283,10 +317,22 @@ export async function seed(db: Db, opts: { password: string }): Promise<void> {
     objective:
       "[SYNTHETIC] Start qualified conversations with CISOs in German mid-sized companies who need an overview of the AI systems in use.",
     market: "DACH mid-market",
-    channels: ["LinkedIn", "Email", "Webinar", "Sales outreach"],
+    communicationChannels: ["LinkedIn", "Email", "Webinar"],
+    salesChannels: ["direct_sales", "customer_success"],
     // Relative to the seed date, so the KPI analysis (as of today) always falls inside the campaign.
     ...seedWindow(28, 28),
     budgetEur: 15000,
+  });
+  await upsertRelease(db, DEMO_TENANT_ID, {
+    name: "[SYNTHETIC] Review reminders and bulk export",
+    version: "2.4",
+    type: "feature_update",
+    plannedOn: seedWindow(0, 21).endsOn,
+    summary: "[SYNTHETIC] Owner reminders for due AI system reviews and a bulk export of documentation packs.",
+    changes: ["[SYNTHETIC] Owner reminders for due reviews", "[SYNTHETIC] Bulk export of documentation packs"],
+    audiences: ["internal_sales", "internal_support", "existing_customers", "partners_resellers"],
+    communicationChannels: ["Email", "In-product notice", "Partner newsletter"],
+    salesChannels: ["customer_success", "partner_reseller"],
   });
   for (const e of DEMO_COMPETITOR_EVIDENCE) {
     const data = { competitorId: e.competitorId, sourceId: e.sourceId, assertion: e.assertion, excerpt: e.excerpt, state: e.state };
@@ -330,7 +376,18 @@ export async function seed(db: Db, opts: { password: string }): Promise<void> {
     type: "retention",
     objective: "[SYNTHETIC] Isolation test record for campaigns.",
     market: "Synthetic",
-    channels: ["Email"],
+    communicationChannels: ["Email"],
+    salesChannels: [],
+  });
+  await upsertRelease(db, OTHER_TENANT_ID, {
+    name: "[SYNTHETIC] Other tenant release",
+    version: "1.0",
+    type: "maintenance_update",
+    summary: "[SYNTHETIC] Isolation test record for releases.",
+    changes: ["[SYNTHETIC] Isolation test change"],
+    audiences: ["existing_customers"],
+    communicationChannels: ["Email"],
+    salesChannels: [],
   });
   const otherKb = buildSnapshot({ tenantId: OTHER_TENANT_ID, sources: [OTHER_SOURCE], claims: [FOREIGN_CLAIM] });
   const otherContent = { ...SIMULATED_MESSAGING_FRAMEWORK, pillars: [], objections: [] };

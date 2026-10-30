@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MAX_CHANNELS, parseChannels, PRESET_CHANNELS } from "@/lib/campaigns";
+import { ChannelFields, toggleIn } from "@/components/campaign/channel-fields";
+import { MAX_CHANNELS, parseChannels } from "@/lib/campaigns";
 import { CAMPAIGN_TYPE_LABEL } from "@/lib/format";
 
 type Option = { id: string; label: string };
@@ -16,7 +17,7 @@ type Option = { id: string; label: string };
 const selectClass =
   "h-9 w-full rounded-md border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
 
-/** Campaign briefing form (M8). Options come from the tenant's own records; validation is repeated server-side. */
+/** Campaign briefing form (M8; M12: communication and sales channels apart). Options come from the tenant's own records; validation is repeated server-side. */
 export function CreateCampaignForm({ products, personas, defaultMarket }: { products: Option[]; personas: Option[]; defaultMarket: string }) {
   const router = useRouter();
   const [name, setName] = useState("");
@@ -25,8 +26,9 @@ export function CreateCampaignForm({ products, personas, defaultMarket }: { prod
   const [productId, setProductId] = useState(products[0]?.id ?? "");
   const [personaId, setPersonaId] = useState(personas[0]?.id ?? "");
   const [market, setMarket] = useState(defaultMarket);
-  const [preset, setPreset] = useState<string[]>(["LinkedIn", "Email", "Webinar", "Sales outreach"]);
+  const [preset, setPreset] = useState<string[]>(["LinkedIn", "Email", "Webinar"]);
   const [other, setOther] = useState("");
+  const [sales, setSales] = useState<string[]>(["direct_sales"]);
   const [startsOn, setStartsOn] = useState("");
   const [endsOn, setEndsOn] = useState("");
   const [budget, setBudget] = useState("");
@@ -34,7 +36,7 @@ export function CreateCampaignForm({ products, personas, defaultMarket }: { prod
   const [pending, start] = useTransition();
 
   const channels = parseChannels(preset, other);
-  const toggle = (c: string) => setPreset((s) => (s.includes(c) ? s.filter((x) => x !== c) : [...s, c]));
+
   const datesOk = !startsOn || !endsOn || endsOn >= startsOn;
   const valid =
     name.trim().length >= 3 &&
@@ -42,7 +44,7 @@ export function CreateCampaignForm({ products, personas, defaultMarket }: { prod
     productId &&
     personaId &&
     market.trim().length >= 2 &&
-    channels.length >= 1 &&
+    channels.length + sales.length >= 1 &&
     channels.length <= MAX_CHANNELS &&
     datesOk;
 
@@ -58,7 +60,8 @@ export function CreateCampaignForm({ products, personas, defaultMarket }: { prod
         productId,
         personaId,
         market: market.trim(),
-        channels,
+        communicationChannels: channels,
+        salesChannels: sales,
         startsOn,
         endsOn,
         budgetEur: budget.trim() === "" ? undefined : Number(budget),
@@ -133,23 +136,16 @@ export function CreateCampaignForm({ products, personas, defaultMarket }: { prod
         <Label htmlFor="cp-end">End (optional)</Label>
         <Input id="cp-end" type="date" value={endsOn} min={startsOn || undefined} onChange={(e) => setEndsOn(e.target.value)} aria-invalid={!datesOk} />
       </div>
-      <fieldset className="md:col-span-2">
-        <legend className="text-sm font-medium">
-          Channels ({channels.length} selected, max. {MAX_CHANNELS})
-        </legend>
-        <div className="mt-2 flex flex-wrap gap-4">
-          {PRESET_CHANNELS.map((c) => (
-            <label key={c} className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={preset.includes(c)} onChange={() => toggle(c)} className="size-4 accent-primary" />
-              {c}
-            </label>
-          ))}
-        </div>
-        <div className="mt-3 flex flex-col gap-1.5">
-          <Label htmlFor="cp-other">Other channels (comma-separated)</Label>
-          <Input id="cp-other" value={other} onChange={(e) => setOther(e.target.value)} maxLength={200} placeholder="e.g. Partner newsletter" />
-        </div>
-      </fieldset>
+      <ChannelFields
+        idPrefix="cp"
+        preset={preset}
+        onTogglePreset={(c) => setPreset(toggleIn(c))}
+        other={other}
+        onOther={setOther}
+        communicationCount={channels.length}
+        sales={sales}
+        onToggleSales={(c) => setSales(toggleIn(c))}
+      />
       <div className="flex flex-wrap items-center gap-3 md:col-span-2">
         <Button type="submit" disabled={!valid || pending}>
           {pending ? "Creating…" : "Create campaign"}

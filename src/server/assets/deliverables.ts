@@ -14,7 +14,14 @@ export const PMM_DELIVERABLE_TYPES: readonly AssetType[] = ["messaging_framework
 export const CAMPAIGN_DELIVERABLE_TYPES: readonly AssetType[] = ["campaign_plan", "content_matrix", "sales_play"];
 /** M11: performance review of a campaign (campaign_performance run). */
 export const PERFORMANCE_DELIVERABLE_TYPES: readonly AssetType[] = ["performance_review"];
-export const DELIVERABLE_ASSET_TYPES: readonly AssetType[] = [...PMM_DELIVERABLE_TYPES, ...CAMPAIGN_DELIVERABLE_TYPES, ...PERFORMANCE_DELIVERABLE_TYPES];
+/** M12: use case map (product), GTM strategy brief (campaign), release communication plan (release). */
+export const STRATEGY_DELIVERABLE_TYPES: readonly AssetType[] = ["use_case_map", "gtm_strategy_brief", "release_communication_plan"];
+export const DELIVERABLE_ASSET_TYPES: readonly AssetType[] = [
+  ...PMM_DELIVERABLE_TYPES,
+  ...CAMPAIGN_DELIVERABLE_TYPES,
+  ...PERFORMANCE_DELIVERABLE_TYPES,
+  ...STRATEGY_DELIVERABLE_TYPES,
+];
 
 export const INPUT_BRIEF_LABEL = "Input brief (internal — not for external use)";
 

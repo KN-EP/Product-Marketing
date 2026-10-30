@@ -1,24 +1,18 @@
 /**
  * E2E (Playwright, simulated mode, TEST database): the campaign package
- * (M8–M10) through the real UI — briefing, generation, the blocked content
- * matrix, a new briefing via the form, isolation and layout.
+ * (M8–M10) through the real UI — briefing, the GTM strategy brief that must be
+ * approved first (M12), generation, the blocked content matrix, a new briefing
+ * via the form (communication and sales channels apart), isolation and layout.
  */
 import { expect, test, type Page } from "@playwright/test";
+import { approveStrategyViaUi, login } from "./helpers";
 
-const PASSWORD = process.env.E2E_PASSWORD!;
 const USERS = {
   editor: "editor@dataguard-demo.example",
+  reviewer: "reviewer@dataguard-demo.example",
   otherAdmin: "admin@other-demo.example",
 };
 const SEEDED_CAMPAIGN = "[SYNTHETIC] AI inventory campaign — CISOs DACH";
-
-async function login(page: Page, email: string) {
-  await page.goto("/login");
-  await page.getByLabel("E-mail").fill(email);
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/dashboard$/);
-}
 
 async function noHorizontalScroll(page: Page) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -29,7 +23,7 @@ test.describe.configure({ mode: "serial" });
 
 let campaignUrl = "";
 
-test("editor generates the campaign package; content matrix v1 is blocked by the gates", async ({ page }) => {
+test("editor generates the campaign package after the strategy brief is approved; content matrix v1 is blocked by the gates", async ({ page }) => {
   await login(page, USERS.editor);
   await page.getByRole("link", { name: "Campaigns" }).first().click();
   await expect(page).toHaveURL(/\/campaigns$/);
@@ -40,6 +34,13 @@ test("editor generates the campaign package; content matrix v1 is blocked by the
   campaignUrl = page.url();
   await expect(page.getByText("Drafts for people, not automation")).toBeVisible();
   await expect(page.getByText("Outreach sequence")).toBeVisible();
+  await expect(page.getByText("LinkedIn, Email, Webinar")).toBeVisible();
+  await expect(page.getByText("Direct sales, Customer success (existing customers)")).toBeVisible();
+
+  // M12: strategy first — the package stays locked until the GTM strategy brief is approved.
+  await expect(page.getByRole("button", { name: "Generate campaign package (3 deliverables)" })).toBeDisabled();
+  await expect(page.getByText("Available once the GTM strategy brief is approved.")).toBeVisible();
+  await approveStrategyViaUi(page, campaignUrl, USERS);
 
   await page.getByRole("button", { name: "Generate campaign package (3 deliverables)" }).click();
   await expect(page).toHaveURL(/\/workflows\/[a-z0-9]+$/);
@@ -65,15 +66,16 @@ test("editor creates a retention campaign through the form", async ({ page }) =>
   await page.getByLabel("Campaign name").fill("Retention push Q1");
   await page.getByLabel("Campaign type").selectOption("retention");
   await page.getByLabel("Objective").fill("Keep existing customers active in the AI system register.");
-  await page.getByRole("checkbox", { name: "Customer success" }).check();
-  await page.getByLabel("Other channels (comma-separated)").fill("Partner newsletter");
+  await page.getByRole("checkbox", { name: "Customer success (existing customers)" }).check();
+  await page.getByLabel("Other communication channels (comma-separated)").fill("Partner newsletter");
   await page.getByLabel("Start (optional)").fill("2027-01-04");
   await page.getByLabel("End (optional)").fill("2027-02-26");
   await page.getByRole("button", { name: "Create campaign" }).click();
   await expect(page).toHaveURL(/\/campaigns\/[a-z0-9]+$/);
   await expect(page.getByRole("heading", { name: "Retention push Q1" })).toBeVisible();
   await expect(page.getByText("Retention play")).toBeVisible();
-  await expect(page.getByText("LinkedIn, Email, Webinar, Sales outreach, Customer success, Partner newsletter")).toBeVisible();
+  await expect(page.getByText("LinkedIn, Email, Webinar, Partner newsletter")).toBeVisible();
+  await expect(page.getByText("Direct sales, Customer success (existing customers)")).toBeVisible();
   await expect(page.getByText("2027-01-04 – 2027-02-26")).toBeVisible();
 });
 

@@ -28,7 +28,8 @@ export async function createCampaign(actor: Actor, db: Db, raw: unknown): Promis
       productId: product.id,
       personaId: persona.id,
       market: c.market,
-      channels: c.channels,
+      communicationChannels: c.communicationChannels,
+      salesChannels: c.salesChannels,
       startsOn: day(c.startsOn),
       endsOn: day(c.endsOn),
       budgetEur: c.budgetEur ?? null,
@@ -38,7 +39,7 @@ export async function createCampaign(actor: Actor, db: Db, raw: unknown): Promis
       action: "campaign.created",
       entityType: "Campaign",
       entityId: id,
-      metadata: { type: c.type, productId: product.id, personaId: persona.id, channels: c.channels.length },
+      metadata: { type: c.type, productId: product.id, personaId: persona.id, communicationChannels: c.communicationChannels.length, salesChannels: c.salesChannels },
     });
     return { campaignId: id };
   });

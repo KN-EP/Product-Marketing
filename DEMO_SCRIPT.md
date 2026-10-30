@@ -25,7 +25,14 @@ DataGuard has not reviewed it. Simulated mode replays prepared outputs — nothi
 **Campaign package (M8–M10, ~10 more minutes)**
 
 12. **/campaigns:** open the seeded campaign "[SYNTHETIC] AI inventory campaign — CISOs DACH"
-    (demand generation · CISO · LinkedIn, Email, Webinar, Sales outreach). The briefing is human input.
+    (demand generation · CISO · communication channels LinkedIn, Email, Webinar · sales channels
+    direct sales, customer success). The briefing is human input.
+12a. **Use cases & ICP (M12):** on the product, “Define use cases & ICP” → ICP, segments, buying
+    center, use cases. The automated-classification use case stays “unsupported” (claim pending).
+    Approve as reviewer (expert acknowledgement).
+12b. **GTM strategy brief (M12):** on the campaign, “Generate GTM strategy brief”. The package button
+    is locked until the brief is approved. Show the channel strategy: communication channels vs. sales
+    channels with hand-offs. Approve as reviewer (expert acknowledgement).
 13. **Generate campaign package:** agent D writes the campaign plan, E the content matrix, F the sales
     play (outreach sequence). The messaging framework approved in step 6 is reused as context.
 14. **Campaign plan:** KPI targets are proposals ("To be set by the team"), the AI Act statement needs
@@ -46,5 +53,12 @@ DataGuard has not reviewed it. Simulated mode replays prepared outputs — nothi
 20. **Generate performance review**: findings quote only computed numbers (G10), causes are
     hypotheses, recommendations suggestions. Approve and export — the Markdown has the KPI table.
 
-Current state (M11): every step runs in the UI; steps 1–11 and the campaign generation, the blocked content matrix and campaign isolation are covered by the Playwright E2E suite. Before a demo,
+**Release & update (M12, ~3 more minutes)**
+
+21. **/releases:** the release plan with the seeded release 2.4 (feature update, four audiences).
+22. **Generate communication plan:** tier proposal, message per audience, timeline from internal
+    enablement (T-14) to follow-up, release notes, customer notice, FAQ — planned features stay
+    “planned”.
+
+Current state (M12): every step runs in the UI; steps 1–11 and the campaign generation, the strategy brief gate, the blocked content matrix, use cases, releases and campaign/release isolation are covered by the Playwright E2E suite. Before a demo,
 run `npm run demo:reset` for a clean state (demo tenants only).

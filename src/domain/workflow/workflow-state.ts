@@ -82,6 +82,29 @@ export async function campaignIdempotencyKey(parts: {
   );
 }
 
+/**
+ * M12: idempotency key for runs scoped to one record (use_case_definition:
+ * product + market; campaign_strategy: campaign; release_communication:
+ * release). Same scope, same prompt versions, same data version (and no new
+ * nonce) → same run.
+ */
+export async function scopedIdempotencyKey(parts: {
+  tenantId: string;
+  kind: string;
+  scope: Record<string, string>;
+  promptVersions: Record<string, string>;
+  dataVersion?: string;
+  requestNonce?: string;
+}): Promise<string> {
+  return sha256Hex(
+    JSON.stringify({
+      ...parts,
+      scope: Object.fromEntries(Object.entries(parts.scope).sort()),
+      promptVersions: Object.fromEntries(Object.entries(parts.promptVersions).sort()),
+    }),
+  );
+}
+
 async function sha256Hex(canonical: string): Promise<string> {
   const bytes = new TextEncoder().encode(canonical);
   const digest = await crypto.subtle.digest("SHA-256", bytes);

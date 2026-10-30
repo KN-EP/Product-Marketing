@@ -29,6 +29,9 @@ export const ASSET_TYPE_LABEL: Record<string, string> = {
   content_matrix: "Content matrix",
   sales_play: "Sales play",
   performance_review: "Performance review",
+  use_case_map: "Use case map & ICP",
+  gtm_strategy_brief: "GTM strategy brief",
+  release_communication_plan: "Release communication plan",
 };
 
 export const CAMPAIGN_TYPE_LABEL: Record<string, string> = {
@@ -43,6 +46,9 @@ export const RUN_KIND_LABEL: Record<string, string> = {
   pmm_three_asset: "PMM core (3 deliverables)",
   campaign_gtm: "Campaign package (3 deliverables)",
   campaign_performance: "Performance review (KPI analysis)",
+  use_case_definition: "Use cases & ICP",
+  campaign_strategy: "GTM strategy brief",
+  release_communication: "Release communication plan",
 };
 
 /** Calendar date (UTC) for date-only fields such as campaign start/end. */

@@ -5,10 +5,13 @@ import {
   SIMULATED_CONTENT_MATRIX_FLAWED,
   SIMULATED_MESSAGING_FRAMEWORK,
   SIMULATED_PRODUCT_INTELLIGENCE_BRIEF,
+  SIMULATED_GTM_STRATEGY_BRIEF,
   SIMULATED_REGULATORY_BRIEF,
+  SIMULATED_RELEASE_COMMUNICATION_PLAN,
   SIMULATED_SALES_PLAY_LOYALTY,
   SIMULATED_SALES_PLAY_OUTREACH,
   SIMULATED_SALES_PLAY_RETENTION,
+  SIMULATED_USE_CASE_MAP,
 } from "../../demo/fixtures";
 import { kpiResultsFromPrompt, simulatedPerformanceReview } from "../../demo/performance";
 import type { AssetType } from "../../domain/schemas/agents";
@@ -45,6 +48,10 @@ const DEFAULT_FIXTURES: Record<AssetType, unknown | ((prompt: RenderedPrompt) =>
   sales_play: (prompt: RenderedPrompt) => SALES_PLAYS[requestedPlayType(prompt)],
   // M11: template-based review from the KPI results in the prompt (quotes only those numbers).
   performance_review: (prompt: RenderedPrompt) => simulatedPerformanceReview(kpiResultsFromPrompt(prompt.user)),
+  // M12 strategy first
+  use_case_map: SIMULATED_USE_CASE_MAP,
+  gtm_strategy_brief: SIMULATED_GTM_STRATEGY_BRIEF,
+  release_communication_plan: SIMULATED_RELEASE_COMMUNICATION_PLAN,
 };
 
 /**

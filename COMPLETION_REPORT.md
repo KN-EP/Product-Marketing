@@ -173,3 +173,24 @@ Prisma's format — confirm with `prisma migrate dev --create-only` before deplo
 
 Also fixed on this branch: the Markdown export now renders numeric fields (e.g. a sales play's
 `dayOffset`), which were silently dropped before.
+
+
+---
+
+# Addendum — M12 strategy first (branch `feature/m12-strategy-first`, 2026-10-30)
+
+Input: comments from the presentation review (product marketing, not just marketing).
+
+| Area | What it does |
+|---|---|
+| Channels | `Campaign.channels` → `communicationChannels` + `salesChannels` (fixed list); same split in releases, strategy brief and campaign plan (`channelType`); migration moves "Sales outreach" / "Customer success" |
+| Use cases & ICP | `use_case_definition` run, use case agent (`agent-uc.use-case-map` 1.0.0), asset `use_case_map`, section on the product page |
+| Strategy first | `campaign_strategy` run, strategy agent (`agent-s.gtm-strategy` 1.0.0), asset `gtm_strategy_brief`; `campaign_gtm` refused (409) until it is approved; D/E/F get it as context (prompts 1.1.0) |
+| Release & update | `Release` model + `/releases` (plan, form, detail), `release_communication` run, release agent (`agent-r.release-communication` 1.0.0), asset `release_communication_plan` |
+| Demo | seeded release 2.4 per tenant; guided demo steps 16–26; demo reset includes releases |
+
+Test results (local Postgres 16, simulated mode): typecheck OK · unit **217/217** (10 files) ·
+integration **142/142** (7 files) · E2E **19/19** · build OK (Google font stubbed for the sandbox build
+only). Migration `20261030120000_strategy_first` is hand-written in Prisma's format (binaries.prisma.sh
+blocked in the sandbox) and was verified with `psql`, including the channel data move — confirm with
+`prisma migrate dev --create-only` before deploying.

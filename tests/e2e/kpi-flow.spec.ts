@@ -4,6 +4,7 @@
  * table, performance review.
  */
 import { expect, test, type Page } from "@playwright/test";
+import { approveStrategyViaUi } from "./helpers";
 
 const PASSWORD = process.env.E2E_PASSWORD!;
 const USERS = { editor: "editor@dataguard-demo.example", reviewer: "reviewer@dataguard-demo.example" };
@@ -36,6 +37,8 @@ test("editor generates a campaign package (its plan feeds the KPI tree)", async 
   await page.getByRole("link", { name: SEEDED_CAMPAIGN }).click();
   await expect(page).toHaveURL(/\/campaigns\/[a-z0-9_]+$/);
   campaignUrl = page.url();
+  // M12: the package needs an approved GTM strategy brief (a new one is fine if one exists already).
+  await approveStrategyViaUi(page, campaignUrl, USERS);
   await page.getByRole("button", { name: /Generate (new )?campaign package/ }).click();
   await expect(page.getByText("Completed (outputs await review — not approved)")).toBeVisible({ timeout: 60_000 });
   await page.getByRole("link", { name: /Campaign plan —/ }).click();

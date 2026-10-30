@@ -2,6 +2,8 @@ import { z } from "zod";
 import { CampaignPlanV1, ContentMatrixV1, SalesPlayV1 } from "./campaign";
 import { ProofPoint, Statement } from "./common";
 import { PerformanceReviewV1 } from "./performance";
+import { ReleaseCommunicationPlanV1 } from "./release";
+import { GtmStrategyBriefV1, UseCaseMapV1 } from "./strategy";
 
 // ── Agent A: Product & Market Intelligence ──
 export const ProductIntelligenceBriefV1 = z.object({
@@ -73,6 +75,10 @@ export const ASSET_SCHEMAS = {
   campaign_plan: CampaignPlanV1,
   content_matrix: ContentMatrixV1,
   sales_play: SalesPlayV1,
+  // M12 strategy first (src/domain/schemas/strategy.ts, release.ts)
+  use_case_map: UseCaseMapV1,
+  gtm_strategy_brief: GtmStrategyBriefV1,
+  release_communication_plan: ReleaseCommunicationPlanV1,
   // M11 (src/domain/schemas/performance.ts) — stored form incl. the server-computed kpiSnapshot
   performance_review: PerformanceReviewV1,
 } as const;

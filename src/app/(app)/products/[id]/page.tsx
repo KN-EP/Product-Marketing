@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { StateBadge, SyntheticTag } from "@/components/app/badges";
+import { GatesBadge, ModeBadge, StateBadge, SyntheticTag } from "@/components/app/badges";
+import { UseCaseStart } from "@/components/product/use-case-start";
+import { hasRole } from "@/domain/actor";
 import { EmptyState, PageHeader, Section } from "@/components/app/page-header";
 import { InputBrief } from "@/components/review/input-brief";
 import type { GateReport } from "@/domain/quality-gates/gates";
@@ -15,7 +17,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const actor = await requirePageActor();
   const v = tenantDb(actor, getDb()).views;
   const p = await or404(v.product(id));
-  const brief = await v.inputBriefForProduct(p.id);
+  const [brief, useCaseMaps, personas] = await Promise.all([v.inputBriefForProduct(p.id), v.useCaseMapsForProduct(p.id), v.personas()]);
+  const canGenerate = hasRole(actor, "editor");
   const unassigned = p.claims.filter((c) => !p.features.some((f) => f.claims.some((fc) => fc.id === c.id)));
 
   return (
@@ -28,6 +31,35 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         }
         description={`${p.area} · ${p.description}`}
       />
+      <Section
+        id="use-cases"
+        title="Use cases & ICP"
+        description="Station after product knowledge: ideal customer profile, target segments, buying center and prioritised use cases. Once approved, the use case map feeds every GTM strategy brief for this product."
+      >
+        {canGenerate ? <UseCaseStart productId={p.id} defaultMarket={personas[0]?.market ?? "DACH"} hasMaps={useCaseMaps.length > 0} /> : null}
+        {useCaseMaps.length === 0 ? (
+          <EmptyState>No use case map yet.</EmptyState>
+        ) : (
+          <ul className="flex flex-col gap-2 text-sm">
+            {useCaseMaps.map((m) => {
+              const ver = m.versions[0];
+              return (
+                <li key={m.id} className="flex flex-wrap items-center gap-2 rounded-lg border p-3">
+                  <Link href={`/assets/${m.id}`} className="font-medium underline-offset-4 hover:underline">
+                    {m.title}
+                  </Link>
+                  <StateBadge state={m.state} />
+                  {ver ? (
+                    <>
+                      v{ver.versionNumber} <ModeBadge mode={ver.generationMode} /> <GatesBadge passed={ver.gatesPassed} />
+                    </>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Section>
       <Section title="Features and claims" description="Only approved claims may support statements of kind FACT.">
         {p.features.length === 0 && p.claims.length === 0 ? (
           <EmptyState>No features or claims recorded.</EmptyState>

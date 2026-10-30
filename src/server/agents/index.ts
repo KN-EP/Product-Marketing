@@ -9,6 +9,8 @@ import {
 } from "../../domain/schemas/agents";
 import { CampaignPlanV1, ContentMatrixV1, SalesPlayV1 } from "../../domain/schemas/campaign";
 import { PerformanceReviewDraftV1, type KpiResult } from "../../domain/schemas/performance";
+import { ReleaseCommunicationPlanV1 } from "../../domain/schemas/release";
+import { GtmStrategyBriefV1, UseCaseMapV1 } from "../../domain/schemas/strategy";
 import { promptClassification, type DataClassification, type ExternalModelPolicy } from "../llm/classification";
 import type { LlmMode, LlmProvider, LlmUsage, OutputSpec } from "../llm/types";
 import {
@@ -20,6 +22,9 @@ import {
   AGENT_E_CONTENT_MATRIX_PROMPT,
   AGENT_F_SALES_PLAY_PROMPT,
   AGENT_G_PERFORMANCE_PROMPT,
+  AGENT_RELEASE_PROMPT,
+  AGENT_STRATEGY_PROMPT,
+  AGENT_USE_CASE_PROMPT,
   renderPrompt,
   type AgentBrief,
   type PromptInput,
@@ -42,6 +47,10 @@ export interface AgentInput {
   campaignPlan?: z.infer<typeof CampaignPlanV1>;
   /** M11: server-computed KPI results for agent G. */
   kpiResults?: { asOf: string; results: KpiResult[] };
+  /** M12: latest APPROVED use case map of the product (strategy agent). */
+  useCaseMap?: z.infer<typeof UseCaseMapV1>;
+  /** M12: the campaign's APPROVED GTM strategy brief (agents D–F). */
+  gtmStrategy?: z.infer<typeof GtmStrategyBriefV1>;
 }
 
 /** The prompt input an agent sees: only the context blocks that are set. */
@@ -52,6 +61,8 @@ export function promptInputOf(input: AgentInput): PromptInput {
     ...(input.messagingFramework ? { messagingFramework: input.messagingFramework } : {}),
     ...(input.campaignPlan ? { campaignPlan: input.campaignPlan } : {}),
     ...(input.kpiResults ? { kpiResults: input.kpiResults } : {}),
+    ...(input.useCaseMap ? { useCaseMap: input.useCaseMap } : {}),
+    ...(input.gtmStrategy ? { gtmStrategy: input.gtmStrategy } : {}),
   };
 }
 
@@ -108,6 +119,24 @@ export const OUTPUT_SPECS = {
     schema: SalesPlayV1,
     toolName: "submit_sales_play",
     toolDescription: "Submit the sales play (sales_play.v1).",
+  },
+  use_case_map: {
+    assetType: "use_case_map",
+    schema: UseCaseMapV1,
+    toolName: "submit_use_case_map",
+    toolDescription: "Submit the use case map with ICP, target segments and buying center (use_case_map.v1).",
+  },
+  gtm_strategy_brief: {
+    assetType: "gtm_strategy_brief",
+    schema: GtmStrategyBriefV1,
+    toolName: "submit_gtm_strategy_brief",
+    toolDescription: "Submit the GTM strategy brief of the campaign (gtm_strategy_brief.v1).",
+  },
+  release_communication_plan: {
+    assetType: "release_communication_plan",
+    schema: ReleaseCommunicationPlanV1,
+    toolName: "submit_release_communication_plan",
+    toolDescription: "Submit the release communication plan (release_communication_plan.v1).",
   },
   // The model writes the DRAFT; the server adds asOf + kpiSnapshot before the gates.
   performance_review: {
@@ -171,3 +200,15 @@ export const runAgentF = (input: AgentInput, provider: LlmProvider) =>
 /** Agent G — Performance analysis (F5). Writes the draft; KPI numbers come from the server. */
 export const runAgentG = (input: AgentInput, provider: LlmProvider) =>
   runAgent(OUTPUT_SPECS.performance_review, AGENT_G_PERFORMANCE_PROMPT, input, provider);
+
+/** M12 use case agent — use cases, ICP, target segments and buying center for one product. */
+export const runUseCaseAgent = (input: AgentInput, provider: LlmProvider) =>
+  runAgent(OUTPUT_SPECS.use_case_map, AGENT_USE_CASE_PROMPT, input, provider);
+
+/** M12 strategy agent — GTM strategy brief, the first (human-approved) step of a campaign. */
+export const runStrategyAgent = (input: AgentInput, provider: LlmProvider) =>
+  runAgent(OUTPUT_SPECS.gtm_strategy_brief, AGENT_STRATEGY_PROMPT, input, provider);
+
+/** M12 release agent — release and update communication plan. */
+export const runReleaseAgent = (input: AgentInput, provider: LlmProvider) =>
+  runAgent(OUTPUT_SPECS.release_communication_plan, AGENT_RELEASE_PROMPT, input, provider);

@@ -14,6 +14,8 @@ export const RATE_LIMITS = {
   decision: { limit: 30, windowMs: 60_000 },
   /** per tenant + user (createCampaignAction) */
   campaignCreate: { limit: 20, windowMs: 60_000 },
+  /** per tenant + user (createReleaseAction, M12) */
+  releaseCreate: { limit: 20, windowMs: 60_000 },
   /** per tenant + user (KPI tree, KPI edits, CSV imports) */
   kpiWrite: { limit: 60, windowMs: 60_000 },
 } as const;

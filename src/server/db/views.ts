@@ -154,6 +154,87 @@ export function tenantViews(tenantId: string, db: DbTx) {
         },
       }),
 
+    /** M12: the release plan — planned releases and updates, next first (undated last). */
+    releases: () =>
+      db.release.findMany({
+        where: { tenantId },
+        orderBy: [{ plannedOn: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }],
+        select: {
+          id: true,
+          name: true,
+          version: true,
+          type: true,
+          plannedOn: true,
+          audiences: true,
+          isSynthetic: true,
+          product: { select: { id: true, name: true } },
+          assets: { where: { tenantId }, select: { state: true } },
+        },
+      }),
+
+    /** M12: release briefing + its runs and communication plans (all filtered on the tenant). */
+    release: async (id: string) =>
+      orNotFound(
+        await db.release.findFirst({
+          where: { id, tenantId },
+          select: {
+            id: true,
+            name: true,
+            version: true,
+            type: true,
+            plannedOn: true,
+            summary: true,
+            changes: true,
+            audiences: true,
+            communicationChannels: true,
+            salesChannels: true,
+            isSynthetic: true,
+            createdAt: true,
+            product: { select: { id: true, name: true } },
+            workflowRuns: {
+              where: { tenantId },
+              orderBy: { createdAt: "desc" },
+              select: { id: true, status: true, generationMode: true, createdAt: true },
+            },
+            assets: {
+              where: { tenantId },
+              orderBy: { createdAt: "desc" },
+              select: {
+                id: true,
+                title: true,
+                type: true,
+                state: true,
+                versions: {
+                  where: { tenantId },
+                  orderBy: { versionNumber: "desc" },
+                  take: 1,
+                  select: { id: true, versionNumber: true, gatesPassed: true, generationMode: true },
+                },
+              },
+            },
+          },
+        }),
+        "release",
+      ),
+
+    /** M12: use case maps generated for a product (via the run's inputRefs), newest first. */
+    useCaseMapsForProduct: (productId: string) =>
+      db.asset.findMany({
+        where: {
+          tenantId,
+          type: "use_case_map",
+          versions: { some: { tenantId, workflowRun: { tenantId, inputRefs: { path: ["productId"], equals: productId } } } },
+        },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          title: true,
+          state: true,
+          createdAt: true,
+          versions: { where: { tenantId }, orderBy: { versionNumber: "desc" }, take: 1, select: { versionNumber: true, gatesPassed: true, generationMode: true } },
+        },
+      }),
+
     /** Campaign briefing + its runs and deliverables (all filtered on the tenant). */
     campaign: async (id: string) =>
       orNotFound(
@@ -165,7 +246,8 @@ export function tenantViews(tenantId: string, db: DbTx) {
             type: true,
             objective: true,
             market: true,
-            channels: true,
+            communicationChannels: true,
+            salesChannels: true,
             startsOn: true,
             endsOn: true,
             budgetEur: true,
@@ -326,6 +408,7 @@ export function tenantViews(tenantId: string, db: DbTx) {
           completedAt: true,
           error: true,
           campaign: { select: { id: true, name: true } },
+          release: { select: { id: true, name: true, version: true } },
         },
       }),
 
@@ -361,7 +444,24 @@ export function tenantViews(tenantId: string, db: DbTx) {
 
     /** Counters for the guided demo checklist. */
     demoProgress: async () => {
-      const [runsCompleted, assetsPending, assetsApproved, humanEdits, exports, claimsApproved, campaigns, campaignRunsCompleted, campaignAssetsApproved, kpis, kpiImports, performanceReviews] = await Promise.all([
+      const [
+        runsCompleted,
+        assetsPending,
+        assetsApproved,
+        humanEdits,
+        exports,
+        claimsApproved,
+        campaigns,
+        campaignRunsCompleted,
+        campaignAssetsApproved,
+        kpis,
+        kpiImports,
+        performanceReviews,
+        useCaseMaps,
+        strategiesApproved,
+        releases,
+        releasePlans,
+      ] = await Promise.all([
         db.workflowRun.count({ where: { tenantId, status: "completed", kind: "pmm_three_asset" } }),
         db.asset.count({ where: { tenantId, state: "pending_review", ...DELIVERABLE } }),
         db.asset.count({ where: { tenantId, state: "approved", ...DELIVERABLE } }),
@@ -370,10 +470,14 @@ export function tenantViews(tenantId: string, db: DbTx) {
         db.claim.count({ where: { tenantId, state: "approved" } }),
         db.campaign.count({ where: { tenantId } }),
         db.workflowRun.count({ where: { tenantId, status: "completed", kind: "campaign_gtm" } }),
-        db.asset.count({ where: { tenantId, state: "approved", campaignId: { not: null } } }),
+        db.asset.count({ where: { tenantId, state: "approved", campaignId: { not: null }, type: { notIn: ["gtm_strategy_brief", "performance_review"] } } }),
         db.kpi.count({ where: { tenantId } }),
         db.kpiImport.count({ where: { tenantId, acceptedRows: { gt: 0 } } }),
         db.asset.count({ where: { tenantId, type: "performance_review" } }),
+        db.asset.count({ where: { tenantId, type: "use_case_map" } }),
+        db.asset.count({ where: { tenantId, type: "gtm_strategy_brief", state: "approved" } }),
+        db.release.count({ where: { tenantId } }),
+        db.asset.count({ where: { tenantId, type: "release_communication_plan" } }),
       ]);
       return {
         runsCompleted,
@@ -385,6 +489,10 @@ export function tenantViews(tenantId: string, db: DbTx) {
         campaigns,
         campaignRunsCompleted,
         campaignAssetsApproved,
+        useCaseMaps,
+        strategiesApproved,
+        releases,
+        releasePlans,
         kpis,
         kpiImports,
         performanceReviews,

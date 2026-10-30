@@ -9,8 +9,12 @@ export function deliverableSummary(states: string[]): string {
     .join(" · ");
 }
 
-/** Common B2B channels offered as checkboxes; anything else goes into "Other channels". */
-export const PRESET_CHANNELS = ["LinkedIn", "Email", "Webinar", "Sales outreach", "Events", "Website", "Paid search", "Customer success"] as const;
+/**
+ * M12: communication channels (checkbox presets + free text) and sales channels
+ * (fixed list) are separate fields. "Sales outreach" and "Customer success" are
+ * sales channels now, not communication channels.
+ */
+export { PRESET_COMMUNICATION_CHANNELS, SALES_CHANNEL_LABEL } from "@/domain/schemas/channels";
 
 /** Same limit as the server-side CampaignInput. */
 export { MAX_CHANNELS } from "@/domain/campaigns/campaign";

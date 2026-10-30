@@ -9,6 +9,9 @@ import {
   runAgentE,
   runAgentF,
   runAgentG,
+  runReleaseAgent,
+  runStrategyAgent,
+  runUseCaseAgent,
   type AgentInput,
   type AgentResult,
 } from "../agents";
@@ -22,6 +25,9 @@ import {
   AGENT_E_CONTENT_MATRIX_PROMPT,
   AGENT_F_SALES_PLAY_PROMPT,
   AGENT_G_PERFORMANCE_PROMPT,
+  AGENT_RELEASE_PROMPT,
+  AGENT_STRATEGY_PROMPT,
+  AGENT_USE_CASE_PROMPT,
   renderPrompt,
   type PromptTemplate,
 } from "../prompts";
@@ -112,6 +118,7 @@ export async function runPmmPipeline(
 
 /**
  * campaign_gtm: D (campaign plan) → E (content matrix) → F (sales play).
+ * Since M12 the caller passes the campaign's APPROVED GTM strategy brief as context (required to start).
  * Same accounting as A → B → C. E and F only receive D's plan after it
  * re-validates against CampaignPlanV1; an approved messaging framework for the same
  * product and persona (if the caller found one) is passed to all three as context.
@@ -152,3 +159,27 @@ export async function runPerformancePipeline(
   (g as AgentResult<unknown>).output = { ...g.output, asOf: base.kpiResults.asOf, kpiSnapshot: base.kpiResults.results };
   return progress;
 }
+
+/** A run with exactly one agent step (M12: use case map, GTM strategy brief, release communication plan). */
+function singleStep(template: PromptTemplate, run: (input: AgentInput, provider: LlmProvider) => Promise<AgentResult<unknown>>) {
+  return async (
+    base: AgentInput,
+    provider: LlmProvider,
+    budget: CostBudget,
+    progress: PipelineProgress = newProgress(),
+    onStep?: () => Promise<unknown>,
+  ): Promise<PipelineProgress> => {
+    const step = stepper(budget, progress, onStep);
+    await step(template, base, () => run(base, provider));
+    return progress;
+  };
+}
+
+/** use_case_definition (M12): use case agent for one product. */
+export const runUseCasePipeline = singleStep(AGENT_USE_CASE_PROMPT, runUseCaseAgent);
+
+/** campaign_strategy (M12): strategy agent; the approved result gates the campaign_gtm run. */
+export const runStrategyPipeline = singleStep(AGENT_STRATEGY_PROMPT, runStrategyAgent);
+
+/** release_communication (M12): release agent for one release. */
+export const runReleasePipeline = singleStep(AGENT_RELEASE_PROMPT, runReleaseAgent);

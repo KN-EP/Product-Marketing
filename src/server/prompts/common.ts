@@ -21,6 +21,10 @@ export interface PromptInput {
   campaignPlan?: unknown;
   /** M11: server-computed KPI results for agent G. */
   kpiResults?: { asOf: string; results: unknown[] };
+  /** M12: the latest APPROVED use case map for the product (strategy agent context). */
+  useCaseMap?: unknown;
+  /** M12: the APPROVED GTM strategy brief of the campaign (context for agents D–F). */
+  gtmStrategy?: unknown;
 }
 
 export interface PromptTemplate {
@@ -49,7 +53,7 @@ Truthfulness:
 /** Neutralise anything that could close or open one of our delimiter tags. */
 export function escapeDelimiters(text: string): string {
   return text.replace(
-    /<\s*\/?\s*(brief|knowledge_base|untrusted_sources|source|claim|competitor_evidence|evidence|messaging_framework|campaign_plan|kpi_results)\b[^>]*>/gi,
+    /<\s*\/?\s*(brief|knowledge_base|untrusted_sources|source|claim|competitor_evidence|evidence|messaging_framework|campaign_plan|kpi_results|use_case_map|gtm_strategy)\b[^>]*>/gi,
     "[removed tag]",
   );
 }
@@ -116,4 +120,22 @@ export function renderKpiResults(k: { asOf: string; results: unknown[] } | undef
   return `<kpi_results as_of="${attr(k.asOf)}">
 ${escapeDelimiters(JSON.stringify(k.results, null, 2))}
 </kpi_results>`;
+}
+
+/** M12: approved use case map as context for the strategy agent. Human-approved, but still not evidence. */
+export function renderUseCaseMap(m: unknown): string {
+  if (m === undefined) return "";
+  return `<use_case_map>
+Use cases, ICP and target segments for this product, approved by a human. Build on them; they are NOT evidence. Facts still need approved claim ids.
+${escapeDelimiters(JSON.stringify(m, null, 2))}
+</use_case_map>`;
+}
+
+/** M12: approved GTM strategy brief as context for the campaign agents D–F. Human-approved, but still not evidence. */
+export function renderGtmStrategy(g: unknown): string {
+  if (g === undefined) return "";
+  return `<gtm_strategy>
+GTM strategy brief for this campaign, approved by a human: ICP, target segments, buying center, prioritised use cases, positioning and the split into communication and sales channels. Everything you produce must follow it; it is NOT evidence. Facts still need approved claim ids.
+${escapeDelimiters(JSON.stringify(g, null, 2))}
+</gtm_strategy>`;
 }

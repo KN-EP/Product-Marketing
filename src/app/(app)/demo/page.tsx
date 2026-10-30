@@ -42,21 +42,28 @@ export default async function DemoPage() {
   ];
 
   const campaignSteps: Step[] = [
-    { n: "16", title: "Campaign briefing", what: "Open the seeded campaign or create one: type, objective, persona, channels, timeframe, budget. The briefing is human input — agents treat it as data, not evidence.", href: "/campaigns", linkText: "Campaigns", done: p.campaigns > 0 },
-    { n: "17", title: "Generate the campaign package", what: "On the campaign, “Generate campaign package”: Agent D writes the campaign plan, Agent E the content matrix, Agent F the sales play (outreach for demand campaigns; retention and loyalty plays list the customer data they still need). If a messaging framework was approved in step 13, it is reused as context.", href: "/campaigns", linkText: "Generate", done: p.campaignRunsCompleted > 0 },
-    { n: "18", title: "Content matrix: unsupported promise blocked", what: "Content matrix v1 contains a “guaranteed” compliance headline → the gates block approval. As reviewer, request changes; as editor, “Create corrected version” → “Load prepared correction (simulated)” → save v2 → submit.", href: "/approvals", linkText: "Review queue" },
-    { n: "19", title: "Approve and export the campaign package", what: "Plan and content mention the AI Act → expert acknowledgement required. Export each approved deliverable as Markdown. Nothing is sent, posted or booked from the system.", href: "/campaigns", linkText: "Campaigns", done: p.campaignAssetsApproved > 0 },
+    { n: "16", title: "Campaign briefing", what: "Open the seeded campaign or create one: type, objective, persona, timeframe, budget — and two separate channel lists: communication channels (LinkedIn, email, webinar …) and sales channels (direct sales, partners & resellers, customer success …). The briefing is human input — agents treat it as data, not evidence.", href: "/campaigns", linkText: "Campaigns", done: p.campaigns > 0 },
+    { n: "17", title: "Use cases & ICP", what: "On the product, “Define use cases & ICP”: the use case agent proposes the ideal customer profile, target segments, buying center and prioritised use cases. Capabilities need approved claims — the automated classification use case stays “unsupported”. Approve it as reviewer (expert acknowledgement).", href: "/products", linkText: "Products", done: p.useCaseMaps > 0 },
+    { n: "18", title: "GTM strategy brief first", what: "On the campaign, “Generate GTM strategy brief”: target segments, buying center, prioritised use cases (from the approved use case map), positioning and the channel strategy — communication channels and sales channels with hand-offs. The campaign package stays locked until a reviewer approves the brief.", href: "/campaigns", linkText: "Campaigns", done: p.strategiesApproved > 0 },
+    { n: "19", title: "Generate the campaign package", what: "Now “Generate campaign package”: Agent D writes the campaign plan (every channel marked as communication or sales), Agent E the content matrix, Agent F the sales play with hand-offs per sales channel — all built on the approved strategy brief.", href: "/campaigns", linkText: "Generate", done: p.campaignRunsCompleted > 0 },
+    { n: "20", title: "Content matrix: unsupported promise blocked", what: "Content matrix v1 contains a “guaranteed” compliance headline → the gates block approval. As reviewer, request changes; as editor, “Create corrected version” → “Load prepared correction (simulated)” → save v2 → submit.", href: "/approvals", linkText: "Review queue" },
+    { n: "21", title: "Approve and export the campaign package", what: "Plan and content mention the AI Act → expert acknowledgement required. Export each approved deliverable as Markdown. Nothing is sent, posted or booked from the system.", href: "/campaigns", linkText: "Campaigns", done: p.campaignAssetsApproved > 0 },
   ];
 
   const kpiSteps: Step[] = [
-    { n: "20", title: "KPI tree from the approved plan", what: "Approve the campaign plan (expert acknowledgement), then open “Performance (KPIs)” on the campaign and create the KPI tree. Set numeric targets — the plan only proposed them.", href: "/campaigns", linkText: "Campaigns", done: p.kpis > 0 },
-    { n: "21", title: "Import measurements", what: "Fill the import with the synthetic sample data (or upload a CSV export: kpi, date, value). Rejected rows are listed with line and reason. The target-vs-actual table is computed, not generated.", href: "/campaigns", linkText: "Campaigns", done: p.kpiImports > 0 },
-    { n: "22", title: "Performance review", what: "“Generate performance review”: Agent G writes findings and recommendations; it may only quote the computed numbers (gate G10). Review, approve and export it like every deliverable.", href: "/campaigns", linkText: "Campaigns", done: p.performanceReviews > 0 },
+    { n: "22", title: "KPI tree from the approved plan", what: "Approve the campaign plan (expert acknowledgement), then open “Performance (KPIs)” on the campaign and create the KPI tree. Set numeric targets — the plan only proposed them.", href: "/campaigns", linkText: "Campaigns", done: p.kpis > 0 },
+    { n: "23", title: "Import measurements", what: "Fill the import with the synthetic sample data (or upload a CSV export: kpi, date, value). Rejected rows are listed with line and reason. The target-vs-actual table is computed, not generated.", href: "/campaigns", linkText: "Campaigns", done: p.kpiImports > 0 },
+    { n: "24", title: "Performance review", what: "“Generate performance review”: Agent G writes findings and recommendations; it may only quote the computed numbers (gate G10). Review, approve and export it like every deliverable.", href: "/campaigns", linkText: "Campaigns", done: p.performanceReviews > 0 },
+  ];
+
+  const releaseSteps: Step[] = [
+    { n: "25", title: "Release plan", what: "Open “Releases”: the seeded release 2.4 (feature update) with its changes, audiences and both channel lists. Add a release to the plan if you like.", href: "/releases", linkText: "Releases", done: p.releases > 0 },
+    { n: "26", title: "Release communication plan", what: "On the release, “Generate communication plan”: release tier, message per audience, timeline from internal enablement (T-14) to follow-up, release notes, customer notice and sales/support FAQ. Planned features are stated as planned, not as facts.", href: "/releases", linkText: "Releases", done: p.releasePlans > 0 },
   ];
 
   return (
     <>
-      <PageHeader title="Guided demo" description="P0 demonstration flow (steps 1–15, ~15 minutes) the campaign package (steps 16–19, ~10 minutes) and the KPI analysis (steps 20–22, ~5 minutes). Every step opens the real page." />
+      <PageHeader title="Guided demo" description="P0 demonstration flow (steps 1–15, ~15 minutes), strategy first and the campaign package (steps 16–21, ~12 minutes), the KPI analysis (steps 22–24, ~5 minutes) and release communication (steps 25–26, ~3 minutes). Every step opens the real page." />
       <Alert>
         <AlertTitle>Say this up front</AlertTitle>
         <AlertDescription>
@@ -71,8 +78,9 @@ export default async function DemoPage() {
         </Alert>
       ) : null}
       <StepList title="Steps" steps={steps} />
-      <StepList title="Campaign package (M8–M10)" steps={campaignSteps} />
+      <StepList title="Strategy first and campaign package (M8–M10, M12)" steps={campaignSteps} />
       <StepList title="KPI analysis (M11)" steps={kpiSteps} />
+      <StepList title="Release & update communication (M12)" steps={releaseSteps} />
       <Section title="Isolation check (optional)">
         <p className="text-sm text-muted-foreground">
           Sign in as a user of the second demo tenant and open an asset, run or campaign URL of the first demo tenant: it returns 404, exactly like an id that does not exist.

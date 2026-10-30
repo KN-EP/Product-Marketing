@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { GatesBadge, ModeBadge, StateBadge, SyntheticTag } from "@/components/app/badges";
 import { EmptyState, PageHeader, Section } from "@/components/app/page-header";
-import { GenerateCampaignPackageButton } from "@/components/campaign/generate-button";
+import { GenerateCampaignPackageButton, GenerateStrategyButton } from "@/components/campaign/generate-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { hasRole } from "@/domain/actor";
-import { playTypeFor } from "@/domain/campaigns/campaign";
+import { playTypeFor, salesChannelLabel } from "@/domain/campaigns/campaign";
 import { ASSET_TYPE_LABEL, CAMPAIGN_TYPE_LABEL, fmtDate, fmtDay, fmtEur } from "@/lib/format";
 import { requirePageActor } from "@/server/auth/actor";
 import { getDb } from "@/server/db";
@@ -28,8 +28,10 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
   const c = await or404(tenantDb(actor, getDb()).views.campaign(id));
   const canGenerate = hasRole(actor, "editor");
   const play = playTypeFor(c.type);
-  // Performance reviews are listed on the performance page.
-  const packageAssets = c.assets.filter((a) => a.type !== "performance_review");
+  // Performance reviews are listed on the performance page; the strategy brief has its own section (M12).
+  const strategyAssets = c.assets.filter((a) => a.type === "gtm_strategy_brief");
+  const packageAssets = c.assets.filter((a) => a.type !== "performance_review" && a.type !== "gtm_strategy_brief");
+  const strategyApproved = strategyAssets.some((a) => a.state === "approved");
 
   const briefing: [string, React.ReactNode][] = [
     ["Type", CAMPAIGN_TYPE_LABEL[c.type]],
@@ -42,7 +44,8 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
     ],
     ["Persona", `${c.persona.name} (${c.persona.role})`],
     ["Market", c.market],
-    ["Channels", c.channels.join(", ")],
+    ["Communication channels", c.communicationChannels.join(", ") || "None"],
+    ["Sales channels", c.salesChannels.map(salesChannelLabel).join(", ") || "None"],
     ["Timeframe", c.startsOn || c.endsOn ? `${fmtDay(c.startsOn)} – ${fmtDay(c.endsOn)}` : "Not set"],
     ["Budget", fmtEur(c.budgetEur)],
     ["Sales play", PLAY_LABEL[play]],
@@ -66,7 +69,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
             <Link href={`/campaigns/${c.id}/performance`} className={buttonVariants({ variant: "outline" })}>
               Performance (KPIs)
             </Link>
-            {canGenerate ? <GenerateCampaignPackageButton campaignId={c.id} hasRuns={c.workflowRuns.length > 0} /> : null}
+            {canGenerate ? <GenerateStrategyButton campaignId={c.id} hasStrategy={strategyAssets.length > 0} /> : null}
           </>
         }
       />
@@ -94,50 +97,36 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
       </Section>
 
       <Section
-        id="deliverables"
-        title="Campaign package"
-        description="Campaign plan (F1), content matrix (F4) and sales play (F2). Open a deliverable to review the gate report, the evidence and the decision."
+        id="strategy"
+        title="1 · GTM strategy brief"
+        description="Product marketing before marketing: ICP, target segments, buying center, prioritised use cases, positioning and the split into communication and sales channels. A reviewer must approve it before the campaign package can be generated."
       >
+        {strategyAssets.length === 0 ? (
+          <EmptyState>No strategy brief yet. {canGenerate ? "Start with the GTM strategy brief." : "An editor can generate it."}</EmptyState>
+        ) : (
+          <AssetTable assets={strategyAssets} />
+        )}
+      </Section>
+
+      <Section
+        id="deliverables"
+        title="2 · Campaign package"
+        description="Campaign plan (F1), content matrix (F4) and sales play (F2), built on the approved strategy brief. Open a deliverable to review the gate report, the evidence and the decision."
+      >
+        {canGenerate ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <GenerateCampaignPackageButton
+              campaignId={c.id}
+              hasRuns={packageAssets.length > 0}
+              strategyApproved={strategyApproved}
+            />
+            {!strategyApproved ? <span className="text-sm text-muted-foreground">Available once the GTM strategy brief is approved.</span> : null}
+          </div>
+        ) : null}
         {packageAssets.length === 0 ? (
           <EmptyState>No deliverables yet. {canGenerate ? "Generate the campaign package to create them." : "An editor can generate them."}</EmptyState>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Deliverable</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>State</TableHead>
-                <TableHead>Latest version</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {packageAssets.map((a) => {
-                const v = a.versions[0];
-                return (
-                  <TableRow key={a.id}>
-                    <TableCell data-label="Deliverable" className="whitespace-normal">
-                      <Link href={`/assets/${a.id}`} className="line-clamp-2 font-medium underline-offset-4 hover:underline">
-                        {a.title}
-                      </Link>
-                    </TableCell>
-                    <TableCell data-label="Type">{ASSET_TYPE_LABEL[a.type]}</TableCell>
-                    <TableCell data-label="State">
-                      <StateBadge state={a.state} />
-                    </TableCell>
-                    <TableCell data-label="Latest version">
-                      {v ? (
-                        <span className="flex flex-wrap items-center gap-1.5">
-                          v{v.versionNumber} <ModeBadge mode={v.generationMode} /> <GatesBadge passed={v.gatesPassed} />
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          <AssetTable assets={packageAssets} />
         )}
       </Section>
 
@@ -176,5 +165,55 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
         )}
       </Section>
     </>
+  );
+}
+
+type CampaignAsset = {
+  id: string;
+  title: string;
+  type: string;
+  state: string;
+  versions: { versionNumber: number; generationMode: string; gatesPassed: boolean }[];
+};
+
+function AssetTable({ assets }: { assets: CampaignAsset[] }) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Deliverable</TableHead>
+          <TableHead>Type</TableHead>
+          <TableHead>State</TableHead>
+          <TableHead>Latest version</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {assets.map((a) => {
+          const v = a.versions[0];
+          return (
+            <TableRow key={a.id}>
+              <TableCell data-label="Deliverable" className="whitespace-normal">
+                <Link href={`/assets/${a.id}`} className="line-clamp-2 font-medium underline-offset-4 hover:underline">
+                  {a.title}
+                </Link>
+              </TableCell>
+              <TableCell data-label="Type">{ASSET_TYPE_LABEL[a.type]}</TableCell>
+              <TableCell data-label="State">
+                <StateBadge state={a.state} />
+              </TableCell>
+              <TableCell data-label="Latest version">
+                {v ? (
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    v{v.versionNumber} <ModeBadge mode={v.generationMode} /> <GatesBadge passed={v.gatesPassed} />
+                  </span>
+                ) : (
+                  "—"
+                )}
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
   );
 }

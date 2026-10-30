@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ChannelType } from "./channels";
 import { Statement } from "./common";
 
 /**
@@ -30,7 +31,15 @@ export const CampaignPlanV1 = z.object({
   targetAudience: Statement,
   coreMessage: Statement,
   channelMix: z
-    .array(z.object({ channel: Label(60), funnelStage: FunnelStage, role: Statement }))
+    .array(
+      z.object({
+        channel: Label(60),
+        /** M12: communication channel (message) or sales channel (deal / renewal). Optional for plans stored before M12. */
+        channelType: ChannelType.optional(),
+        funnelStage: FunnelStage,
+        role: Statement,
+      }),
+    )
     .min(1)
     .max(8),
   phases: z

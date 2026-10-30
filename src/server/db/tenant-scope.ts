@@ -5,6 +5,7 @@ import { buildSnapshot } from "../../domain/knowledge/snapshot";
 import type { GateReport } from "../../domain/quality-gates/gates";
 import type { AssetType } from "../../domain/schemas/agents";
 import type { CampaignType } from "../../domain/schemas/campaign";
+import type { ReleaseType } from "../../domain/schemas/release";
 import type { KpiPatch, KpiSeed } from "../../domain/kpis/kpi";
 import { assertWorkflowTransition, type WorkflowStatus } from "../../domain/workflow/workflow-state";
 import type { Prisma } from "../../generated/prisma/client";
@@ -122,6 +123,8 @@ export function tenantDb(actor: Actor, db: DbTx) {
           await db.persona.findFirst({ where: { id, tenantId }, select: { id: true, name: true, role: true, market: true } }),
           "persona",
         ),
+      /** M12: the tenant's buyer roles, as context for the use case agent. */
+      list: () => db.persona.findMany({ where: { tenantId }, orderBy: { name: "asc" }, select: { id: true, name: true, role: true } }),
     },
     regulatoryTriggers: {
       getById: async (id: string) =>
@@ -149,7 +152,8 @@ export function tenantDb(actor: Actor, db: DbTx) {
               type: true,
               objective: true,
               market: true,
-              channels: true,
+              communicationChannels: true,
+              salesChannels: true,
               startsOn: true,
               endsOn: true,
               budgetEur: true,
@@ -170,12 +174,51 @@ export function tenantDb(actor: Actor, db: DbTx) {
         productId: string;
         personaId: string;
         market: string;
-        channels: string[];
+        communicationChannels: string[];
+        salesChannels: string[];
         startsOn: Date | null;
         endsOn: Date | null;
         budgetEur: number | null;
         isSynthetic?: boolean;
       }) => db.campaign.create({ data: { ...data, tenantId }, select: { id: true } }),
+    },
+    releases: {
+      /** M12: the release briefing a release_communication run works from. The product shares the tenant (composite FK). */
+      getById: async (id: string) =>
+        orNotFound(
+          await db.release.findFirst({
+            where: { id, tenantId },
+            select: {
+              id: true,
+              name: true,
+              version: true,
+              type: true,
+              plannedOn: true,
+              summary: true,
+              changes: true,
+              audiences: true,
+              communicationChannels: true,
+              salesChannels: true,
+              isSynthetic: true,
+              product: { select: { id: true, name: true } },
+            },
+          }),
+          "release",
+        ),
+      /** The product must already be resolved through this DAL (404 on a foreign id). */
+      create: (data: {
+        productId: string;
+        name: string;
+        version: string;
+        type: ReleaseType;
+        plannedOn: Date | null;
+        summary: string;
+        changes: string[];
+        audiences: string[];
+        communicationChannels: string[];
+        salesChannels: string[];
+        isSynthetic?: boolean;
+      }) => db.release.create({ data: { ...data, tenantId }, select: { id: true } }),
     },
 
     kpis: {
@@ -335,9 +378,9 @@ export function tenantDb(actor: Actor, db: DbTx) {
           approvals,
         };
       },
-      create: (data: { type: AssetType; title: string; campaignId?: string | null }) =>
+      create: (data: { type: AssetType; title: string; campaignId?: string | null; releaseId?: string | null }) =>
         db.asset.create({
-          data: { tenantId, type: data.type, title: data.title, state: "draft", campaignId: data.campaignId ?? null },
+          data: { tenantId, type: data.type, title: data.title, state: "draft", campaignId: data.campaignId ?? null, releaseId: data.releaseId ?? null },
           select: { id: true },
         }),
       /**
@@ -353,6 +396,26 @@ export function tenantDb(actor: Actor, db: DbTx) {
           select: { assetVersion: { select: { id: true, assetId: true, versionNumber: true, content: true } } },
         });
         return a ? { assetId: a.assetVersion.assetId, versionId: a.assetVersion.id, versionNumber: a.assetVersion.versionNumber, content: a.assetVersion.content } : null;
+      },
+      /**
+       * M12: content of the most recently APPROVED version of an asset of this
+       * type generated for the given product (via its run's inputRefs) — the use
+       * case map as context for the strategy agent.
+       */
+      latestApprovedForProduct: async (type: AssetType, productId: string): Promise<{ assetId: string; versionId: string; content: unknown } | null> => {
+        const a = await db.approval.findFirst({
+          where: {
+            tenantId,
+            decision: "approved",
+            assetVersion: {
+              tenantId,
+              asset: { tenantId, type, versions: { some: { tenantId, workflowRun: { tenantId, inputRefs: { path: ["productId"], equals: productId } } } } },
+            },
+          },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          select: { assetVersion: { select: { id: true, assetId: true, content: true } } },
+        });
+        return a ? { assetId: a.assetVersion.assetId, versionId: a.assetVersion.id, content: a.assetVersion.content } : null;
       },
       latestApprovedContent: async (
         type: AssetType,
@@ -487,14 +550,17 @@ export function tenantDb(actor: Actor, db: DbTx) {
         generationMode: "live" | "simulated";
         promptVersions: Record<string, string>;
         inputRefs: Record<string, unknown>;
-        /** campaign_gtm only; the campaign must already be resolved through this DAL. */
+        /** Campaign runs only; the campaign must already be resolved through this DAL. */
         campaignId?: string | null;
+        /** M12 release_communication only; the release must already be resolved through this DAL. */
+        releaseId?: string | null;
       }) =>
         db.workflowRun.create({
           data: {
             tenantId,
             kind: data.kind,
             campaignId: data.campaignId ?? null,
+            releaseId: data.releaseId ?? null,
             status: "created",
             idempotencyKey: data.idempotencyKey,
             generationMode: data.generationMode,

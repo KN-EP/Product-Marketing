@@ -8,6 +8,9 @@ import {
   AGENT_E_CONTENT_MATRIX_PROMPT,
   AGENT_F_SALES_PLAY_PROMPT,
   AGENT_G_PERFORMANCE_PROMPT,
+  AGENT_RELEASE_PROMPT,
+  AGENT_STRATEGY_PROMPT,
+  AGENT_USE_CASE_PROMPT,
 } from "../prompts";
 
 export const PMM_THREE_ASSET = "pmm_three_asset";
@@ -15,7 +18,19 @@ export const PMM_THREE_ASSET = "pmm_three_asset";
 export const CAMPAIGN_GTM = "campaign_gtm";
 /** M11: performance review of a campaign from its imported KPI measurements. */
 export const CAMPAIGN_PERFORMANCE = "campaign_performance";
-export type RunKind = typeof PMM_THREE_ASSET | typeof CAMPAIGN_GTM | typeof CAMPAIGN_PERFORMANCE;
+/** M12: use cases, ICP and target segments for one product (station "Use cases & ICP"). */
+export const USE_CASE_DEFINITION = "use_case_definition";
+/** M12: GTM strategy brief for one campaign; its approval is required before campaign_gtm. */
+export const CAMPAIGN_STRATEGY = "campaign_strategy";
+/** M12: communication plan for one planned release or update (station "Release & update"). */
+export const RELEASE_COMMUNICATION = "release_communication";
+export type RunKind =
+  | typeof PMM_THREE_ASSET
+  | typeof CAMPAIGN_GTM
+  | typeof CAMPAIGN_PERFORMANCE
+  | typeof USE_CASE_DEFINITION
+  | typeof CAMPAIGN_STRATEGY
+  | typeof RELEASE_COMMUNICATION;
 
 const Id = z.string().trim().min(1).max(64);
 /** Optional: a new nonce deliberately starts a new run with the same inputs. */
@@ -53,12 +68,43 @@ export const StartPerformanceInput = z.strictObject({
   requestNonce: Nonce,
 });
 
-export const StartWorkflowInput = z.union([StartPmmInput, StartCampaignInput, StartPerformanceInput]);
+/** M12: start input of the use_case_definition run. */
+export const StartUseCaseInput = z.strictObject({
+  kind: z.literal(USE_CASE_DEFINITION),
+  productId: Id,
+  market: z.string().trim().min(2).max(120),
+  requestNonce: Nonce,
+});
+
+/** M12: start input of the campaign_strategy run. */
+export const StartStrategyInput = z.strictObject({
+  kind: z.literal(CAMPAIGN_STRATEGY),
+  campaignId: Id,
+  requestNonce: Nonce,
+});
+
+/** M12: start input of the release_communication run: everything else comes from the (tenant-scoped) Release record. */
+export const StartReleaseInput = z.strictObject({
+  kind: z.literal(RELEASE_COMMUNICATION),
+  releaseId: Id,
+  requestNonce: Nonce,
+});
+
+export const StartWorkflowInput = z.union([
+  StartPmmInput,
+  StartCampaignInput,
+  StartPerformanceInput,
+  StartUseCaseInput,
+  StartStrategyInput,
+  StartReleaseInput,
+]);
 export type StartWorkflowInput = z.infer<typeof StartWorkflowInput>;
 
 /** Stored as WorkflowRun.inputRefs: ids and the market label only. */
 export type RunInputRefs = Omit<z.infer<typeof StartPmmInput>, "kind" | "requestNonce">;
 export type CampaignRunInputRefs = Omit<z.infer<typeof StartCampaignInput>, "kind" | "requestNonce">;
+export type UseCaseRunInputRefs = Omit<z.infer<typeof StartUseCaseInput>, "kind" | "requestNonce">;
+export type ReleaseRunInputRefs = Omit<z.infer<typeof StartReleaseInput>, "kind" | "requestNonce">;
 
 const versions = (...ts: { id: string; version: string }[]) => Object.fromEntries(ts.map((t) => [t.id, t.version]));
 
@@ -74,3 +120,8 @@ export const CAMPAIGN_PROMPT_VERSIONS: Record<string, string> = versions(
 
 /** Prompt template id → version for the campaign_performance run. */
 export const PERFORMANCE_PROMPT_VERSIONS: Record<string, string> = versions(AGENT_G_PERFORMANCE_PROMPT);
+
+/** M12: prompt template id → version per run kind. */
+export const USE_CASE_PROMPT_VERSIONS: Record<string, string> = versions(AGENT_USE_CASE_PROMPT);
+export const STRATEGY_PROMPT_VERSIONS: Record<string, string> = versions(AGENT_STRATEGY_PROMPT);
+export const RELEASE_PROMPT_VERSIONS: Record<string, string> = versions(AGENT_RELEASE_PROMPT);

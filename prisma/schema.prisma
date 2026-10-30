@@ -69,6 +69,11 @@ enum AssetType {
   sales_play
   /// M11: performance review (campaign_performance run)
   performance_review
+  /// M12: use case map (use_case_definition run), GTM strategy brief (campaign_strategy run),
+  /// release communication plan (release_communication run)
+  use_case_map
+  gtm_strategy_brief
+  release_communication_plan
 }
 
 enum KpiUnit {
@@ -97,6 +102,15 @@ enum CampaignType {
   retention
   loyalty
   sales_enablement
+}
+
+/// M12: what kind of release or update is planned. Drives the release tier the agent proposes.
+enum ReleaseType {
+  major_release
+  feature_update
+  maintenance_update
+  security_update
+  deprecation
 }
 
 enum AssetState {
@@ -162,6 +176,7 @@ model Tenant {
   claimEvidence          ClaimEvidence[]
   valuePropositionClaims ValuePropositionClaim[]
   campaigns              Campaign[]
+  releases               Release[]
   kpis                   Kpi[]
   kpiMeasurements        KpiMeasurement[]
   kpiImports             KpiImport[]
@@ -211,6 +226,7 @@ model Product {
   features  ProductFeature[]
   claims    Claim[]
   campaigns Campaign[]
+  releases  Release[]
 
   @@unique([id, tenantId])
   @@index([tenantId])
@@ -444,21 +460,24 @@ model RegulatoryTrigger {
 /// same gates and human review as every other asset. Nothing is sent or
 /// published from here: deliverables leave the system only as approved exports.
 model Campaign {
-  id          String       @id @default(cuid())
-  tenantId    String
-  name        String
-  type        CampaignType
-  objective   String
-  productId   String
-  personaId   String
-  market      String
-  channels    String[]
-  startsOn    DateTime?    @db.Date
-  endsOn      DateTime?    @db.Date
-  budgetEur   Decimal?     @db.Decimal(12, 2)
-  isSynthetic Boolean      @default(false)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id                    String       @id @default(cuid())
+  tenantId              String
+  name                  String
+  type                  CampaignType
+  objective             String
+  productId             String
+  personaId             String
+  market                String
+  /// M12: communication channels (LinkedIn, email, webinar …) — previously "channels".
+  communicationChannels String[]
+  /// M12: sales channels (direct_sales, partner_reseller, customer_success …; see SalesChannel).
+  salesChannels         String[]     @default([])
+  startsOn              DateTime?    @db.Date
+  endsOn                DateTime?    @db.Date
+  budgetEur             Decimal?     @db.Decimal(12, 2)
+  isSynthetic           Boolean      @default(false)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
 
   tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   product      Product       @relation(fields: [productId, tenantId], references: [id, tenantId])
@@ -476,6 +495,35 @@ model Campaign {
 
 /// One KPI of a campaign, created from the APPROVED campaign plan. The plan only
 /// proposes targets; the numeric target and baseline are set by a human.
+/// M12: a planned release or update of a product (station "Release & update"). Human input;
+/// the release_communication run turns it into a communication plan for review.
+model Release {
+  id                    String      @id @default(cuid())
+  tenantId              String
+  productId             String
+  name                  String
+  version               String
+  type                  ReleaseType
+  plannedOn             DateTime?   @db.Date
+  summary               String
+  changes               String[]
+  /// existing_customers, prospects, partners_resellers, internal_sales, internal_support (see ReleaseAudience)
+  audiences             String[]
+  communicationChannels String[]
+  salesChannels         String[]    @default([])
+  isSynthetic           Boolean     @default(false)
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product      Product       @relation(fields: [productId, tenantId], references: [id, tenantId])
+  assets       Asset[]
+  workflowRuns WorkflowRun[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, plannedOn])
+}
+
 model Kpi {
   id              String         @id @default(cuid())
   tenantId        String
@@ -557,17 +605,21 @@ model Asset {
   currentVersionId String?
   /// Set for campaign deliverables (same tenant, composite FK).
   campaignId       String?
+  /// M12: set for release communication plans (same tenant, composite FK).
+  releaseId        String?
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
   tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   /// Restrict (not SetNull): SetNull would also null tenantId of the composite key.
   campaign Campaign?      @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  release  Release?       @relation(fields: [releaseId, tenantId], references: [id, tenantId], onDelete: Restrict)
   versions AssetVersion[]
 
   @@unique([id, tenantId])
   @@index([tenantId, state])
   @@index([tenantId, campaignId])
+  @@index([tenantId, releaseId])
 }
 
 /// Immutable. The data-access layer exposes no update path for content fields.
@@ -613,8 +665,10 @@ model WorkflowRun {
   costEstimateUsd Decimal?       @db.Decimal(10, 4)
   error           String?
   attempts        Int            @default(0)
-  /// Set for campaign_gtm runs (same tenant, composite FK).
+  /// Set for campaign runs (same tenant, composite FK).
   campaignId      String?
+  /// M12: set for release_communication runs (same tenant, composite FK).
+  releaseId       String?
   startedAt       DateTime?
   completedAt     DateTime?
   createdAt       DateTime       @default(now())
@@ -622,11 +676,13 @@ model WorkflowRun {
 
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   campaign      Campaign?      @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  release       Release?       @relation(fields: [releaseId, tenantId], references: [id, tenantId], onDelete: Restrict)
   assetVersions AssetVersion[]
 
   @@unique([tenantId, idempotencyKey])
   @@index([tenantId, status])
   @@index([tenantId, campaignId])
+  @@index([tenantId, releaseId])
 }
 
 model Approval {

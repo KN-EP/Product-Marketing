@@ -12,7 +12,15 @@ import { requirePageActor } from "@/server/auth/actor";
 import { getDb } from "@/server/db";
 import { ACTIVE_RUN_STATUSES, tenantDb } from "@/server/db/tenant-scope";
 import { or404 } from "@/server/http/page";
-import { CAMPAIGN_GTM, CAMPAIGN_PERFORMANCE, isStale, STALE_RUN_AFTER_MS } from "@/server/workflow/orchestrator";
+import {
+  CAMPAIGN_GTM,
+  CAMPAIGN_PERFORMANCE,
+  CAMPAIGN_STRATEGY,
+  isStale,
+  RELEASE_COMMUNICATION,
+  STALE_RUN_AFTER_MS,
+  USE_CASE_DEFINITION,
+} from "@/server/workflow/orchestrator";
 import { getOrchestrator } from "@/server/workflow/runtime";
 
 export const dynamic = "force-dynamic";
@@ -41,14 +49,16 @@ export default async function WorkflowRunPage({ params }: { params: Promise<{ id
   const stale = isStale(raw, new Date());
   const usage = (run.usage ?? null) as Record<string, number> | null;
   const promptVersions = (run.promptVersions ?? {}) as Record<string, string>;
-  const refs = (run.inputRefs ?? {}) as { market?: string };
-  const isCampaign = run.kind === CAMPAIGN_GTM || run.kind === CAMPAIGN_PERFORMANCE;
-  const deliverablesText =
-    run.kind === CAMPAIGN_PERFORMANCE
-      ? "Performance review (numbers computed from the imported KPI data)"
-      : run.kind === CAMPAIGN_GTM
-        ? "Campaign plan, content matrix and sales play"
-        : "Messaging framework, competitive battlecard and regulatory GTM brief";
+  const refs = (run.inputRefs ?? {}) as { market?: string; productId?: string };
+  const isCampaign = run.kind === CAMPAIGN_GTM || run.kind === CAMPAIGN_PERFORMANCE || run.kind === CAMPAIGN_STRATEGY;
+  const DELIVERABLES_TEXT: Record<string, string> = {
+    [CAMPAIGN_PERFORMANCE]: "Performance review (numbers computed from the imported KPI data)",
+    [CAMPAIGN_GTM]: "Campaign plan, content matrix and sales play",
+    [CAMPAIGN_STRATEGY]: "GTM strategy brief (target groups, use cases, ICP, channel strategy)",
+    [USE_CASE_DEFINITION]: "Use case map with ICP, target segments and buying center",
+    [RELEASE_COMMUNICATION]: "Release communication plan",
+  };
+  const deliverablesText = DELIVERABLES_TEXT[run.kind] ?? "Messaging framework, competitive battlecard and regulatory GTM brief";
 
   return (
     <>
@@ -65,6 +75,17 @@ export default async function WorkflowRunPage({ params }: { params: Promise<{ id
               <Link href={`/campaigns/${raw.campaignId}`} className="underline underline-offset-2">
                 Campaign
               </Link>
+            ) : run.kind === RELEASE_COMMUNICATION && raw.releaseId ? (
+              <Link href={`/releases/${raw.releaseId}`} className="underline underline-offset-2">
+                Release
+              </Link>
+            ) : run.kind === USE_CASE_DEFINITION && refs.productId ? (
+              <>
+                <Link href={`/products/${refs.productId}`} className="underline underline-offset-2">
+                  Product
+                </Link>{" "}
+                · market: {refs.market ?? "—"}
+              </>
             ) : (
               <>market: {refs.market ?? "—"}</>
             )}

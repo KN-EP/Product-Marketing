@@ -46,6 +46,7 @@ import { SimulatedProvider } from "@/server/llm/simulated";
 import type { GenerateOptions, LlmProvider, LlmResult, OutputSpec, RenderedPrompt } from "@/server/llm/types";
 import { InProcessOrchestrator } from "@/server/workflow/orchestrator";
 import { SEED_IDS, seed } from "../../prisma/seed";
+import { approveStrategy } from "./strategy-helpers";
 
 const A = SEED_IDS[DEMO_TENANT_ID];
 const B = SEED_IDS[OTHER_TENANT_ID];
@@ -84,7 +85,8 @@ const campaignInput = (over: Record<string, unknown> = {}) => ({
   productId: A.product,
   personaId: A.persona,
   market: "DACH mid-market",
-  channels: ["Email", "Customer success"],
+  communicationChannels: ["Email"],
+  salesChannels: ["customer_success"],
   startsOn: "2027-01-04",
   endsOn: "2027-02-26",
   budgetEur: 5000,
@@ -95,6 +97,8 @@ const orchestrator = (provider: () => LlmProvider = () => new SimulatedProvider(
 
 async function campaignRun(campaignId: string = A.campaign, provider?: () => LlmProvider) {
   const o = orchestrator(provider);
+  // M12: the campaign package needs an approved GTM strategy brief.
+  await approveStrategy(EDITOR_A, campaignId);
   const { run } = await o.start(EDITOR_A, { kind: "campaign_gtm", campaignId, requestNonce: randomUUID() });
   const done = await o.execute(EDITOR_A, run.id);
   return { o, run: done, details: await o.get(EDITOR_A, run.id) };
@@ -136,12 +140,12 @@ describe("campaign briefings", () => {
     expect(res).toMatchObject({ ok: true });
     const id = (res as { data: { campaignId: string } }).data.campaignId;
     const row = await getDb().campaign.findUniqueOrThrow({ where: { id } });
-    expect(row).toMatchObject({ tenantId: DEMO_TENANT_ID, type: "retention", channels: ["Email", "Customer success"], isSynthetic: false });
+    expect(row).toMatchObject({ tenantId: DEMO_TENANT_ID, type: "retention", communicationChannels: ["Email"], salesChannels: ["customer_success"], isSynthetic: false });
     expect(row.startsOn?.toISOString()).toBe("2027-01-04T00:00:00.000Z");
     expect(row.budgetEur?.toNumber()).toBe(5000);
     const audit = await tenantDb(EDITOR_A, getDb()).audit.listFor("Campaign", id);
     expect(audit).toHaveLength(1);
-    expect(audit[0]).toMatchObject({ action: "campaign.created", actorId: EDITOR_A.userId, metadata: { type: "retention", channels: 2 } });
+    expect(audit[0]).toMatchObject({ action: "campaign.created", actorId: EDITOR_A.userId, metadata: { type: "retention", communicationChannels: 1, salesChannels: ["customer_success"] } });
     expect(JSON.stringify(audit[0]!.metadata)).not.toContain("Keep existing customers");
   });
 
@@ -197,7 +201,7 @@ describe("campaign_gtm run (simulated)", () => {
     const { run, details } = await campaignRun();
     expect(run).toMatchObject({ kind: "campaign_gtm", status: "completed", generationMode: "simulated", costEstimateUsd: 0 });
     expect(run.inputRefs).toEqual({ campaignId: A.campaign });
-    expect(run.promptVersions).toEqual({ "agent-d.campaign-plan": "1.0.0", "agent-e.content-matrix": "1.0.0", "agent-f.sales-play": "1.0.0" });
+    expect(run.promptVersions).toEqual({ "agent-d.campaign-plan": "1.1.0", "agent-e.content-matrix": "1.1.0", "agent-f.sales-play": "1.1.0" });
     expect(details.outputs.map((o) => o.assetType)).toEqual(["campaign_plan", "content_matrix", "sales_play"]);
     expect(details.outputs.every((o) => !o.internal && o.assetState === "pending_review")).toBe(true);
     expect(Object.fromEntries(details.outputs.map((o) => [o.assetType, o.gatesPassed]))).toEqual({
@@ -216,6 +220,9 @@ describe("campaign_gtm run (simulated)", () => {
 
   it("is idempotent without a nonce and respects the start rules", async () => {
     const o = orchestrator();
+    // M12: without an approved strategy brief the package cannot start.
+    await expect(o.start(EDITOR_A, { kind: "campaign_gtm", campaignId: A.campaign })).rejects.toMatchObject({ status: 409, code: "strategy_not_approved" });
+    await approveStrategy(EDITOR_A, A.campaign);
     const first = await o.start(EDITOR_A, { kind: "campaign_gtm", campaignId: A.campaign });
     const again = await o.start(EDITOR_A, { kind: "campaign_gtm", campaignId: A.campaign });
     expect(first.created).toBe(true);
@@ -340,6 +347,7 @@ describe("campaign package review: blocked content matrix → correction → app
     expect(await render(() => CampaignPage(p(A.campaign)))).toEqual({ rendered: true });
     const states = await getDb().asset.findMany({ where: { campaignId: A.campaign }, select: { type: true, state: true } });
     expect(Object.fromEntries(states.map((s) => [s.type, s.state]))).toEqual({
+      gtm_strategy_brief: "approved",
       campaign_plan: "pending_review",
       content_matrix: "approved",
       sales_play: "approved",

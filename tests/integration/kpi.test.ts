@@ -40,6 +40,7 @@ import { createKpiTree } from "@/server/kpis/service";
 import { SimulatedProvider } from "@/server/llm/simulated";
 import { InProcessOrchestrator } from "@/server/workflow/orchestrator";
 import { SEED_IDS, seed } from "../../prisma/seed";
+import { approveStrategy } from "./strategy-helpers";
 
 const A = SEED_IDS[DEMO_TENANT_ID];
 const B = SEED_IDS[OTHER_TENANT_ID];
@@ -78,6 +79,8 @@ const orchestrator = () => new InProcessOrchestrator({ db: getDb(), provider: ()
 /** nonce null = no nonce (idempotent start). */
 async function run(kind: "campaign_gtm" | "campaign_performance", nonce: string | null = randomUUID()) {
   const o = orchestrator();
+  // M12: the campaign package needs an approved GTM strategy brief.
+  if (kind === "campaign_gtm") await approveStrategy(EDITOR_A, A.campaign);
   const { run, created } = await o.start(EDITOR_A, { kind, campaignId: A.campaign, ...(nonce ? { requestNonce: nonce } : {}) });
   if (created) await o.execute(EDITOR_A, run.id);
   return { created, details: await o.get(EDITOR_A, run.id) };

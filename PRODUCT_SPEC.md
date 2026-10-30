@@ -138,3 +138,42 @@ Q KPI edits limited to target/baseline/unit/direction/aggregation; foreign KPI 4
 R CSV import: accepted/rejected rows, replace on same date, 413 above 200 KB, 400 on a bad header ·
 S performance run needs data (409), produces a gated review with server numbers; edits keep them;
 approve → export with KPI table · T same data → same run, new import → new run.
+
+
+# Extension M12 — strategy first (use cases, ICP, release communication)
+
+Feedback from the product marketing review: the campaign package started too late — without target
+groups, use cases and ICPs it is marketing, not product marketing. Communication channels and sales
+channels were mixed. Release and update planning and communication were missing.
+
+## The street (stations)
+1. Knowledge (product, claims, sources) → 2. **Use cases & ICP** → 3. Messaging → 4. Competition &
+regulation → 5. **Release & update** → 6. GTM strategy brief → campaign (plan, content, sales play) →
+7. Impact (KPI analysis).
+
+## Flow
+- **Use case map** (`use_case_definition`, per product and market): ICP (summary, criteria, buying
+  triggers, disqualifiers), target segments with priority, buying center, up to eight use cases with
+  problem, trigger, desired outcome, capabilities (facts need approved claims) and evidence status.
+- **GTM strategy brief** (`campaign_strategy`, per campaign): campaign hypothesis, ICP, segments,
+  buying center, prioritised use cases (from the approved use case map), positioning, channel strategy
+  (communication channels with segment and role; sales channels with role and hand-off), success
+  criteria. **The campaign package (`campaign_gtm`) can only start once a reviewer has approved the
+  brief** (409 `strategy_not_approved` otherwise); D, E and F receive it as context. A newly approved
+  brief means a new package run (idempotency key includes the brief's version).
+- **Releases** (`/releases`): release plan (version, date, type, changes, audiences, channels). The
+  `release_communication` run drafts a communication plan: release tier, message and action per
+  audience, timeline from internal enablement (T-14) to follow-up, release notes, customer notice,
+  sales/support FAQ.
+
+## Rules
+- Communication channels (carry a message) and sales channels (close a deal or a renewal) are separate
+  fields everywhere: briefing, strategy brief, campaign plan (`channelType`), release plan.
+- Planned release changes are not facts until an approved claim supports them.
+- Internal audiences are enabled before external audiences.
+- All three new deliverables pass the same gates, human review and Markdown export as every other.
+
+## Acceptance tests
+- Unit: `tests/unit/strategy.test.ts`; integration: `tests/integration/strategy.test.ts` (strategy
+  gate, use case map as context, releases, isolation of every new entry point, demo reset); E2E:
+  `tests/e2e/release-flow.spec.ts` and the updated campaign/KPI flows.
