@@ -1,6 +1,7 @@
 import type { DbTx } from "./tenant-scope";
 import { NotFoundError } from "../errors";
 import { INTERNAL_ASSET_TYPES } from "../assets/deliverables";
+import { ENABLEMENT_TYPES } from "../../domain/schemas/enablement";
 
 /** Deliverables only: the internal input brief is never listed, queued or counted. */
 const DELIVERABLE = { type: { notIn: [...INTERNAL_ASSET_TYPES] } };
@@ -461,6 +462,8 @@ export function tenantViews(tenantId: string, db: DbTx) {
         strategiesApproved,
         releases,
         releasePlans,
+        enablementAssets,
+        enablementApproved,
       ] = await Promise.all([
         db.workflowRun.count({ where: { tenantId, status: "completed", kind: "pmm_three_asset" } }),
         db.asset.count({ where: { tenantId, state: "pending_review", ...DELIVERABLE } }),
@@ -478,6 +481,8 @@ export function tenantViews(tenantId: string, db: DbTx) {
         db.asset.count({ where: { tenantId, type: "gtm_strategy_brief", state: "approved" } }),
         db.release.count({ where: { tenantId } }),
         db.asset.count({ where: { tenantId, type: "release_communication_plan" } }),
+        db.asset.count({ where: { tenantId, type: { in: [...ENABLEMENT_TYPES] } } }),
+        db.asset.count({ where: { tenantId, state: "approved", type: { in: [...ENABLEMENT_TYPES] } } }),
       ]);
       return {
         runsCompleted,
@@ -493,6 +498,8 @@ export function tenantViews(tenantId: string, db: DbTx) {
         strategiesApproved,
         releases,
         releasePlans,
+        enablementAssets,
+        enablementApproved,
         kpis,
         kpiImports,
         performanceReviews,

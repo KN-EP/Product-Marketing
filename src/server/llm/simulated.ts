@@ -14,6 +14,8 @@ import {
   SIMULATED_USE_CASE_MAP,
 } from "../../demo/fixtures";
 import { kpiResultsFromPrompt, simulatedPerformanceReview } from "../../demo/performance";
+import { simulatedEnablementAsset } from "../../demo/enablement-fixtures";
+import { ENABLEMENT_TYPES, type EnablementType } from "../../domain/schemas/enablement";
 import type { AssetType } from "../../domain/schemas/agents";
 import { LlmOutputInvalidError } from "./errors";
 import { ZERO_USAGE, type GenerateOptions, type LlmProvider, type LlmResult, type OutputSpec, type RenderedPrompt } from "./types";
@@ -52,6 +54,8 @@ const DEFAULT_FIXTURES: Record<AssetType, unknown | ((prompt: RenderedPrompt) =>
   use_case_map: SIMULATED_USE_CASE_MAP,
   gtm_strategy_brief: SIMULATED_GTM_STRATEGY_BRIEF,
   release_communication_plan: SIMULATED_RELEASE_COMMUNICATION_PLAN,
+  // M13a + M13b: one fixture per deliverable type; the one-pager v1 deliberately fails gate G11.
+  ...(Object.fromEntries(ENABLEMENT_TYPES.map((t) => [t, simulatedEnablementAsset(t)])) as Record<EnablementType, unknown>),
 };
 
 /**

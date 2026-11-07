@@ -8,7 +8,22 @@ End-to-end flow per PRODUCT_SPEC, simulated + live mode, review/approval, export
 - ✅ M11: KPI tree + CSV import + target vs. actual + performance review (F5)
 - ✅ M12 strategy first: use cases & ICP, GTM strategy brief as the gate of the campaign package,
   communication vs. sales channels, release & update planning and communication
-- M13: channel audit, editorial calendar, data-driven retention plays (F3, F2 with CRM data)
+
+## Extension M13–M14 (coverage of the product marketing role)
+- ✅ M13a product & conversion assets: product page, solution brief, whitepaper outline, thought
+  leadership, regulatory explainer, case study, ad copy, webinar outline, video script, industry narrative
+- ✅ M13b sales toolkit & training: pitch / first-meeting deck outline, demo story, one-pager,
+  discovery guide, persona playbook, ROI argument, product training for sales
+- M13c ongoing product communication (newsletter, roadmap update, onboarding guide & walkthrough,
+  messaging update to all teams)
+- M13d repurposing and localisation (DE/EN, glossary)
+- M13e nurturing, MQL definition, lead scoring model
+- M13f measurement (demand-gen KPIs, win rate, launch adoption, PMM impact from the approval log)
+- M13g channels (Google Ads, SEO/GEO, co-marketing), ABM and expansion campaigns, regulatory calendar
+- M13h suite messaging (umbrella + module level, cross-sell paths)
+- M14 market, competitive and customer loop: field intelligence (interviews, win/loss), competitive
+  and trend loop, insight & opportunity briefs, consistency check, customer meeting preparation
+- M15+: HubSpot (read-only), channel audit and editorial calendar (F3), product usage data
 
 ## P1
 - Customer & market research module (interview synthesis with consent tracking)

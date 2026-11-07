@@ -1,7 +1,7 @@
 /**
- * DataGuard Demo – Unofficial: SYNTHETIC demonstration data.
+ * Nordlicht Demo (fiktiv): SYNTHETIC demonstration data.
  *
- * Nothing in this file describes real DataGuard features, customers,
+ * Nothing in this file describes real company features, customers,
  * certifications or competitors. No URLs, quotes or citations are fabricated:
  * every source has url = null and isSynthetic = true. Before any real use,
  * replace these records with verified public sources and exact excerpts.
@@ -9,7 +9,7 @@
 import type { ClaimRecord, CompetitorEvidenceRecord, SourceRecord } from "../domain/knowledge/snapshot";
 
 export const DEMO_TENANT_ID = "tnt_dataguard_demo";
-export const DEMO_TENANT_NAME = "DataGuard Demo – Unofficial";
+export const DEMO_TENANT_NAME = "Nordlicht Demo (fiktiv)";
 export const OTHER_TENANT_ID = "tnt_other_demo";
 
 export const DEMO_SOURCES: SourceRecord[] = [

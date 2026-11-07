@@ -55,7 +55,7 @@ const ROUTES: Record<Kind, typeof getAssetRoute> = {
 };
 
 const TENANTS = [
-  { name: "A (DataGuard Demo)", id: DEMO_TENANT_ID, idx: 0 as const, userPrefix: "usr_demo", other: OTHER_TENANT_ID },
+  { name: "A (Nordlicht Demo)", id: DEMO_TENANT_ID, idx: 0 as const, userPrefix: "usr_demo", other: OTHER_TENANT_ID },
   { name: "B (Other Demo)", id: OTHER_TENANT_ID, idx: 1 as const, userPrefix: "usr_other", other: DEMO_TENANT_ID },
 ];
 

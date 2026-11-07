@@ -6,11 +6,11 @@ AI drafts and flags; humans own strategy, approvals and every external represent
 
 ## First use case
 30-day Product Marketing Accelerator demonstration for a prospect in AI Governance /
-EU AI Act messaging and sales enablement. The demo tenant is **"DataGuard Demo – Unofficial"**
+EU AI Act messaging and sales enablement. The demo tenant is **"Nordlicht Demo (fiktiv)"**
 and uses synthetic data only.
 
 ## P0 demonstration flow
-1. Select tenant "DataGuard Demo – Unofficial".
+1. Select tenant "Nordlicht Demo (fiktiv)".
 2. Product area: AI Governance. 3. Persona: CISO. 4. Market: Germany. 5. Trigger: EU AI Act.
 6. Load approved product claims and sources. 7. Select three competitors with evidence.
 8–10. Generate Messaging Framework, Competitive Battlecard, Regulatory GTM Brief.

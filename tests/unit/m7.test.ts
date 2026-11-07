@@ -23,6 +23,7 @@ import { proxy } from "@/proxy";
 import { assertDeliverable, DELIVERABLE_ASSET_TYPES, isInternalAssetType } from "@/server/assets/deliverables";
 import { enforceRateLimit, RATE_LIMITS, RateLimiter, resetRateLimits } from "@/server/http/rate-limit";
 import { log, sanitize, sanitizeString } from "@/server/log";
+import { ENABLEMENT_TYPES } from "@/domain/schemas/enablement";
 
 const html = (el: Parameters<typeof renderToStaticMarkup>[0]) => renderToStaticMarkup(el);
 
@@ -43,6 +44,8 @@ describe("A1 — three deliverables; the input brief is internal", () => {
       "use_case_map",
       "gtm_strategy_brief",
       "release_communication_plan",
+      // M13a + M13b product assets and sales toolkit
+      ...ENABLEMENT_TYPES,
     ]);
     expect(() => assertDeliverable("product_intelligence_brief")).toThrow(expect.objectContaining({ status: 409, code: "internal_input" }));
     expect(() => assertDeliverable("competitive_battlecard")).not.toThrow();

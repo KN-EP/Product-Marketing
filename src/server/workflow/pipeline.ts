@@ -9,6 +9,7 @@ import {
   runAgentE,
   runAgentF,
   runAgentG,
+  runEnablementAgent,
   runReleaseAgent,
   runStrategyAgent,
   runUseCaseAgent,
@@ -23,6 +24,7 @@ import {
   AGENT_C_REGULATORY_PROMPT,
   AGENT_D_CAMPAIGN_PLAN_PROMPT,
   AGENT_E_CONTENT_MATRIX_PROMPT,
+  AGENT_ENABLEMENT_PROMPT,
   AGENT_F_SALES_PLAY_PROMPT,
   AGENT_G_PERFORMANCE_PROMPT,
   AGENT_RELEASE_PROMPT,
@@ -32,6 +34,7 @@ import {
   type PromptTemplate,
 } from "../prompts";
 import type { CostBudget } from "./limits";
+import type { EnablementType } from "../../domain/schemas/enablement";
 
 /** Mutable progress so a failed run still records what it spent. */
 export interface PipelineProgress {
@@ -183,3 +186,8 @@ export const runStrategyPipeline = singleStep(AGENT_STRATEGY_PROMPT, runStrategy
 
 /** release_communication (M12): release agent for one release. */
 export const runReleasePipeline = singleStep(AGENT_RELEASE_PROMPT, runReleaseAgent);
+
+/** campaign_asset (M13a + M13b): enablement agent for one deliverable type of a campaign. */
+export function runEnablementPipeline(type: EnablementType) {
+  return singleStep(AGENT_ENABLEMENT_PROMPT, (input, provider) => runEnablementAgent(input, provider, type));
+}

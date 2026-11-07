@@ -74,6 +74,25 @@ enum AssetType {
   use_case_map
   gtm_strategy_brief
   release_communication_plan
+  /// M13a: product and conversion assets (campaign_asset run, enablement_asset.v1)
+  product_page
+  solution_brief
+  whitepaper_outline
+  thought_leadership
+  regulatory_explainer
+  case_study
+  ad_copy
+  webinar_outline
+  video_script
+  industry_narrative
+  /// M13b: sales toolkit and training (campaign_asset run, enablement_asset.v1)
+  pitch_deck_outline
+  demo_story
+  one_pager
+  discovery_guide
+  persona_playbook
+  roi_argument
+  sales_training
 }
 
 enum KpiUnit {
