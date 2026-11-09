@@ -14,7 +14,7 @@ and approved.
 | | Prompt plugin | Product Marketing OS ("the street") |
 |---|---|---|
 | Knowledge | per conversation | approved claims, sources, competitor evidence, interviews — kept and versioned |
-| Truth | whatever the model writes | every statement labelled fact / interpretation / hypothesis / suggestion; facts need approved claims or verbatim excerpts (gates G1–G16) |
+| Truth | whatever the model writes | every statement labelled fact / interpretation / hypothesis / suggestion; facts need approved claims or verbatim excerpts (gates G1–G17) |
 | Approval | none | human reviewer per version; expert acknowledgement for regulatory content; audit trail |
 | Change | none | a changed source or a withdrawn consent makes claims stale and blocks the export of approvals that rest on them; the regulatory radar shows every affected asset |
 | Decisions | none | readiness computed in code; launch go / no-go only by a person, stored with its readiness |
@@ -50,6 +50,7 @@ This repository is being built milestone by milestone (see `IMPLEMENTATION_PLAN.
 | M14 | Win/loss & research: pseudonymised interviews with consent tracking, computed statistics, win/loss synthesis (gate G15), consent withdrawal invalidates evidence, export re-checks the gates | 🔍 in review (`feature/m14-win-loss-research`) |
 | M16 | Regulatory radar: watched regulatory items, recorded changes with computed impact (stale claims, affected assets with reasons), change brief, reviewer resolution; launch readiness and export follow; governance panel on the dashboard | 🔍 in review (`feature/m16-regulatory-radar`) |
 | M15 | Station "Launch": staged launches (early access → GA → customers → market), readiness per phase computed in code, human go / no-go with stored readiness, launch plan (gate G16) | 🔍 in review (`feature/m15-launch`) |
+| M17 | Industrial gates (from a machine-builder trial): German comparatives and superlatives, "immer/nie", regulatory vocabulary (PFAS, PPWR, MDR, FDA/GMP, CE, food contact); a comparison naming a competitor needs evidence about that competitor (G7b); product conformity needs an approved compliance claim, not only the law text (G7c); numbers quoted from a claim keep "up to" and the claim's conditions (G17, `Claim.conditions`) | 🔍 in review (`feature/m17-industry-gates`) |
 
 ## Requirements
 

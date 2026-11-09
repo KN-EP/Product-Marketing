@@ -548,7 +548,7 @@ export function tenantDb(actor: Actor, db: DbTx) {
         snapshot: KnowledgeSnapshot;
         sourceClassifications: DataClassification[];
       }> => {
-        const [sources, claims, evidence] = await Promise.all([
+        const [sources, claims, evidence, competitors] = await Promise.all([
           db.source.findMany({
             where: {
               tenantId,
@@ -559,6 +559,7 @@ export function tenantDb(actor: Actor, db: DbTx) {
           db.competitorEvidence.findMany({
             where: { tenantId, ...(opts.competitorIds ? { competitorId: { in: opts.competitorIds } } : {}) },
           }),
+          db.competitor.findMany({ where: { tenantId }, select: { id: true, tenantId: true, name: true } }),
         ]);
         const sourceRecords: SourceRecord[] = sources.map((s) => ({
           id: s.id,
@@ -580,7 +581,7 @@ export function tenantDb(actor: Actor, db: DbTx) {
           state: e.state,
         }));
         return {
-          snapshot: buildSnapshot({ tenantId, sources: sourceRecords, claims: claimRecords, competitorEvidence: evidenceRecords }),
+          snapshot: buildSnapshot({ tenantId, sources: sourceRecords, claims: claimRecords, competitorEvidence: evidenceRecords, competitors }),
           sourceClassifications: sources.filter((s) => s.status === "active").map((s) => s.classification),
         };
       },
@@ -935,6 +936,7 @@ function toClaimRecord(c: {
   category: ClaimRecord["category"];
   state: ClaimState;
   isSynthetic: boolean;
+  conditions?: string[];
   evidence: { sourceId: string; excerpt: string; locator: string | null }[];
 }): ClaimRecord {
   return {
@@ -944,6 +946,7 @@ function toClaimRecord(c: {
     category: c.category,
     state: c.state,
     isSynthetic: c.isSynthetic,
+    conditions: c.conditions ?? [],
     evidence: c.evidence.map((e) => ({ sourceId: e.sourceId, excerpt: e.excerpt, locator: e.locator })),
   };
 }

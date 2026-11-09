@@ -38,6 +38,11 @@ export interface ClaimRecord {
   state: ClaimState;
   evidence: ClaimEvidenceRecord[];
   isSynthetic: boolean;
+  /**
+   * M17: conditions a number in the claim only holds under (e.g. "bei vergleichbarer
+   * Stellfläche"). A statement that quotes a number of the claim must carry them (gate G17).
+   */
+  conditions?: string[];
 }
 
 export interface CompetitorEvidenceRecord {
@@ -50,11 +55,19 @@ export interface CompetitorEvidenceRecord {
   state: ClaimState;
 }
 
+/** M17: competitor names, so a comparison that names a competitor can be checked against evidence about it (G7b). */
+export interface CompetitorRecord {
+  id: string;
+  tenantId: string;
+  name: string;
+}
+
 export interface KnowledgeSnapshot {
   tenantId: string;
   sources: ReadonlyMap<string, SourceRecord>;
   claims: ReadonlyMap<string, ClaimRecord>;
   competitorEvidence: ReadonlyMap<string, CompetitorEvidenceRecord>;
+  competitors: ReadonlyMap<string, CompetitorRecord>;
 }
 
 export function buildSnapshot(input: {
@@ -62,6 +75,7 @@ export function buildSnapshot(input: {
   sources: SourceRecord[];
   claims: ClaimRecord[];
   competitorEvidence?: CompetitorEvidenceRecord[];
+  competitors?: CompetitorRecord[];
 }): KnowledgeSnapshot {
   // Defense in depth: drop anything not owned by the tenant, even if a caller
   // passed it in by mistake.
@@ -72,6 +86,7 @@ export function buildSnapshot(input: {
     sources: own(input.sources),
     claims: own(input.claims),
     competitorEvidence: own(input.competitorEvidence ?? []),
+    competitors: own(input.competitors ?? []),
   };
 }
 

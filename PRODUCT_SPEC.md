@@ -307,3 +307,31 @@ withdrawn interview consents.
 Unit `tests/unit/radar.test.ts` (input, deadline tokens, impact reasons, simulated brief);
 integration `tests/integration/radar.test.ts` (recording, 409/400/404/403/401, export blocked,
 launch readiness, change brief, resolution rules, isolation, reset).
+
+# Extension M17 — industrial gates
+
+Found in a trial with a machine builder (public data: thermoforming for packaging, medical bags,
+appliance liners). Model drafts wrote what such teams are tempted to write; the gates let these through:
+a German comparative naming a competitor backed only by an own claim, superlatives, "immer",
+PFAS / PPWR / MDR / FDA / CE / food-contact statements, "PPWR-konform" backed only by the law text,
+and "50 %" quoted without "bis zu" and without the claim's comparison basis.
+
+1. **Vocabulary (G5, G7, G7b).** German comparatives ("höherer … als", "mehr … als" — not quantities
+   like "mehr als 800"), English "faster/higher … than", superlatives, "immer/nie/stets/ausnahmslos",
+   and the regulatory vocabulary of packaging, food contact, medical devices and machinery.
+   Comparative forms and superlatives count as a comparison when they name a competitor or the market
+   ("Wettbewerb", "im Markt", "any other vendor"); a superlative without such a reference is a warning.
+2. **Named competitor (G7b).** A comparison that names a competitor (full name, or its upper-case
+   brand word such as "WM") needs approved competitor evidence about **that** competitor.
+3. **Product conformity (G7c).** "konform / compliant / zertifiziert / zugelassen / PFAS-frei /
+   lebensmittelecht / CE-gekennzeichnet", or "erfüllt / entspricht" about the product, need an
+   approved claim of category `compliance` with evidence. A verified excerpt of the law shows what the
+   law says, not that the product meets it. Critical for facts and interpretations, a warning for
+   hypotheses. Obligations ("müssen erfüllen") and buyer needs ("brauchen PFAS-freie …") are excluded.
+   Expert review (G7) still applies.
+4. **Claim conditions (G17).** `Claim.conditions` (migration `20261110090000_claim_conditions`) holds
+   the conditions a claim's numbers only hold under. A statement that quotes a number of a cited claim
+   must keep "bis zu / up to" when the claim has it, and must contain every condition.
+
+Gates are deterministic patterns; they make gaps visible and do not establish truth. Unit
+`tests/unit/industry-gates.test.ts`.

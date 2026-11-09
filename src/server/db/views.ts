@@ -96,6 +96,7 @@ export function tenantViews(tenantId: string, db: DbTx) {
           approvedAt: true,
           lastVerifiedAt: true,
           staleReason: true,
+          conditions: true,
           product: { select: { id: true, name: true } },
           evidence: {
             where: { tenantId },
