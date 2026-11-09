@@ -15,6 +15,7 @@ const GROUPS: { label: string; links: { href: string; label: string }[] }[] = [
       { href: "/knowledge/claims", label: "Claims" },
       { href: "/personas", label: "Personas" },
       { href: "/competitors", label: "Competitors" },
+      { href: "/radar", label: "Regulatory radar" },
     ],
   },
   {

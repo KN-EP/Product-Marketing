@@ -12,6 +12,7 @@ import { releaseBriefNotes } from "../../domain/releases/release";
 import { GtmStrategyBriefV1, UseCaseMapV1 } from "../../domain/schemas/strategy";
 import { ENABLEMENT_CATALOG, ENABLEMENT_TYPES, type EnablementType } from "../../domain/schemas/enablement";
 import { computeReadiness, launchBriefNotes } from "../../domain/launches/launch";
+import { changeBriefNotes, type Impact } from "../../domain/regulatory/radar";
 import { computeWinLossStats, MIN_INTERVIEWS_FOR_SYNTHESIS, winLossBriefNotes, type DealOutcome, type ConsentStatus } from "../../domain/research/win-loss";
 import { Prisma } from "../../generated/prisma/client";
 import type { Db } from "../db/client";
@@ -41,6 +42,9 @@ import {
   WIN_LOSS_SYNTHESIS,
   LAUNCH_PLANNING,
   LAUNCH_PROMPT_VERSIONS,
+  REGULATORY_IMPACT,
+  REGULATORY_PROMPT_VERSIONS,
+  type RegulatoryImpactRunInputRefs,
   type LaunchRunInputRefs,
   type WinLossRunInputRefs,
   type CampaignAssetRunInputRefs,
@@ -61,6 +65,7 @@ import {
   runUseCasePipeline,
   runWinLossPipeline,
   runLaunchPipeline,
+  runRegulatoryChangePipeline,
 } from "./pipeline";
 
 type Env = Record<string, string | undefined>;
@@ -122,6 +127,7 @@ const ASSET_LABEL: Record<AssetType, string> = {
   release_communication_plan: "Release communication plan",
   win_loss_synthesis: "Win/loss synthesis",
   launch_plan: "Launch plan",
+  regulatory_change_brief: "Regulatory change brief",
   // M13a + M13b
   ...(Object.fromEntries(ENABLEMENT_TYPES.map((t) => [t, ENABLEMENT_CATALOG[t].label])) as Record<EnablementType, string>),
 };
@@ -323,6 +329,22 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
         campaignId: null,
         releaseId: release.id,
       };
+    } else if (parsed.data.kind === REGULATORY_IMPACT) {
+      const { kind, requestNonce, ...refs } = parsed.data;
+      const change = await tdb.radar.getChange(refs.changeId);
+      admission = {
+        kind,
+        key: await scopedIdempotencyKey({
+          tenantId: actor.tenantId,
+          kind,
+          scope: { changeId: change.id },
+          promptVersions: REGULATORY_PROMPT_VERSIONS,
+          ...(requestNonce ? { requestNonce } : {}),
+        }),
+        promptVersions: REGULATORY_PROMPT_VERSIONS,
+        inputRefs: { ...refs, watchId: change.watch.id },
+        campaignId: null,
+      };
     } else if (parsed.data.kind === LAUNCH_PLANNING) {
       const { kind, requestNonce, ...refs } = parsed.data;
       const launch = await tdb.launches.getById(refs.launchId);
@@ -494,7 +516,7 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
       // input brief is stored), or nothing is (a retry cannot duplicate them).
       const now = this.now();
       await withTenantTx(actor, this.deps.db, async (t) => {
-        for (const r of progress.results) {
+        for (const [i, r] of progress.results.entries()) {
           const prefix = r.llm.mode === "simulated" ? "[SIMULATED] " : "";
           const internal = isInternalAssetType(r.assetType);
           const label = internal ? INPUT_BRIEF_LABEL : ASSET_LABEL[r.assetType];
@@ -507,7 +529,8 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
             launchId: work.launchId ?? null,
           });
           let rec: AssetRecord = { id: assetId, tenantId: actor.tenantId, type: r.assetType, title, state: "draft", currentVersionId: null, versions: [], approvals: [] };
-          rec = addVersion(rec, r.output, systemActor(actor.tenantId), work.snapshot, { id: randomUUID(), generationMode: r.llm.mode, now });
+          // +i ms: outputs of one run keep their pipeline order (all rows share one transaction time otherwise).
+          rec = addVersion(rec, r.output, systemActor(actor.tenantId), work.snapshot, { id: randomUUID(), generationMode: r.llm.mode, now: new Date(now.getTime() + i) });
           const v = currentVersion(rec)!;
           await t.assets.insertVersion(v, runId);
           // The internal input brief never enters review; it stays a stored draft.
@@ -761,6 +784,38 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
         validationMeta: () => ({ releaseType: release.type, audiences: release.audiences.length }),
       };
     }
+    if (kind === REGULATORY_IMPACT) {
+      const refs = inputRefs as RegulatoryImpactRunInputRefs;
+      const change = await tdb.radar.getChange(refs.changeId);
+      const [{ snapshot, sourceClassifications }, policy] = await Promise.all([tdb.knowledge.snapshot({ forAgent: true }), tdb.tenant.policy()]);
+      const base = {
+        snapshot,
+        sourceClassifications,
+        policy,
+        brief: {
+          productName: change.watch.name,
+          notes: changeBriefNotes({
+            watchName: change.watch.name,
+            jurisdiction: change.watch.jurisdiction,
+            topic: change.watch.topic,
+            sourceId: change.watch.sourceId,
+            kind: change.kind,
+            summary: change.summary,
+            previousDeadline: change.previousDeadline,
+            newDeadline: change.newDeadline,
+            impact: change.impact as unknown as Impact,
+          }),
+        },
+      };
+      return {
+        snapshot,
+        titleSuffix: `${change.watch.name} (${change.createdAt.toISOString().slice(0, 10)})`,
+        campaignId: null,
+        run: (provider: LlmProvider, budget: CostBudget, progress: Progress, onStep: () => Promise<unknown>) =>
+          runRegulatoryChangePipeline(base, provider, budget, progress, onStep),
+        validationMeta: () => ({ changeKind: change.kind, affectedAssets: (change.impact as unknown as Impact).affectedAssets.length }),
+      };
+    }
     if (kind === LAUNCH_PLANNING) {
       const refs = inputRefs as LaunchRunInputRefs;
       const launch = await tdb.launches.getById(refs.launchId);
@@ -970,4 +1025,4 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
   }
 }
 
-export { CAMPAIGN_ASSET, CAMPAIGN_GTM, CAMPAIGN_PERFORMANCE, CAMPAIGN_STRATEGY, PMM_THREE_ASSET, LAUNCH_PLANNING, RELEASE_COMMUNICATION, USE_CASE_DEFINITION, WIN_LOSS_SYNTHESIS };
+export { CAMPAIGN_ASSET, CAMPAIGN_GTM, CAMPAIGN_PERFORMANCE, CAMPAIGN_STRATEGY, PMM_THREE_ASSET, LAUNCH_PLANNING, REGULATORY_IMPACT, RELEASE_COMMUNICATION, USE_CASE_DEFINITION, WIN_LOSS_SYNTHESIS };

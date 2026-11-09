@@ -17,6 +17,7 @@ export interface DemoResetCounts {
   releases: number;
   interviews: number;
   launches: number;
+  regulatoryChanges: number;
   auditEvents: number;
 }
 
@@ -46,7 +47,7 @@ export async function resetDemoData(
     tenants = await db.tenant.findMany({ where: { isDemo: true }, select: { id: true, slug: true, isDemo: true } });
   }
   const ids = tenants.map((t) => t.id);
-  if (ids.length === 0) return { tenants: [], approvals: 0, assetVersions: 0, assets: 0, workflowRuns: 0, campaigns: 0, releases: 0, interviews: 0, launches: 0, auditEvents: 0 };
+  if (ids.length === 0) return { tenants: [], approvals: 0, assetVersions: 0, assets: 0, workflowRuns: 0, campaigns: 0, releases: 0, interviews: 0, launches: 0, regulatoryChanges: 0, auditEvents: 0 };
 
   return db.$transaction(
     async (tx) => {
@@ -63,12 +64,15 @@ export async function resetDemoData(
       // M15: launches reference releases and are referenced by assets and runs (deleted above);
       // their decisions go with them (ON DELETE CASCADE).
       const launches = await tx.launch.deleteMany({ where });
+      // M16: recorded changes and watches; the seed restores the watched source text and the claim states.
+      const regulatoryChanges = await tx.regulatoryChange.deleteMany({ where });
+      await tx.regulatoryWatch.deleteMany({ where });
       const releases = await tx.release.deleteMany({ where });
       // M14: interviews first (they reference their notes source), then the unreferenced interview sources.
       const interviews = await tx.winLossInterview.deleteMany({ where });
       await tx.source.deleteMany({ where: { ...where, kind: "interview", claimEvidence: { none: {} }, competitorEvidence: { none: {} } } });
       const auditEvents = await tx.auditEvent.deleteMany({
-        where: { ...where, entityType: { in: ["Asset", "WorkflowRun", "Campaign", "Kpi", "Release", "WinLossInterview", "Launch"] } },
+        where: { ...where, entityType: { in: ["Asset", "WorkflowRun", "Campaign", "Kpi", "Release", "WinLossInterview", "Launch", "RegulatoryChange"] } },
       });
       return {
         tenants: tenants.map((t) => t.slug),
@@ -80,6 +84,7 @@ export async function resetDemoData(
         releases: releases.count,
         interviews: interviews.count,
         launches: launches.count,
+        regulatoryChanges: regulatoryChanges.count,
         auditEvents: auditEvents.count,
       };
     },

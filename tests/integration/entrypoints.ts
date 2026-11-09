@@ -34,6 +34,8 @@ export const SERVER_ACTIONS: Record<string, string> = {
   "src/app/actions/launch.ts#createLaunchAction": "launch.test.ts: foreign product/release id → 404; injected tenantId rejected; viewer 403",
   "src/app/actions/launch.ts#updateLaunchProofAction": "launch.test.ts: foreign launch id → 404; viewer 403",
   "src/app/actions/launch.ts#decideLaunchPhaseAction": "launch.test.ts: foreign launch id → 404; editor 403",
+  "src/app/actions/radar.ts#recordRegulatoryChangeAction": "radar.test.ts: foreign watch id → 404; injected keys rejected; viewer 403",
+  "src/app/actions/radar.ts#resolveRegulatoryChangeAction": "radar.test.ts: foreign change id → 404; editor 403",
   "src/app/actions/research.ts#recordInterviewAction": "research.test.ts: foreign product/competitor id → 404; injected tenantId rejected; viewer 403",
   "src/app/actions/research.ts#withdrawConsentAction": "research.test.ts: foreign interview id → 404; viewer 403",
   "src/app/actions/campaign.ts#createCampaignAction": "campaign.test.ts: foreign product/persona ids → 404; injected tenantId rejected; viewer 403",

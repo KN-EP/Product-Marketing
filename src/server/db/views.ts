@@ -218,6 +218,59 @@ export function tenantViews(tenantId: string, db: DbTx) {
         "release",
       ),
 
+    /** M16: watched regulatory items with their source and changes (newest first). */
+    radar: () =>
+      db.regulatoryWatch.findMany({
+        where: { tenantId },
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          name: true,
+          jurisdiction: true,
+          topic: true,
+          currentDeadline: true,
+          isSynthetic: true,
+          source: { select: { id: true, title: true, content: true, version: true, retrievedAt: true } },
+          changes: {
+            where: { tenantId },
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            select: {
+              id: true,
+              kind: true,
+              summary: true,
+              previousDeadline: true,
+              newDeadline: true,
+              impact: true,
+              createdAt: true,
+              resolvedAt: true,
+              resolutionNote: true,
+              recordedBy: { select: { name: true } },
+              resolvedBy: { select: { name: true } },
+            },
+          },
+        },
+      }),
+
+    /** M16: change briefs per change id (via the run's inputRefs). */
+    changeBriefs: async () => {
+      const rows = await db.asset.findMany({
+        where: { tenantId, type: "regulatory_change_brief" },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          title: true,
+          state: true,
+          versions: {
+            where: { tenantId },
+            orderBy: { versionNumber: "desc" },
+            take: 1,
+            select: { versionNumber: true, gatesPassed: true, generationMode: true, workflowRun: { select: { inputRefs: true } } },
+          },
+        },
+      });
+      return rows.map((a) => ({ ...a, changeId: ((a.versions[0]?.workflowRun?.inputRefs ?? {}) as { changeId?: string }).changeId ?? null }));
+    },
+
     /** M15: launches, next first. */
     launches: () =>
       db.launch.findMany({
@@ -542,6 +595,27 @@ export function tenantViews(tenantId: string, db: DbTx) {
       });
     },
 
+    /**
+     * What the system enforced in this tenant — from the audit log (counts only).
+     * The difference to a prompt plugin, made visible on the dashboard.
+     */
+    governance: async () => {
+      const count = (action: string) => db.auditEvent.count({ where: { tenantId, action } });
+      const [approved, approvalBlocked, exportBlocked, exported, goBlocked, goDecisions, staleClaims, consentWithdrawn, openAlerts, expertAck] = await Promise.all([
+        count("asset.decision.approved"),
+        count("asset.approval_blocked"),
+        count("asset.export_blocked"),
+        count("asset.exported"),
+        count("launch.go_blocked"),
+        db.launchDecision.count({ where: { tenantId } }),
+        db.claim.count({ where: { tenantId, state: "stale" } }),
+        count("interview.consent_withdrawn"),
+        db.regulatoryChange.count({ where: { tenantId, resolvedAt: null } }),
+        db.auditEvent.count({ where: { tenantId, action: "asset.decision.approved", metadata: { path: ["expertReviewAcknowledged"], equals: true } } }),
+      ]);
+      return { approved, approvalBlocked, exportBlocked, exported, goBlocked, goDecisions, staleClaims, consentWithdrawn, openAlerts, expertAck };
+    },
+
     /** Counters for the guided demo checklist. */
     demoProgress: async () => {
       const [
@@ -570,6 +644,9 @@ export function tenantViews(tenantId: string, db: DbTx) {
         launches,
         launchPlans,
         launchDecisions,
+        regulatoryChanges,
+        regulatoryResolved,
+        changeBriefs,
       ] = await Promise.all([
         db.workflowRun.count({ where: { tenantId, status: "completed", kind: "pmm_three_asset" } }),
         db.asset.count({ where: { tenantId, state: "pending_review", ...DELIVERABLE } }),
@@ -596,6 +673,9 @@ export function tenantViews(tenantId: string, db: DbTx) {
         db.launch.count({ where: { tenantId } }),
         db.asset.count({ where: { tenantId, type: "launch_plan" } }),
         db.launchDecision.count({ where: { tenantId } }),
+        db.regulatoryChange.count({ where: { tenantId } }),
+        db.regulatoryChange.count({ where: { tenantId, resolvedAt: { not: null } } }),
+        db.asset.count({ where: { tenantId, type: "regulatory_change_brief" } }),
       ]);
       return {
         runsCompleted,
@@ -623,6 +703,9 @@ export function tenantViews(tenantId: string, db: DbTx) {
         launches,
         launchPlans,
         launchDecisions,
+        regulatoryChanges,
+        regulatoryResolved,
+        changeBriefs,
       };
     },
   };

@@ -15,6 +15,7 @@ import {
   runUseCaseAgent,
   runWinLossAgent,
   runLaunchAgent,
+  runRegulatoryChangeAgent,
   type AgentInput,
   type AgentResult,
 } from "../agents";
@@ -32,6 +33,7 @@ import {
   AGENT_RELEASE_PROMPT,
   AGENT_RESEARCH_PROMPT,
   AGENT_LAUNCH_PROMPT,
+  AGENT_REGULATORY_CHANGE_PROMPT,
   AGENT_STRATEGY_PROMPT,
   AGENT_USE_CASE_PROMPT,
   renderPrompt,
@@ -232,3 +234,6 @@ export async function runLaunchPipeline(
   (r as AgentResult<unknown>).output = { ...r.output, asOf: extra.asOf, readiness: extra.readiness };
   return progress;
 }
+
+/** regulatory_impact (M16): change agent for one recorded regulatory change. */
+export const runRegulatoryChangePipeline = singleStep(AGENT_REGULATORY_CHANGE_PROMPT, runRegulatoryChangeAgent);

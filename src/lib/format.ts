@@ -35,6 +35,7 @@ export const ASSET_TYPE_LABEL: Record<string, string> = {
   release_communication_plan: "Release communication plan",
   win_loss_synthesis: "Win/loss synthesis",
   launch_plan: "Launch plan",
+  regulatory_change_brief: "Regulatory change brief",
   // M13a + M13b
   ...Object.fromEntries(ENABLEMENT_TYPES.map((t) => [t, ENABLEMENT_CATALOG[t].label])),
 };
@@ -57,6 +58,7 @@ export const RUN_KIND_LABEL: Record<string, string> = {
   campaign_asset: "Asset / sales toolkit deliverable",
   win_loss_synthesis: "Win/loss synthesis",
   launch_planning: "Launch plan",
+  regulatory_impact: "Regulatory change brief",
 };
 
 /** Calendar date (UTC) for date-only fields such as campaign start/end. */

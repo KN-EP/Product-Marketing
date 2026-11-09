@@ -70,7 +70,10 @@ export function tenantDb(actor: Actor, db: DbTx) {
       }),
   };
 
-  return {
+  // M16: open radar alerts for a product (launch readiness); bound to api.radar below.
+  let radarOpenAlerts: (productId: string) => Promise<number> = async () => 0;
+
+  const api = {
     tenantId,
     audit,
     /** Read-only page queries (src/server/db/views.ts), scoped to this tenant. */
@@ -224,6 +227,91 @@ export function tenantDb(actor: Actor, db: DbTx) {
       }) => db.release.create({ data: { ...data, tenantId }, select: { id: true } }),
     },
 
+    /** M16: regulatory radar — watched items, recorded changes, open alerts. */
+    radar: {
+      getWatch: async (id: string) =>
+        orNotFound(
+          await db.regulatoryWatch.findFirst({
+            where: { id, tenantId },
+            select: {
+              id: true,
+              name: true,
+              jurisdiction: true,
+              topic: true,
+              currentDeadline: true,
+              source: { select: { id: true, content: true, contentHash: true, status: true } },
+            },
+          }),
+          "regulatory watch",
+        ),
+      getChange: async (id: string) =>
+        orNotFound(
+          await db.regulatoryChange.findFirst({
+            where: { id, tenantId },
+            select: {
+              id: true,
+              kind: true,
+              summary: true,
+              previousDeadline: true,
+              newDeadline: true,
+              impact: true,
+              resolvedAt: true,
+              createdAt: true,
+              watch: { select: { id: true, name: true, jurisdiction: true, topic: true, sourceId: true } },
+            },
+          }),
+          "regulatory change",
+        ),
+      /** The new wording replaces the stored text (version + 1); the source stays active. */
+      updateSource: async (sourceId: string, content: string, contentHash: string, at: Date) => {
+        const r = await db.source.updateMany({ where: { id: sourceId, tenantId }, data: { content, contentHash, retrievedAt: at, status: "active", version: { increment: 1 } } });
+        if (r.count !== 1) throw new NotFoundError("source");
+      },
+      setDeadline: (watchId: string, deadline: Date | null) => db.regulatoryWatch.updateMany({ where: { id: watchId, tenantId }, data: { currentDeadline: deadline } }),
+      createChange: (data: {
+        watchId: string;
+        kind: "deadline_shift" | "scope_change" | "new_guidance" | "repeal" | "other";
+        summary: string;
+        previousDeadline: Date | null;
+        newDeadline: Date | null;
+        previousContentHash: string;
+        newContentHash: string;
+        impact: unknown;
+        recordedById: string;
+      }) => db.regulatoryChange.create({ data: { ...data, tenantId, impact: json(data.impact) }, select: { id: true } }),
+      /** Optimistic: only an open change. */
+      resolve: async (id: string, by: string, note: string, at: Date) => {
+        const r = await db.regulatoryChange.updateMany({ where: { id, tenantId, resolvedAt: null }, data: { resolvedAt: at, resolvedById: by, resolutionNote: note } });
+        if (r.count !== 1) throw new ConflictError("The change was already resolved.");
+      },
+      /** Open alerts whose impact touches one of the product's claims or deliverables. */
+      openAlertsForProduct: async (productId: string): Promise<number> => {
+        const open = await db.regulatoryChange.findMany({ where: { tenantId, resolvedAt: null }, select: { impact: true } });
+        if (open.length === 0) return 0;
+        const [claims, assets] = await Promise.all([
+          db.claim.findMany({ where: { tenantId, productId }, select: { id: true } }),
+          db.asset.findMany({
+            where: {
+              tenantId,
+              OR: [
+                { campaign: { tenantId, productId } },
+                { launch: { tenantId, productId } },
+                { release: { tenantId, productId } },
+                { versions: { some: { tenantId, workflowRun: { tenantId, inputRefs: { path: ["productId"], equals: productId } } } } },
+              ],
+            },
+            select: { id: true },
+          }),
+        ]);
+        const claimIds = new Set(claims.map((c) => c.id));
+        const assetIds = new Set(assets.map((a) => a.id));
+        return open.filter((c) => {
+          const i = c.impact as { staleClaimIds?: string[]; affectedAssets?: { assetId: string }[] };
+          return (i.staleClaimIds ?? []).some((id) => claimIds.has(id)) || (i.affectedAssets ?? []).some((a) => assetIds.has(a.assetId));
+        }).length;
+      },
+    },
+
     /** M15: staged launches, readiness facts and go / no-go decisions. */
     launches: {
       getById: async (id: string) =>
@@ -318,7 +406,10 @@ export function tenantDb(actor: Actor, db: DbTx) {
           approvedWinLoss: winLoss > 0,
           externalReferences: launch.externalReferences,
           internalPilot: launch.internalPilot,
-          openRegulatoryAlerts: 0,
+          openRegulatoryAlerts: await (async () => {
+            const open = await db.regulatoryChange.count({ where: { tenantId, resolvedAt: null } });
+            return open === 0 ? 0 : radarOpenAlerts(launch.productId);
+          })(),
         };
       },
       /** Latest decision per phase (for phase order). */
@@ -628,6 +719,33 @@ export function tenantDb(actor: Actor, db: DbTx) {
         });
         return a ? { assetId: a.assetVersion.assetId, versionId: a.assetVersion.id, content: a.assetVersion.content } : null;
       },
+      /**
+       * M16: every deliverable with its current version and its latest approved
+       * version (if different) — the input of the regulatory impact analysis.
+       */
+      listForImpact: async () => {
+        const rows = await db.asset.findMany({
+          where: { tenantId, type: { notIn: [...INTERNAL_ASSET_TYPES] }, state: { not: "archived" } },
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            title: true,
+            state: true,
+            currentVersionId: true,
+            versions: {
+              where: { tenantId },
+              orderBy: { versionNumber: "desc" },
+              select: { id: true, content: true, approvals: { where: { tenantId, decision: "approved" }, select: { id: true }, take: 1 } },
+            },
+          },
+        });
+        return rows.map((a) => {
+          const current = a.versions.find((v) => v.id === a.currentVersionId) ?? a.versions[0];
+          const approved = a.versions.find((v) => v.approvals.length > 0);
+          const versions = [approved, current].filter((v, i, arr): v is NonNullable<typeof v> => !!v && arr.findIndex((x) => x?.id === v.id) === i);
+          return { assetId: a.id, title: a.title, state: a.state, versions: versions.map((v) => ({ versionId: v.id, content: v.content })) };
+        });
+      },
       /** AssetVersion rows are insert-only: there is no update path. */
       insertVersion: (v: AssetVersionRecord, workflowRunId: string | null = null) => {
         if (v.tenantId !== tenantId) throw new NotFoundError("asset");
@@ -806,6 +924,8 @@ export function tenantDb(actor: Actor, db: DbTx) {
         }),
     },
   };
+  radarOpenAlerts = api.radar.openAlertsForProduct;
+  return api;
 }
 
 function toClaimRecord(c: {

@@ -97,6 +97,8 @@ enum AssetType {
   win_loss_synthesis
   /// M15: launch plan (launch_planning run)
   launch_plan
+  /// M16: regulatory change brief (regulatory_impact run)
+  regulatory_change_brief
 }
 
 enum KpiUnit {
@@ -173,6 +175,15 @@ enum GoDecision {
   no_go
 }
 
+/// M16: what kind of regulatory change the radar recorded.
+enum RegulatoryChangeKind {
+  deadline_shift
+  scope_change
+  new_guidance
+  repeal
+  other
+}
+
 enum AssetState {
   draft
   pending_review
@@ -243,6 +254,8 @@ model Tenant {
   winLossInterviews      WinLossInterview[]
   launches               Launch[]
   launchDecisions        LaunchDecision[]
+  regulatoryWatches      RegulatoryWatch[]
+  regulatoryChanges      RegulatoryChange[]
 }
 
 model User {
@@ -254,9 +267,11 @@ model User {
   updatedAt    DateTime @updatedAt
 
   memberships    Membership[]
-  approvals       Approval[]
-  reviewedClaims  Claim[]          @relation("ClaimReviewer")
-  launchDecisions LaunchDecision[]
+  approvals                 Approval[]
+  reviewedClaims            Claim[]            @relation("ClaimReviewer")
+  launchDecisions           LaunchDecision[]
+  recordedRegulatoryChanges RegulatoryChange[] @relation("ChangeRecordedBy")
+  resolvedRegulatoryChanges RegulatoryChange[] @relation("ChangeResolvedBy")
 }
 
 model Membership {
@@ -340,6 +355,7 @@ model Source {
   claimEvidence      ClaimEvidence[]
   competitorEvidence CompetitorEvidence[]
   winLossInterviews  WinLossInterview[]
+  regulatoryWatches  RegulatoryWatch[]
 
   @@unique([id, tenantId])
   @@index([tenantId, status])
@@ -515,10 +531,67 @@ model RegulatoryTrigger {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant  Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  watches RegulatoryWatch[]
 
   @@unique([id, tenantId])
   @@index([tenantId])
+}
+
+// ───────────────────────── Regulatory radar (M16) ─────────────────────────
+
+/// A watched regulatory item (e.g. the application date of an obligation). Its
+/// current wording lives in a Source (kind regulatory_text). Recording a change
+/// updates that source, marks dependent claims stale and stores the impact.
+model RegulatoryWatch {
+  id                  String    @id @default(cuid())
+  tenantId            String
+  name                String
+  jurisdiction        String
+  topic               String
+  sourceId            String
+  regulatoryTriggerId String?
+  currentDeadline     DateTime? @db.Date
+  isSynthetic         Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  tenant  Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  source  Source             @relation(fields: [sourceId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  trigger RegulatoryTrigger? @relation(fields: [regulatoryTriggerId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  changes RegulatoryChange[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+}
+
+/// An open alert until a reviewer resolves it — which is only possible once
+/// every claim it made stale has been re-verified or retired.
+model RegulatoryChange {
+  id                  String               @id @default(cuid())
+  tenantId            String
+  watchId             String
+  kind                RegulatoryChangeKind
+  summary             String
+  previousDeadline    DateTime?            @db.Date
+  newDeadline         DateTime?            @db.Date
+  previousContentHash String
+  newContentHash      String
+  /// Computed at recording time: stale claim ids and affected assets with reasons.
+  impact              Json
+  recordedById        String
+  resolvedAt          DateTime?
+  resolvedById        String?
+  resolutionNote      String?
+  createdAt           DateTime             @default(now())
+
+  tenant     Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  watch      RegulatoryWatch @relation(fields: [watchId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  recordedBy User            @relation("ChangeRecordedBy", fields: [recordedById], references: [id])
+  resolvedBy User?           @relation("ChangeResolvedBy", fields: [resolvedById], references: [id])
+
+  @@unique([id, tenantId])
+  @@index([tenantId, resolvedAt])
 }
 
 // ───────────────────────── Win/loss & research (M14) ─────────────────────────

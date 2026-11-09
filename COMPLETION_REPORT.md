@@ -235,3 +235,32 @@ references. The system now says which phase is ready and why, and only a human c
 Test results (local Postgres 16, simulated mode): typecheck OK · unit **290/290** (13 files) ·
 integration **168/168** (10 files). Migration `20261109130000_launch` hand-written, applied with
 `psql` — confirm with `prisma migrate dev --create-only` before deploying.
+
+
+---
+
+# Addendum — M16 regulatory radar + governance positioning (branch `feature/m16-regulatory-radar`, 2026-11-09)
+
+Input: the role-play surfaced a shifted EU AI Act timeline by hand — a launch message built on the old
+deadline would have passed every check. Now the change is an event with a computed impact.
+
+| Area | What it does |
+|---|---|
+| Watches | `RegulatoryWatch` + `/radar`: watched items with their current wording (a source) and deadline |
+| Change | `RegulatoryChange`: new wording replaces the source, dependent claims stale, impact computed in code (cites source / removed excerpt / stale claim / previous deadline) and stored as an open alert |
+| Consequences | export of outdated approvals blocked (M14 rule); launch readiness "not ready" while an alert is open (M15) |
+| Brief | `regulatory_impact` run, agent `agent-rr.regulatory-change-brief` 1.0.0, asset `regulatory_change_brief` (expert acknowledgement) |
+| Resolution | reviewers only, refused while a claim is still stale |
+| Positioning | README / spec / demo script: governed system of record vs. prompt plugin; dashboard governance panel (counts from the audit log) |
+| Demo | synthetic deadline + dependent regulatory claim + prepared change; guided demo steps 36–38; demo reset restores text, claim and deadline |
+
+Also fixed: outputs of one run now get creation times 1 ms apart, so their order is stable (all
+versions of a run share one transaction time; `campaign.test.ts` was flaky on the output order).
+
+Test results (local Postgres 16, simulated mode): typecheck OK · unit **297/297** (14 files) ·
+integration **176/176** (11 files, three consecutive runs) · E2E **25/25** (new
+`tests/e2e/governance-flow.spec.ts`: win/loss synthesis, launch readiness and refused "go", radar
+change and refused resolution, governance panel, cross-tenant 404) · `next build --webpack` OK
+(Google font mocked for the sandbox build only; pre-installed Chromium). Migration
+`20261109140000_regulatory_radar` hand-written, applied with `psql` — confirm with
+`prisma migrate dev --create-only` before deploying.
