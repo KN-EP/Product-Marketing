@@ -11,6 +11,7 @@ import {
   AGENT_G_PERFORMANCE_PROMPT,
   AGENT_RELEASE_PROMPT,
   AGENT_RESEARCH_PROMPT,
+  AGENT_LAUNCH_PROMPT,
   AGENT_STRATEGY_PROMPT,
   AGENT_USE_CASE_PROMPT,
 } from "../prompts";
@@ -31,6 +32,8 @@ export const RELEASE_COMMUNICATION = "release_communication";
 export const CAMPAIGN_ASSET = "campaign_asset";
 /** M14: win/loss synthesis of one product from its consented interviews (station "Win/loss & research"). */
 export const WIN_LOSS_SYNTHESIS = "win_loss_synthesis";
+/** M15: staged launch plan for one launch (station "Launch"). */
+export const LAUNCH_PLANNING = "launch_planning";
 export type RunKind =
   | typeof PMM_THREE_ASSET
   | typeof CAMPAIGN_GTM
@@ -39,7 +42,8 @@ export type RunKind =
   | typeof CAMPAIGN_STRATEGY
   | typeof RELEASE_COMMUNICATION
   | typeof CAMPAIGN_ASSET
-  | typeof WIN_LOSS_SYNTHESIS;
+  | typeof WIN_LOSS_SYNTHESIS
+  | typeof LAUNCH_PLANNING;
 
 const Id = z.string().trim().min(1).max(64);
 /** Optional: a new nonce deliberately starts a new run with the same inputs. */
@@ -114,6 +118,13 @@ export const StartWinLossInput = z.strictObject({
   requestNonce: Nonce,
 });
 
+/** M15: start input of the launch_planning run: everything else comes from the (tenant-scoped) Launch record. */
+export const StartLaunchInput = z.strictObject({
+  kind: z.literal(LAUNCH_PLANNING),
+  launchId: Id,
+  requestNonce: Nonce,
+});
+
 export const StartWorkflowInput = z.union([
   StartPmmInput,
   StartCampaignInput,
@@ -123,6 +134,7 @@ export const StartWorkflowInput = z.union([
   StartReleaseInput,
   StartCampaignAssetInput,
   StartWinLossInput,
+  StartLaunchInput,
 ]);
 export type StartWorkflowInput = z.infer<typeof StartWorkflowInput>;
 
@@ -132,6 +144,7 @@ export type CampaignRunInputRefs = Omit<z.infer<typeof StartCampaignInput>, "kin
 export type UseCaseRunInputRefs = Omit<z.infer<typeof StartUseCaseInput>, "kind" | "requestNonce">;
 export type CampaignAssetRunInputRefs = Omit<z.infer<typeof StartCampaignAssetInput>, "kind" | "requestNonce">;
 export type ReleaseRunInputRefs = Omit<z.infer<typeof StartReleaseInput>, "kind" | "requestNonce">;
+export type LaunchRunInputRefs = Omit<z.infer<typeof StartLaunchInput>, "kind" | "requestNonce">;
 export type WinLossRunInputRefs = Omit<z.infer<typeof StartWinLossInput>, "kind" | "requestNonce">;
 
 const versions = (...ts: { id: string; version: string }[]) => Object.fromEntries(ts.map((t) => [t.id, t.version]));
@@ -155,3 +168,4 @@ export const STRATEGY_PROMPT_VERSIONS: Record<string, string> = versions(AGENT_S
 export const RELEASE_PROMPT_VERSIONS: Record<string, string> = versions(AGENT_RELEASE_PROMPT);
 export const ENABLEMENT_PROMPT_VERSIONS: Record<string, string> = versions(AGENT_ENABLEMENT_PROMPT);
 export const RESEARCH_PROMPT_VERSIONS: Record<string, string> = versions(AGENT_RESEARCH_PROMPT);
+export const LAUNCH_PROMPT_VERSIONS: Record<string, string> = versions(AGENT_LAUNCH_PROMPT);

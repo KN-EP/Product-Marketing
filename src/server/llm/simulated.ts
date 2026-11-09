@@ -16,6 +16,7 @@ import {
 import { kpiResultsFromPrompt, simulatedPerformanceReview } from "../../demo/performance";
 import { simulatedEnablementAsset } from "../../demo/enablement-fixtures";
 import { simulatedWinLossSynthesis } from "../../demo/research-fixtures";
+import { SIMULATED_LAUNCH_PLAN } from "../../demo/launch-fixtures";
 import { ENABLEMENT_TYPES, type EnablementType } from "../../domain/schemas/enablement";
 import type { AssetType } from "../../domain/schemas/agents";
 import { LlmOutputInvalidError } from "./errors";
@@ -57,6 +58,8 @@ const DEFAULT_FIXTURES: Record<AssetType, unknown | ((prompt: RenderedPrompt) =>
   release_communication_plan: SIMULATED_RELEASE_COMMUNICATION_PLAN,
   // M14: template-based synthesis from the computed stats in the prompt (quotes only those numbers).
   win_loss_synthesis: (prompt: RenderedPrompt) => simulatedWinLossSynthesis(prompt.user),
+  // M15: a staged plan that never says "go"; readiness is added by the server.
+  launch_plan: SIMULATED_LAUNCH_PLAN,
   // M13a + M13b: one fixture per deliverable type; the one-pager v1 deliberately fails gate G11.
   ...(Object.fromEntries(ENABLEMENT_TYPES.map((t) => [t, simulatedEnablementAsset(t)])) as Record<EnablementType, unknown>),
 };

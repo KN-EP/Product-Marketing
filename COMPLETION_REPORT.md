@@ -215,3 +215,23 @@ Test results (local Postgres 16, simulated mode): typecheck OK · unit **278/278
 integration **158/158** (9 files). Migration `20261109120000_win_loss_research` is hand-written in
 Prisma's format (binaries.prisma.sh blocked in the sandbox) and applied with `psql` — confirm with
 `prisma migrate dev --create-only` before deploying.
+
+
+---
+
+# Addendum — M15 station "Launch" (branch `feature/m15-launch`, 2026-11-09)
+
+Input: the same role-play — a tier-1 launch planned for a holiday, no external beta customer, no
+references. The system now says which phase is ready and why, and only a human can say "go".
+
+| Area | What it does |
+|---|---|
+| Briefing | `Launch` + `/launches`: tier, phases with dates in order, pricing model, segments, proof (references, customer zero) |
+| Readiness | 11 deterministic checks, required / recommended / n/a per phase and tier, status ready / ready with risks / not ready (`src/domain/launches/launch.ts`) |
+| Plan | `launch_planning` run, launch agent `agent-l.launch-plan` 1.0.0, readiness attached by the server, gate **G16** |
+| Decision | `LaunchDecision` with readiness snapshot; go refused while not ready (audited), risk acknowledgement, phase order, reason for no-go; reviewers only |
+| Demo | seeded tier-1 launch per demo tenant; guided demo steps 33–35; demo reset includes launches and decisions |
+
+Test results (local Postgres 16, simulated mode): typecheck OK · unit **290/290** (13 files) ·
+integration **168/168** (10 files). Migration `20261109130000_launch` hand-written, applied with
+`psql` — confirm with `prisma migrate dev --create-only` before deploying.

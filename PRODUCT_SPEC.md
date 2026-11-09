@@ -220,3 +220,43 @@ Unit `tests/unit/research.test.ts` (input rules, stats, G15, simulated agent, er
 integration `tests/integration/research.test.ts` (consent and source handling, audit without free
 text, 404/400/403/401, synthesis run and prompt scoping, 409, idempotency, withdrawal blocks export,
 demo reset).
+
+---
+
+# Extension M15 — station "Launch"
+
+## Purpose
+A launch is a decision, not a date. The release communication plan (M12) proposes a tier; M15 adds
+the staged launch, a readiness check per phase that is computed — not written — and a recorded,
+human go / no-go.
+
+## Flow
+1. **Launch briefing** (`/launches`, editors): product, optional release (same product), tier, summary,
+   pricing model, target segments, dates for the phases **early access → general availability →
+   existing customers → market** (at least one, in this order), proof (external reference customers,
+   internal pilot = "customer zero").
+2. **Readiness per phase** (`src/domain/launches/launch.ts`), computed from what the server reads:
+   approved claims, stale claims, open regulatory alerts (M16), launch plan approved, messaging
+   framework approved, release communication plan approved (if a release is linked), sales enablement
+   approved (sales play or toolkit deliverable), battlecard approved, proof, win/loss synthesis
+   approved. Each check is required, recommended or n/a per phase and tier. Status: **ready** (all
+   pass), **ready with risks** (a recommended check fails), **not ready** (a required check fails).
+3. **Launch plan** (`launch_planning`, per launch): the launch agent (`agent-l.launch-plan` 1.0.0)
+   drafts phases (timing, owner, objective, audiences, activities, checkable exit criteria), proof plan
+   (gap → action), enablement plan, success signals, risks. The server attaches `asOf` and the
+   readiness (the plan's own approval is n/a while it is generated). Idempotent until the briefing
+   changes.
+4. **Go / no-go** (reviewers): readiness is recomputed on the server. "Go" is refused while a required
+   check fails (409 `readiness_no_go`, audited as `launch.go_blocked`); with open recommended checks it
+   needs an acknowledgement and a reason (422 `risk_ack_required`); every earlier planned phase needs a
+   "go" first (409 `phase_order`). "No-go" needs a reason. Each decision stores the readiness snapshot.
+5. **Proof update** (editors): references grow during early access; readiness follows.
+
+## Gates
+- **G16** — the plan may schedule a phase that is not ready (that is how gaps get closed), but each such
+  phase is a warning naming the missing checks; a duplicate phase is critical. The plan never decides.
+
+## Acceptance tests
+Unit `tests/unit/launch.test.ts` (input, readiness rules per tier and phase, the role-play case, G16,
+simulated plan); integration `tests/integration/launch.test.ts` (briefing, 404/400/403/401, plan run
+and links, idempotency, go/no-go rules incl. phase order and risk acknowledgement, proof, reset).

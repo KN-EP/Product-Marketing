@@ -26,6 +26,7 @@ This repository is being built milestone by milestone (see `IMPLEMENTATION_PLAN.
 | M12 | Strategy first: use cases & ICP, GTM strategy brief as gate, release communication | 🔍 in review (`feature/m12-strategy-first`) |
 | M13 | Product assets and sales toolkit (17 deliverables, gates G11–G14) | 🔍 in review (`feature/m13-assets-sales-toolkit`) |
 | M14 | Win/loss & research: pseudonymised interviews with consent tracking, computed statistics, win/loss synthesis (gate G15), consent withdrawal invalidates evidence, export re-checks the gates | 🔍 in review (`feature/m14-win-loss-research`) |
+| M15 | Station "Launch": staged launches (early access → GA → customers → market), readiness per phase computed in code, human go / no-go with stored readiness, launch plan (gate G16) | 🔍 in review (`feature/m15-launch`) |
 
 ## Requirements
 

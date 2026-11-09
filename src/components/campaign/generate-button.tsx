@@ -11,7 +11,8 @@ type RunStart =
   | { kind: "release_communication"; releaseId: string }
   | { kind: "campaign_asset"; campaignId: string; deliverableType: string }
   | { kind: "use_case_definition"; productId: string; market: string }
-  | { kind: "win_loss_synthesis"; productId: string };
+  | { kind: "win_loss_synthesis"; productId: string }
+  | { kind: "launch_planning"; launchId: string };
 
 /** Starts a record-scoped run (same validation, idempotency and limits as every run) and opens it. */
 export function StartRunButton({

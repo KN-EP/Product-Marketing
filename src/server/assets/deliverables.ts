@@ -21,6 +21,8 @@ export const STRATEGY_DELIVERABLE_TYPES: readonly AssetType[] = ["use_case_map",
 export const ENABLEMENT_DELIVERABLE_TYPES: readonly AssetType[] = ENABLEMENT_TYPES;
 /** M14: win/loss synthesis (win_loss_synthesis run). */
 export const RESEARCH_DELIVERABLE_TYPES: readonly AssetType[] = ["win_loss_synthesis"];
+/** M15: launch plan (launch_planning run). */
+export const LAUNCH_DELIVERABLE_TYPES: readonly AssetType[] = ["launch_plan"];
 export const DELIVERABLE_ASSET_TYPES: readonly AssetType[] = [
   ...PMM_DELIVERABLE_TYPES,
   ...CAMPAIGN_DELIVERABLE_TYPES,
@@ -28,6 +30,7 @@ export const DELIVERABLE_ASSET_TYPES: readonly AssetType[] = [
   ...STRATEGY_DELIVERABLE_TYPES,
   ...ENABLEMENT_DELIVERABLE_TYPES,
   ...RESEARCH_DELIVERABLE_TYPES,
+  ...LAUNCH_DELIVERABLE_TYPES,
 ];
 
 export const INPUT_BRIEF_LABEL = "Input brief (internal — not for external use)";

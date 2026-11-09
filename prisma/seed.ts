@@ -24,6 +24,7 @@ import {
 } from "../src/demo/fixtures";
 import { buildSnapshot, type ClaimRecord, type SourceRecord } from "../src/domain/knowledge/snapshot";
 import { DEMO_INTERVIEWS } from "../src/demo/research-fixtures";
+import { DEMO_LAUNCHES } from "../src/demo/launch-fixtures";
 import { runQualityGates } from "../src/domain/quality-gates/gates";
 import type { Role } from "../src/domain/actor";
 import { createPrismaClient, type Db } from "../src/server/db/client";
@@ -78,6 +79,7 @@ export const SEED_IDS = {
     campaign: "cmpg_demo_ai_inventory",
     release: "rel_demo_2_4",
     interview: "wli_demo_a",
+    launch: "lnc_demo_ai_monitoring",
   },
   [OTHER_TENANT_ID]: {
     asset: "ast_other_brief",
@@ -90,6 +92,7 @@ export const SEED_IDS = {
     campaign: "cmpg_other_demo",
     release: "rel_other_demo",
     interview: "wli_other_a",
+    launch: "lnc_other_demo",
   },
 } as const;
 
@@ -209,6 +212,30 @@ async function upsertInterviews(db: Db, tenantId: string) {
       isSynthetic: true,
     };
     await db.winLossInterview.upsert({ where: { id: i.id }, create: { id: i.id, tenantId, ...data }, update: data });
+  }
+}
+
+/** M15: a synthetic staged launch per tenant; dates relative to the seed date. */
+async function upsertLaunches(db: Db, tenantId: string) {
+  for (const l of DEMO_LAUNCHES.filter((x) => x.tenantId === tenantId)) {
+    const on = (offset: number | null) => (offset === null ? null : new Date(`${seedWindow(0, offset).endsOn}T00:00:00Z`));
+    const data = {
+      productId: l.productId,
+      releaseId: null,
+      name: l.name,
+      tier: l.tier,
+      summary: l.summary,
+      pricingModel: l.pricingModel,
+      targetSegments: l.targetSegments,
+      earlyAccessOn: on(l.offsets.earlyAccessOn),
+      generalAvailabilityOn: on(l.offsets.generalAvailabilityOn),
+      customerLaunchOn: on(l.offsets.customerLaunchOn),
+      marketLaunchOn: on(l.offsets.marketLaunchOn),
+      externalReferences: l.externalReferences,
+      internalPilot: l.internalPilot,
+      isSynthetic: true,
+    };
+    await db.launch.upsert({ where: { id: l.id }, create: { id: l.id, tenantId, ...data }, update: data });
   }
 }
 
@@ -376,6 +403,7 @@ export async function seed(db: Db, opts: { password: string }): Promise<void> {
     salesChannels: ["customer_success", "partner_reseller"],
   });
   await upsertInterviews(db, DEMO_TENANT_ID);
+  await upsertLaunches(db, DEMO_TENANT_ID);
   for (const e of DEMO_COMPETITOR_EVIDENCE) {
     const data = { competitorId: e.competitorId, sourceId: e.sourceId, assertion: e.assertion, excerpt: e.excerpt, state: e.state };
     await db.competitorEvidence.upsert({ where: { id: e.id }, create: { id: e.id, tenantId: DEMO_TENANT_ID, ...data }, update: data });
@@ -432,6 +460,7 @@ export async function seed(db: Db, opts: { password: string }): Promise<void> {
     salesChannels: [],
   });
   await upsertInterviews(db, OTHER_TENANT_ID);
+  await upsertLaunches(db, OTHER_TENANT_ID);
   const otherKb = buildSnapshot({ tenantId: OTHER_TENANT_ID, sources: [OTHER_SOURCE], claims: [FOREIGN_CLAIM] });
   const otherContent = { ...SIMULATED_MESSAGING_FRAMEWORK, pillars: [], objections: [] };
   await upsertAsset(db, OTHER_TENANT_ID, {

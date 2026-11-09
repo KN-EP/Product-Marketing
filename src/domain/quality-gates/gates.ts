@@ -5,6 +5,8 @@ import type { KpiResult } from "../schemas/performance";
 import type { EnablementAsset } from "../schemas/enablement";
 import { runEnablementGates } from "./enablement-gates";
 import { runResearchGates } from "./research-gates";
+import { runLaunchGates } from "./launch-gates";
+import type { LaunchPlan } from "../schemas/launch";
 import type { WinLossSynthesis } from "../schemas/research";
 
 /**
@@ -32,7 +34,9 @@ export type GateId =
   | "G13_channel_limits"
   | "G14_deliverable_type"
   // M14: win/loss synthesis (research-gates.ts)
-  | "G15_win_loss_numbers";
+  | "G15_win_loss_numbers"
+  // M15: launch plan (launch-gates.ts)
+  | "G16_launch_readiness";
 
 export interface Finding {
   gate: GateId;
@@ -206,6 +210,9 @@ export function runQualityGates(
 
   // ── G15: M14 win/loss synthesis (numbers only from the computed stats, sample size) ──
   if (assetType === "win_loss_synthesis") runResearchGates(parsed.data as WinLossSynthesis, statements, add);
+
+  // ── G16: M15 launch plan (phases vs. computed readiness) ──
+  if (assetType === "launch_plan") runLaunchGates(parsed.data as LaunchPlan, add);
 
   return finalize(assetType, findings, statements.map((x) => x.s.kind), now);
 }

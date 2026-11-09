@@ -8,6 +8,7 @@ import { AGENT_G_PERFORMANCE_PROMPT } from "./performance";
 import { AGENT_RELEASE_PROMPT } from "./release";
 import { AGENT_STRATEGY_PROMPT, AGENT_USE_CASE_PROMPT } from "./strategy";
 import { AGENT_RESEARCH_PROMPT } from "./research";
+import { AGENT_LAUNCH_PROMPT } from "./launch";
 import type { RenderedPrompt } from "../llm/types";
 
 export {
@@ -20,6 +21,7 @@ export {
   AGENT_ENABLEMENT_PROMPT,
   AGENT_F_SALES_PLAY_PROMPT,
   AGENT_G_PERFORMANCE_PROMPT,
+  AGENT_LAUNCH_PROMPT,
   AGENT_RELEASE_PROMPT,
   AGENT_RESEARCH_PROMPT,
   AGENT_STRATEGY_PROMPT,
@@ -41,6 +43,7 @@ export const PROMPT_TEMPLATES: readonly PromptTemplate[] = [
   AGENT_RELEASE_PROMPT,
   AGENT_ENABLEMENT_PROMPT,
   AGENT_RESEARCH_PROMPT,
+  AGENT_LAUNCH_PROMPT,
 ];
 
 export function renderPrompt(t: PromptTemplate, input: PromptInput): RenderedPrompt {
