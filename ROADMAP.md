@@ -24,12 +24,13 @@ End-to-end flow per PRODUCT_SPEC, simulated + live mode, review/approval, export
 - ✅ M14 win/loss & research: pseudonymised interviews with consent tracking and CRM reason codes,
   computed statistics, win/loss synthesis (G15), consent withdrawal invalidates evidence, export
   re-checks the gates
+- ✅ M15 station "Launch": staged launches, computed readiness per phase, human go / no-go with
+  stored readiness, launch plan (G16)
 - M14b rest of the customer loop: competitive and trend loop, insight & opportunity briefs,
   consistency check, customer meeting preparation
 - M15+: HubSpot (read-only), channel audit and editorial calendar (F3), product usage data
 
 ## P1
-- Launch & GTM planning assets
 - Source change detection (scheduled re-hash of curated URLs via an allow-listed fetcher)
 - Claim review reminders (`reviewDueAt`)
 - Export to DOCX/PDF; Google Docs/Notion handoff

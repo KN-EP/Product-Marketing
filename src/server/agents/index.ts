@@ -13,6 +13,7 @@ import { ReleaseCommunicationPlanV1 } from "../../domain/schemas/release";
 import { GtmStrategyBriefV1, UseCaseMapV1 } from "../../domain/schemas/strategy";
 import { EnablementAssetV1, type EnablementType } from "../../domain/schemas/enablement";
 import { WinLossSynthesisDraftV1, type WinLossStats } from "../../domain/schemas/research";
+import { LaunchPlanDraftV1 } from "../../domain/schemas/launch";
 import { promptClassification, type DataClassification, type ExternalModelPolicy } from "../llm/classification";
 import type { LlmMode, LlmProvider, LlmUsage, OutputSpec } from "../llm/types";
 import {
@@ -25,6 +26,7 @@ import {
   AGENT_ENABLEMENT_PROMPT,
   AGENT_F_SALES_PLAY_PROMPT,
   AGENT_G_PERFORMANCE_PROMPT,
+  AGENT_LAUNCH_PROMPT,
   AGENT_RELEASE_PROMPT,
   AGENT_RESEARCH_PROMPT,
   AGENT_STRATEGY_PROMPT,
@@ -159,6 +161,13 @@ export const OUTPUT_SPECS = {
     toolName: "submit_win_loss_synthesis",
     toolDescription: "Submit the win/loss synthesis (win_loss_synthesis.v1, without statistics — those are added by the system).",
   },
+  // M15: the model writes the DRAFT; the server adds asOf + readiness before the gates.
+  launch_plan: {
+    assetType: "launch_plan",
+    schema: LaunchPlanDraftV1,
+    toolName: "submit_launch_plan",
+    toolDescription: "Submit the staged launch plan (launch_plan.v1, without readiness — that is computed by the system).",
+  },
 } as const satisfies Record<string, OutputSpec>;
 
 async function runAgent<S extends z.ZodType>(
@@ -247,3 +256,6 @@ export const runEnablementAgent = (input: AgentInput, provider: LlmProvider, typ
 /** M14 research agent — win/loss synthesis. Writes the draft; the statistics come from the server. */
 export const runWinLossAgent = (input: AgentInput, provider: LlmProvider) =>
   runAgent(OUTPUT_SPECS.win_loss_synthesis, AGENT_RESEARCH_PROMPT, input, provider);
+
+/** M15 launch agent — staged launch plan. Readiness comes from the server. */
+export const runLaunchAgent = (input: AgentInput, provider: LlmProvider) => runAgent(OUTPUT_SPECS.launch_plan, AGENT_LAUNCH_PROMPT, input, provider);

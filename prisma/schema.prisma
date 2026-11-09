@@ -95,6 +95,8 @@ enum AssetType {
   sales_training
   /// M14: win/loss synthesis (win_loss_synthesis run)
   win_loss_synthesis
+  /// M15: launch plan (launch_planning run)
+  launch_plan
 }
 
 enum KpiUnit {
@@ -148,6 +150,27 @@ enum ConsentStatus {
   granted
   declined
   withdrawn
+}
+
+/// M15: launch tier — tier_1 = broad market launch, tier_3 = quiet availability.
+enum LaunchTier {
+  tier_1
+  tier_2
+  tier_3
+}
+
+/// M15: the staged launch — early access → GA → existing customers → market.
+enum LaunchPhase {
+  early_access
+  general_availability
+  customer_launch
+  market_launch
+}
+
+/// M15: a human go / no-go decision for one launch phase.
+enum GoDecision {
+  go
+  no_go
 }
 
 enum AssetState {
@@ -218,6 +241,8 @@ model Tenant {
   kpiMeasurements        KpiMeasurement[]
   kpiImports             KpiImport[]
   winLossInterviews      WinLossInterview[]
+  launches               Launch[]
+  launchDecisions        LaunchDecision[]
 }
 
 model User {
@@ -229,8 +254,9 @@ model User {
   updatedAt    DateTime @updatedAt
 
   memberships    Membership[]
-  approvals      Approval[]
-  reviewedClaims Claim[]      @relation("ClaimReviewer")
+  approvals       Approval[]
+  reviewedClaims  Claim[]          @relation("ClaimReviewer")
+  launchDecisions LaunchDecision[]
 }
 
 model Membership {
@@ -266,6 +292,7 @@ model Product {
   campaigns Campaign[]
   releases  Release[]
   winLossInterviews WinLossInterview[]
+  launches          Launch[]
 
   @@unique([id, tenantId])
   @@index([tenantId])
@@ -600,9 +627,66 @@ model Release {
   product      Product       @relation(fields: [productId, tenantId], references: [id, tenantId])
   assets       Asset[]
   workflowRuns WorkflowRun[]
+  launches     Launch[]
 
   @@unique([id, tenantId])
   @@index([tenantId, plannedOn])
+}
+
+/// M15 station "Launch": a staged launch of a product (optionally tied to a release). Human input.
+/// Readiness per phase is computed in code from approved deliverables, claims and proof; a phase
+/// can only get a human "go" when its required checks pass (LaunchDecision).
+model Launch {
+  id                    String     @id @default(cuid())
+  tenantId              String
+  productId             String
+  releaseId             String?
+  name                  String
+  tier                  LaunchTier
+  summary               String
+  pricingModel          String
+  targetSegments        String
+  earlyAccessOn         DateTime?  @db.Date
+  generalAvailabilityOn DateTime?  @db.Date
+  customerLaunchOn      DateTime?  @db.Date
+  marketLaunchOn        DateTime?  @db.Date
+  /// External customers who agreed to be named or to take reference calls.
+  externalReferences    Int        @default(0)
+  /// "Customer zero": the company runs the product itself and documented it.
+  internalPilot         Boolean    @default(false)
+  isSynthetic           Boolean    @default(false)
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product      Product          @relation(fields: [productId, tenantId], references: [id, tenantId])
+  release      Release?         @relation(fields: [releaseId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  assets       Asset[]
+  workflowRuns WorkflowRun[]
+  decisions    LaunchDecision[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+}
+
+/// M15: go / no-go per launch phase, by a human reviewer, with the readiness snapshot it was based on.
+model LaunchDecision {
+  id          String      @id @default(cuid())
+  tenantId    String
+  launchId    String
+  phase       LaunchPhase
+  decision    GoDecision
+  comment     String?
+  /// The computed readiness of the phase at decision time (checks and their status).
+  readiness   Json
+  decidedById String
+  createdAt   DateTime    @default(now())
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  launch    Launch @relation(fields: [launchId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  decidedBy User   @relation(fields: [decidedById], references: [id])
+
+  @@index([tenantId, launchId])
 }
 
 model Kpi {
@@ -688,6 +772,8 @@ model Asset {
   campaignId       String?
   /// M12: set for release communication plans (same tenant, composite FK).
   releaseId        String?
+  /// M15: set for launch plans (same tenant, composite FK).
+  launchId         String?
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
@@ -695,12 +781,14 @@ model Asset {
   /// Restrict (not SetNull): SetNull would also null tenantId of the composite key.
   campaign Campaign?      @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: Restrict)
   release  Release?       @relation(fields: [releaseId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  launch   Launch?        @relation(fields: [launchId, tenantId], references: [id, tenantId], onDelete: Restrict)
   versions AssetVersion[]
 
   @@unique([id, tenantId])
   @@index([tenantId, state])
   @@index([tenantId, campaignId])
   @@index([tenantId, releaseId])
+  @@index([tenantId, launchId])
 }
 
 /// Immutable. The data-access layer exposes no update path for content fields.
@@ -750,6 +838,8 @@ model WorkflowRun {
   campaignId      String?
   /// M12: set for release_communication runs (same tenant, composite FK).
   releaseId       String?
+  /// M15: set for launch_planning runs (same tenant, composite FK).
+  launchId        String?
   startedAt       DateTime?
   completedAt     DateTime?
   createdAt       DateTime       @default(now())
@@ -758,12 +848,14 @@ model WorkflowRun {
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   campaign      Campaign?      @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: Restrict)
   release       Release?       @relation(fields: [releaseId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  launch        Launch?        @relation(fields: [launchId, tenantId], references: [id, tenantId], onDelete: Restrict)
   assetVersions AssetVersion[]
 
   @@unique([tenantId, idempotencyKey])
   @@index([tenantId, status])
   @@index([tenantId, campaignId])
   @@index([tenantId, releaseId])
+  @@index([tenantId, launchId])
 }
 
 model Approval {

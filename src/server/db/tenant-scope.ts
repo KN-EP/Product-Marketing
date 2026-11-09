@@ -6,6 +6,9 @@ import type { GateReport } from "../../domain/quality-gates/gates";
 import type { AssetType } from "../../domain/schemas/agents";
 import type { CampaignType } from "../../domain/schemas/campaign";
 import type { ReleaseType } from "../../domain/schemas/release";
+import type { ReadinessFacts } from "../../domain/launches/launch";
+import type { LaunchPhase, LaunchTier } from "../../domain/schemas/launch";
+import { SALES_TOOLKIT_TYPES } from "../../domain/schemas/enablement";
 import type { KpiPatch, KpiSeed } from "../../domain/kpis/kpi";
 import { assertWorkflowTransition, type WorkflowStatus } from "../../domain/workflow/workflow-state";
 import type { Prisma } from "../../generated/prisma/client";
@@ -219,6 +222,114 @@ export function tenantDb(actor: Actor, db: DbTx) {
         salesChannels: string[];
         isSynthetic?: boolean;
       }) => db.release.create({ data: { ...data, tenantId }, select: { id: true } }),
+    },
+
+    /** M15: staged launches, readiness facts and go / no-go decisions. */
+    launches: {
+      getById: async (id: string) =>
+        orNotFound(
+          await db.launch.findFirst({
+            where: { id, tenantId },
+            select: {
+              id: true,
+              name: true,
+              tier: true,
+              summary: true,
+              pricingModel: true,
+              targetSegments: true,
+              earlyAccessOn: true,
+              generalAvailabilityOn: true,
+              customerLaunchOn: true,
+              marketLaunchOn: true,
+              externalReferences: true,
+              internalPilot: true,
+              updatedAt: true,
+              product: { select: { id: true, name: true } },
+              release: { select: { id: true, name: true, version: true } },
+            },
+          }),
+          "launch",
+        ),
+      /** Product and release must already be resolved through this DAL (404 on a foreign id). */
+      create: (data: {
+        productId: string;
+        releaseId: string | null;
+        name: string;
+        tier: LaunchTier;
+        summary: string;
+        pricingModel: string;
+        targetSegments: string;
+        earlyAccessOn: Date | null;
+        generalAvailabilityOn: Date | null;
+        customerLaunchOn: Date | null;
+        marketLaunchOn: Date | null;
+        externalReferences: number;
+        internalPilot: boolean;
+        isSynthetic?: boolean;
+      }) => db.launch.create({ data: { ...data, tenantId }, select: { id: true } }),
+      updateProof: async (id: string, data: { externalReferences: number; internalPilot: boolean }) => {
+        const r = await db.launch.updateMany({ where: { id, tenantId }, data });
+        if (r.count !== 1) throw new NotFoundError("launch");
+      },
+      /**
+       * Everything readiness is computed from. "Approved" = a human approval exists
+       * for a version of a matching deliverable (same rule as the agent context).
+       */
+      facts: async (launch: { id: string; productId: string; releaseId: string | null; externalReferences: number; internalPilot: boolean }, opts: { forPlan?: boolean } = {}): Promise<ReadinessFacts> => {
+        const approvedFor = (type: AssetType) =>
+          db.approval.count({
+            where: {
+              tenantId,
+              decision: "approved",
+              assetVersion: {
+                tenantId,
+                asset: { tenantId, type, versions: { some: { tenantId, workflowRun: { tenantId, inputRefs: { path: ["productId"], equals: launch.productId } } } } },
+              },
+            },
+          });
+        const [approvedClaims, staleClaims, messaging, battlecard, enablement, plan, releasePlan, winLoss] = await Promise.all([
+          db.claim.count({ where: { tenantId, productId: launch.productId, state: "approved" } }),
+          db.claim.count({ where: { tenantId, productId: launch.productId, state: "stale" } }),
+          approvedFor("messaging_framework"),
+          approvedFor("competitive_battlecard"),
+          db.approval.count({
+            where: {
+              tenantId,
+              decision: "approved",
+              assetVersion: { tenantId, asset: { tenantId, type: { in: ["sales_play", ...SALES_TOOLKIT_TYPES] }, campaign: { tenantId, productId: launch.productId } } },
+            },
+          }),
+          db.approval.count({ where: { tenantId, decision: "approved", assetVersion: { tenantId, asset: { tenantId, type: "launch_plan", launchId: launch.id } } } }),
+          launch.releaseId
+            ? db.approval.count({
+                where: { tenantId, decision: "approved", assetVersion: { tenantId, asset: { tenantId, type: "release_communication_plan", releaseId: launch.releaseId } } },
+              })
+            : Promise.resolve(null),
+          approvedFor("win_loss_synthesis"),
+        ]);
+        return {
+          approvedClaims,
+          staleClaims,
+          approvedMessaging: messaging > 0,
+          approvedBattlecard: battlecard > 0,
+          approvedEnablement: enablement > 0,
+          approvedLaunchPlan: opts.forPlan ? null : plan > 0,
+          approvedReleasePlan: releasePlan === null ? null : releasePlan > 0,
+          approvedWinLoss: winLoss > 0,
+          externalReferences: launch.externalReferences,
+          internalPilot: launch.internalPilot,
+          openRegulatoryAlerts: 0,
+        };
+      },
+      /** Latest decision per phase (for phase order). */
+      decisions: (launchId: string) =>
+        db.launchDecision.findMany({
+          where: { tenantId, launchId },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          select: { id: true, phase: true, decision: true, createdAt: true },
+        }),
+      recordDecision: (data: { launchId: string; phase: LaunchPhase; decision: "go" | "no_go"; comment: string | null; readiness: unknown; decidedById: string }) =>
+        db.launchDecision.create({ data: { ...data, tenantId, readiness: json(data.readiness) }, select: { id: true } }),
     },
 
     /** M14: win/loss interviews (pseudonymised; notes only as a consented interview source). */
@@ -448,9 +559,17 @@ export function tenantDb(actor: Actor, db: DbTx) {
           approvals,
         };
       },
-      create: (data: { type: AssetType; title: string; campaignId?: string | null; releaseId?: string | null }) =>
+      create: (data: { type: AssetType; title: string; campaignId?: string | null; releaseId?: string | null; launchId?: string | null }) =>
         db.asset.create({
-          data: { tenantId, type: data.type, title: data.title, state: "draft", campaignId: data.campaignId ?? null, releaseId: data.releaseId ?? null },
+          data: {
+            tenantId,
+            type: data.type,
+            title: data.title,
+            state: "draft",
+            campaignId: data.campaignId ?? null,
+            releaseId: data.releaseId ?? null,
+            launchId: data.launchId ?? null,
+          },
           select: { id: true },
         }),
       /**
@@ -644,6 +763,8 @@ export function tenantDb(actor: Actor, db: DbTx) {
         campaignId?: string | null;
         /** M12 release_communication only; the release must already be resolved through this DAL. */
         releaseId?: string | null;
+        /** M15 launch_planning only; the launch must already be resolved through this DAL. */
+        launchId?: string | null;
       }) =>
         db.workflowRun.create({
           data: {
@@ -651,6 +772,7 @@ export function tenantDb(actor: Actor, db: DbTx) {
             kind: data.kind,
             campaignId: data.campaignId ?? null,
             releaseId: data.releaseId ?? null,
+            launchId: data.launchId ?? null,
             status: "created",
             idempotencyKey: data.idempotencyKey,
             generationMode: data.generationMode,

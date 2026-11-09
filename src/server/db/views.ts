@@ -218,6 +218,69 @@ export function tenantViews(tenantId: string, db: DbTx) {
         "release",
       ),
 
+    /** M15: launches, next first. */
+    launches: () =>
+      db.launch.findMany({
+        where: { tenantId },
+        orderBy: [{ generalAvailabilityOn: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }],
+        select: {
+          id: true,
+          name: true,
+          tier: true,
+          earlyAccessOn: true,
+          generalAvailabilityOn: true,
+          customerLaunchOn: true,
+          marketLaunchOn: true,
+          isSynthetic: true,
+          product: { select: { id: true, name: true } },
+          decisions: { where: { tenantId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: { phase: true, decision: true } },
+        },
+      }),
+
+    /** M15: launch briefing + decisions, plans and runs (all filtered on the tenant). */
+    launch: async (id: string) =>
+      orNotFound(
+        await db.launch.findFirst({
+          where: { id, tenantId },
+          select: {
+            id: true,
+            name: true,
+            tier: true,
+            summary: true,
+            pricingModel: true,
+            targetSegments: true,
+            earlyAccessOn: true,
+            generalAvailabilityOn: true,
+            customerLaunchOn: true,
+            marketLaunchOn: true,
+            externalReferences: true,
+            internalPilot: true,
+            isSynthetic: true,
+            createdAt: true,
+            product: { select: { id: true, name: true } },
+            release: { select: { id: true, name: true, version: true } },
+            decisions: {
+              where: { tenantId },
+              orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+              select: { id: true, phase: true, decision: true, comment: true, readiness: true, createdAt: true, decidedBy: { select: { name: true } } },
+            },
+            workflowRuns: { where: { tenantId }, orderBy: { createdAt: "desc" }, select: { id: true, status: true, generationMode: true, createdAt: true } },
+            assets: {
+              where: { tenantId },
+              orderBy: { createdAt: "desc" },
+              select: {
+                id: true,
+                title: true,
+                type: true,
+                state: true,
+                versions: { where: { tenantId }, orderBy: { versionNumber: "desc" }, take: 1, select: { id: true, versionNumber: true, gatesPassed: true, generationMode: true } },
+              },
+            },
+          },
+        }),
+        "launch",
+      ),
+
     /** M14: win/loss interviews (no notes: those live in the consented interview source). */
     interviews: () =>
       db.winLossInterview.findMany({
@@ -445,6 +508,7 @@ export function tenantViews(tenantId: string, db: DbTx) {
           error: true,
           campaign: { select: { id: true, name: true } },
           release: { select: { id: true, name: true, version: true } },
+          launch: { select: { id: true, name: true } },
         },
       }),
 
@@ -503,6 +567,9 @@ export function tenantViews(tenantId: string, db: DbTx) {
         winLossSyntheses,
         winLossApproved,
         consentWithdrawn,
+        launches,
+        launchPlans,
+        launchDecisions,
       ] = await Promise.all([
         db.workflowRun.count({ where: { tenantId, status: "completed", kind: "pmm_three_asset" } }),
         db.asset.count({ where: { tenantId, state: "pending_review", ...DELIVERABLE } }),
@@ -526,6 +593,9 @@ export function tenantViews(tenantId: string, db: DbTx) {
         db.asset.count({ where: { tenantId, type: "win_loss_synthesis" } }),
         db.asset.count({ where: { tenantId, type: "win_loss_synthesis", state: "approved" } }),
         db.winLossInterview.count({ where: { tenantId, consentStatus: "withdrawn" } }),
+        db.launch.count({ where: { tenantId } }),
+        db.asset.count({ where: { tenantId, type: "launch_plan" } }),
+        db.launchDecision.count({ where: { tenantId } }),
       ]);
       return {
         runsCompleted,
@@ -550,6 +620,9 @@ export function tenantViews(tenantId: string, db: DbTx) {
         winLossSyntheses,
         winLossApproved,
         consentWithdrawn,
+        launches,
+        launchPlans,
+        launchDecisions,
       };
     },
   };

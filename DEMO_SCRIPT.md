@@ -81,5 +81,15 @@ no real company has reviewed it. Simulated mode replays prepared outputs — not
 28. **Withdraw consent** for "automotive supplier A": notes erased, source invalid. Export the
     approved synthesis again → blocked (`approval_outdated`). A new synthesis leaves the interview out.
 
-Current state (M13a + M13b, M14): every step runs in the UI; steps 1–11 and the campaign generation, the strategy brief gate, the blocked content matrix, use cases, releases and campaign/release isolation are covered by the Playwright E2E suite. Before a demo,
+**Launch (M15, ~5 more minutes)**
+
+29. **/launches:** the seeded tier-1 launch of a new module — internal pilot only, no external
+    reference. The readiness matrix shows why every phase is "not ready" (plan not approved) and why
+    the market phase will stay so (no external reference).
+30. **Generate launch plan:** staged phases, proof plan ("turn early-access customers into
+    references"), enablement plan; G16 warns for planned phases that are not ready. Approve it.
+31. **Go / no-go** as reviewer: early access "go" with acknowledged risks; market launch "go" →
+    refused. As editor, update the proof (two references): the check turns green.
+
+Current state (M13a + M13b, M14, M15): every step runs in the UI; steps 1–11 and the campaign generation, the strategy brief gate, the blocked content matrix, use cases, releases and campaign/release isolation are covered by the Playwright E2E suite. Before a demo,
 run `npm run demo:reset` for a clean state (demo tenants only).

@@ -11,6 +11,7 @@ import { campaignIdempotencyKey, idempotencyKey, scopedIdempotencyKey, WORKFLOW_
 import { releaseBriefNotes } from "../../domain/releases/release";
 import { GtmStrategyBriefV1, UseCaseMapV1 } from "../../domain/schemas/strategy";
 import { ENABLEMENT_CATALOG, ENABLEMENT_TYPES, type EnablementType } from "../../domain/schemas/enablement";
+import { computeReadiness, launchBriefNotes } from "../../domain/launches/launch";
 import { computeWinLossStats, MIN_INTERVIEWS_FOR_SYNTHESIS, winLossBriefNotes, type DealOutcome, type ConsentStatus } from "../../domain/research/win-loss";
 import { Prisma } from "../../generated/prisma/client";
 import type { Db } from "../db/client";
@@ -38,6 +39,9 @@ import {
   USE_CASE_PROMPT_VERSIONS,
   RESEARCH_PROMPT_VERSIONS,
   WIN_LOSS_SYNTHESIS,
+  LAUNCH_PLANNING,
+  LAUNCH_PROMPT_VERSIONS,
+  type LaunchRunInputRefs,
   type WinLossRunInputRefs,
   type CampaignAssetRunInputRefs,
   type CampaignRunInputRefs,
@@ -56,6 +60,7 @@ import {
   runStrategyPipeline,
   runUseCasePipeline,
   runWinLossPipeline,
+  runLaunchPipeline,
 } from "./pipeline";
 
 type Env = Record<string, string | undefined>;
@@ -116,6 +121,7 @@ const ASSET_LABEL: Record<AssetType, string> = {
   gtm_strategy_brief: "GTM strategy brief",
   release_communication_plan: "Release communication plan",
   win_loss_synthesis: "Win/loss synthesis",
+  launch_plan: "Launch plan",
   // M13a + M13b
   ...(Object.fromEntries(ENABLEMENT_TYPES.map((t) => [t, ENABLEMENT_CATALOG[t].label])) as Record<EnablementType, string>),
 };
@@ -137,6 +143,7 @@ interface PreparedRun {
   titleSuffix: string;
   campaignId: string | null;
   releaseId?: string | null;
+  launchId?: string | null;
   run: (provider: LlmProvider, budget: CostBudget, progress: Progress, onStep: () => Promise<unknown>) => Promise<unknown>;
   validationMeta: (p: Progress) => Record<string, unknown>;
 }
@@ -213,6 +220,7 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
       inputRefs: Record<string, unknown>;
       campaignId: string | null;
       releaseId?: string | null;
+      launchId?: string | null;
     };
     if (parsed.data.kind === CAMPAIGN_GTM) {
       const { kind, requestNonce, ...refs } = parsed.data;
@@ -315,6 +323,26 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
         campaignId: null,
         releaseId: release.id,
       };
+    } else if (parsed.data.kind === LAUNCH_PLANNING) {
+      const { kind, requestNonce, ...refs } = parsed.data;
+      const launch = await tdb.launches.getById(refs.launchId);
+      admission = {
+        kind,
+        key: await scopedIdempotencyKey({
+          tenantId: actor.tenantId,
+          kind,
+          scope: { launchId: launch.id },
+          promptVersions: LAUNCH_PROMPT_VERSIONS,
+          // A changed briefing (dates, proof) means a new plan run.
+          dataVersion: launch.updatedAt.toISOString(),
+          ...(requestNonce ? { requestNonce } : {}),
+        }),
+        promptVersions: LAUNCH_PROMPT_VERSIONS,
+        // productId lets readiness find the plan's product deliverables; the launch stays the source of truth.
+        inputRefs: { ...refs, productId: launch.product.id },
+        campaignId: null,
+        launchId: launch.id,
+      };
     } else if (parsed.data.kind === WIN_LOSS_SYNTHESIS) {
       const { kind, requestNonce, ...refs } = parsed.data;
       const product = await tdb.products.getById(refs.productId);
@@ -400,6 +428,7 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
           inputRefs: admission.inputRefs,
           campaignId: admission.campaignId,
           releaseId: admission.releaseId ?? null,
+          launchId: admission.launchId ?? null,
         });
         await t.audit.record({
           actorId: actor.userId,
@@ -410,6 +439,7 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
             kind: admission.kind,
             ...(admission.campaignId ? { campaignId: admission.campaignId } : {}),
             ...(admission.releaseId ? { releaseId: admission.releaseId } : {}),
+            ...(admission.launchId ? { launchId: admission.launchId } : {}),
           },
         });
         await t.workflowRuns.transition(run.id, "created", "queued", actor.userId);
@@ -469,7 +499,13 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
           const internal = isInternalAssetType(r.assetType);
           const label = internal ? INPUT_BRIEF_LABEL : ASSET_LABEL[r.assetType];
           const title = `${prefix}${label} — ${work.titleSuffix}`;
-          const { id: assetId } = await t.assets.create({ type: r.assetType, title, campaignId: work.campaignId, releaseId: work.releaseId ?? null });
+          const { id: assetId } = await t.assets.create({
+            type: r.assetType,
+            title,
+            campaignId: work.campaignId,
+            releaseId: work.releaseId ?? null,
+            launchId: work.launchId ?? null,
+          });
           let rec: AssetRecord = { id: assetId, tenantId: actor.tenantId, type: r.assetType, title, state: "draft", currentVersionId: null, versions: [], approvals: [] };
           rec = addVersion(rec, r.output, systemActor(actor.tenantId), work.snapshot, { id: randomUUID(), generationMode: r.llm.mode, now });
           const v = currentVersion(rec)!;
@@ -495,6 +531,7 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
               internal,
               ...(work.campaignId ? { campaignId: work.campaignId } : {}),
               ...(work.releaseId ? { releaseId: work.releaseId } : {}),
+              ...(work.launchId ? { launchId: work.launchId } : {}),
             },
           });
           if (!internal) {
@@ -724,6 +761,44 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
         validationMeta: () => ({ releaseType: release.type, audiences: release.audiences.length }),
       };
     }
+    if (kind === LAUNCH_PLANNING) {
+      const refs = inputRefs as LaunchRunInputRefs;
+      const launch = await tdb.launches.getById(refs.launchId);
+      const asOf = this.now().toISOString().slice(0, 10);
+      const [facts, { snapshot, sourceClassifications }, policy, approvedMf] = await Promise.all([
+        tdb.launches.facts(
+          { id: launch.id, productId: launch.product.id, releaseId: launch.release?.id ?? null, externalReferences: launch.externalReferences, internalPilot: launch.internalPilot },
+          { forPlan: true },
+        ),
+        tdb.knowledge.snapshot({ forAgent: true }),
+        tdb.tenant.policy(),
+        tdb.assets.latestApprovedForProduct("messaging_framework", launch.product.id),
+      ]);
+      // Deterministic readiness: computed here, never by the model.
+      const readiness = computeReadiness(launch, facts);
+      const mf = approvedMf ? MessagingFrameworkV1.safeParse(approvedMf.content) : null;
+      const base = {
+        snapshot,
+        sourceClassifications,
+        policy,
+        brief: { productName: launch.product.name, notes: launchBriefNotes(launch, readiness) },
+        ...(mf?.success ? { messagingFramework: mf.data } : {}),
+      };
+      return {
+        snapshot,
+        titleSuffix: launch.name,
+        campaignId: null,
+        launchId: launch.id,
+        run: (provider: LlmProvider, budget: CostBudget, progress: Progress, onStep: () => Promise<unknown>) =>
+          runLaunchPipeline(base, { asOf, readiness }, provider, budget, progress, onStep),
+        validationMeta: () => ({
+          asOf,
+          tier: launch.tier,
+          noGoPhases: readiness.phases.filter((p) => p.status === "no_go").length,
+          approvedMessagingFrameworkVersionId: mf?.success ? approvedMf!.versionId : null,
+        }),
+      };
+    }
     if (kind === WIN_LOSS_SYNTHESIS) {
       const refs = inputRefs as WinLossRunInputRefs;
       const product = await tdb.products.getById(refs.productId);
@@ -895,4 +970,4 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
   }
 }
 
-export { CAMPAIGN_ASSET, CAMPAIGN_GTM, CAMPAIGN_PERFORMANCE, CAMPAIGN_STRATEGY, PMM_THREE_ASSET, RELEASE_COMMUNICATION, USE_CASE_DEFINITION, WIN_LOSS_SYNTHESIS };
+export { CAMPAIGN_ASSET, CAMPAIGN_GTM, CAMPAIGN_PERFORMANCE, CAMPAIGN_STRATEGY, PMM_THREE_ASSET, LAUNCH_PLANNING, RELEASE_COMMUNICATION, USE_CASE_DEFINITION, WIN_LOSS_SYNTHESIS };

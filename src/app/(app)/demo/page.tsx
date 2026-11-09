@@ -73,9 +73,15 @@ export default async function DemoPage() {
     { n: "32", title: "Consent withdrawn", what: "Withdraw consent for “automotive supplier A”: the notes are erased and the source becomes invalid. Try to export the approved synthesis again — blocked: the approval no longer holds because its evidence is gone (approval_outdated). A new synthesis leaves the interview out.", href: "/research", linkText: "Interviews", done: p.consentWithdrawn > 0 },
   ];
 
+  const launchSteps: Step[] = [
+    { n: "33", title: "Staged launch and computed readiness", what: "Open “Launches” → the seeded tier-1 launch of a new module: used internally (customer zero), no external reference yet. The readiness matrix is computed from approvals, claims and proof: every phase is “not ready” until the launch plan is approved; the market phase stays “not ready” without an external reference.", href: "/launches", linkText: "Launches", done: p.launches > 0 },
+    { n: "34", title: "Launch plan", what: "“Generate launch plan”: early access → GA → existing customers → market, a proof plan (turn early-access customers into references), the enablement plan and success signals. The plan never says “go”; gate G16 warns for every phase that is planned while not ready. Approve it as reviewer.", href: "/launches", linkText: "Launches", done: p.launchPlans > 0 },
+    { n: "35", title: "Go / no-go", what: "As reviewer: early access “go” (ready once the plan is approved). Market launch “go” is refused — no external reference. As editor, update the proof (e.g. two references after early access): the matrix changes. Each decision stores the readiness it was based on.", href: "/launches", linkText: "Decide", done: p.launchDecisions > 0 },
+  ];
+
   return (
     <>
-      <PageHeader title="Guided demo" description="P0 demonstration flow (steps 1–15, ~15 minutes), strategy first and the campaign package (steps 16–21, ~12 minutes), the KPI analysis (steps 22–24, ~5 minutes), release communication (steps 25–26, ~3 minutes), assets & sales toolkit (steps 27–29, ~5 minutes) and win/loss & research (steps 30–32, ~5 minutes). Every step opens the real page." />
+      <PageHeader title="Guided demo" description="P0 demonstration flow (steps 1–15, ~15 minutes), strategy first and the campaign package (steps 16–21, ~12 minutes), the KPI analysis (steps 22–24, ~5 minutes), release communication (steps 25–26, ~3 minutes), assets & sales toolkit (steps 27–29, ~5 minutes) win/loss & research (steps 30–32, ~5 minutes) and the staged launch (steps 33–35, ~5 minutes). Every step opens the real page." />
       <Alert>
         <AlertTitle>Say this up front</AlertTitle>
         <AlertDescription>
@@ -95,6 +101,7 @@ export default async function DemoPage() {
       <StepList title="Release & update communication (M12)" steps={releaseSteps} />
       <StepList title="Assets & sales toolkit (M13)" steps={assetSteps} />
       <StepList title="Win/loss & research (M14)" steps={researchSteps} />
+      <StepList title="Launch (M15)" steps={launchSteps} />
       <Section title="Isolation check (optional)">
         <p className="text-sm text-muted-foreground">
           Sign in as a user of the second demo tenant and open an asset, run or campaign URL of the first demo tenant: it returns 404, exactly like an id that does not exist.

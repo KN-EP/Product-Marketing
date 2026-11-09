@@ -14,6 +14,7 @@ import {
   runStrategyAgent,
   runUseCaseAgent,
   runWinLossAgent,
+  runLaunchAgent,
   type AgentInput,
   type AgentResult,
 } from "../agents";
@@ -30,6 +31,7 @@ import {
   AGENT_G_PERFORMANCE_PROMPT,
   AGENT_RELEASE_PROMPT,
   AGENT_RESEARCH_PROMPT,
+  AGENT_LAUNCH_PROMPT,
   AGENT_STRATEGY_PROMPT,
   AGENT_USE_CASE_PROMPT,
   renderPrompt,
@@ -209,5 +211,24 @@ export async function runWinLossPipeline(
   const step = stepper(budget, progress, onStep);
   const r = await step(AGENT_RESEARCH_PROMPT, base, () => runWinLossAgent(base, provider));
   (r as AgentResult<unknown>).output = { ...r.output, asOf: base.winLossStats.asOf, stats: base.winLossStats.stats };
+  return progress;
+}
+
+/**
+ * launch_planning (M15): the launch agent writes the draft; the server adds
+ * `asOf` and the deterministic `readiness`, so whether a phase is ready never
+ * comes from the model (gate G16 compares the plan with it).
+ */
+export async function runLaunchPipeline(
+  base: AgentInput,
+  extra: { asOf: string; readiness: unknown },
+  provider: LlmProvider,
+  budget: CostBudget,
+  progress: PipelineProgress = newProgress(),
+  onStep?: () => Promise<unknown>,
+): Promise<PipelineProgress> {
+  const step = stepper(budget, progress, onStep);
+  const r = await step(AGENT_LAUNCH_PROMPT, base, () => runLaunchAgent(base, provider));
+  (r as AgentResult<unknown>).output = { ...r.output, asOf: extra.asOf, readiness: extra.readiness };
   return progress;
 }
