@@ -95,7 +95,8 @@ describe("quality gates on the campaign package", () => {
     const r = runQualityGates("content_matrix", SIMULATED_CONTENT_MATRIX_FLAWED, kb());
     expect(r.passed).toBe(false);
     const onHeadline = critical(r).filter((f) => f.path === "$.items[2].headline");
-    expect(onHeadline.map((f) => f.gate).sort()).toEqual(["G5_unsupported_assertions", "G5_unsupported_assertions", "G7_regulatory_expert_review"]);
+    // M17: "compliant" is also a conformity statement about the product without a compliance claim (G7c).
+    expect(onHeadline.map((f) => f.gate).sort()).toEqual(["G5_unsupported_assertions", "G5_unsupported_assertions", "G7_regulatory_expert_review", "G7c_product_conformity"]);
     expect(critical(r).every((f) => f.path === "$.items[2].headline")).toBe(true);
   });
 

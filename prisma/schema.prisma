@@ -374,6 +374,8 @@ model Claim {
   lastVerifiedAt DateTime?
   reviewDueAt    DateTime?
   staleReason    String?
+  /// M17: conditions the claim's numbers only hold under; statements quoting a number must carry them (gate G17).
+  conditions     String[]      @default([])
   isSynthetic    Boolean       @default(false)
   version        Int           @default(1)
   createdAt      DateTime      @default(now())

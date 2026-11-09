@@ -31,6 +31,11 @@ export default async function ClaimsPage() {
                 <span className="font-mono text-xs text-muted-foreground">{c.id}</span>
               </div>
               <p className="mt-2 font-medium">{c.text}</p>
+              {c.conditions.length > 0 ? (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Holds only: {c.conditions.join(" · ")} <span className="text-xs">(quoted numbers must carry this — gate G17)</span>
+                </p>
+              ) : null}
               <p className="mt-1 text-xs text-muted-foreground">
                 Product:{" "}
                 <Link href={`/products/${c.product.id}`} className="underline-offset-4 hover:underline">
