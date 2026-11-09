@@ -14,6 +14,8 @@ export const ID_ENTRYPOINTS = [
   "src/app/(app)/products/[id]/page.tsx", // ui.test.ts
   "src/app/(app)/releases/[id]/page.tsx", // strategy.test.ts
   "src/app/(app)/launches/[id]/page.tsx", // launch.test.ts
+  "src/app/(app)/installed-base/[id]/page.tsx", // installed-base.test.ts
+  "src/app/(app)/installed-base/calculator/[id]/page.tsx", // installed-base.test.ts
   "src/app/(app)/workflows/[id]/page.tsx", // ui.test.ts
   "src/app/api/assets/[id]/route.ts", // tenant-isolation.test.ts
   "src/app/api/claims/[id]/route.ts", // tenant-isolation.test.ts
@@ -34,6 +36,11 @@ export const SERVER_ACTIONS: Record<string, string> = {
   "src/app/actions/launch.ts#createLaunchAction": "launch.test.ts: foreign product/release id → 404; injected tenantId rejected; viewer 403",
   "src/app/actions/launch.ts#updateLaunchProofAction": "launch.test.ts: foreign launch id → 404; viewer 403",
   "src/app/actions/launch.ts#decideLaunchPhaseAction": "launch.test.ts: foreign launch id → 404; editor 403",
+  "src/app/actions/installed-base.ts#importInstalledBaseAction": "installed-base.test.ts: tenant from the session; products matched within the tenant only; viewer 403; size limit 413",
+  "src/app/actions/installed-base.ts#reportFindingAction": "installed-base.test.ts: foreign unit id → 404; injected tenantId rejected; viewer 403",
+  "src/app/actions/installed-base.ts#updateHandoverAction": "installed-base.test.ts: foreign hand-over id → 404",
+  "src/app/actions/installed-base.ts#saveCostComparisonAction": "installed-base.test.ts: foreign product/unit id → 404; viewer 403",
+  "src/app/actions/installed-base.ts#setIndustryProfileAction": "installed-base.test.ts: admin only (editor 403); tenant from the session",
   "src/app/actions/radar.ts#recordRegulatoryChangeAction": "radar.test.ts: foreign watch id → 404; injected keys rejected; viewer 403",
   "src/app/actions/radar.ts#resolveRegulatoryChangeAction": "radar.test.ts: foreign change id → 404; editor 403",
   "src/app/actions/research.ts#recordInterviewAction": "research.test.ts: foreign product/competitor id → 404; injected tenantId rejected; viewer 403",

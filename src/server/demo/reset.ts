@@ -18,6 +18,7 @@ export interface DemoResetCounts {
   interviews: number;
   launches: number;
   regulatoryChanges: number;
+  installedUnits: number;
   auditEvents: number;
 }
 
@@ -47,7 +48,7 @@ export async function resetDemoData(
     tenants = await db.tenant.findMany({ where: { isDemo: true }, select: { id: true, slug: true, isDemo: true } });
   }
   const ids = tenants.map((t) => t.id);
-  if (ids.length === 0) return { tenants: [], approvals: 0, assetVersions: 0, assets: 0, workflowRuns: 0, campaigns: 0, releases: 0, interviews: 0, launches: 0, regulatoryChanges: 0, auditEvents: 0 };
+  if (ids.length === 0) return { tenants: [], approvals: 0, assetVersions: 0, assets: 0, workflowRuns: 0, campaigns: 0, releases: 0, interviews: 0, launches: 0, regulatoryChanges: 0, installedUnits: 0, auditEvents: 0 };
 
   return db.$transaction(
     async (tx) => {
@@ -68,11 +69,17 @@ export async function resetDemoData(
       const regulatoryChanges = await tx.regulatoryChange.deleteMany({ where });
       await tx.regulatoryWatch.deleteMany({ where });
       const releases = await tx.release.deleteMany({ where });
+      // M18: installed base (comparisons and hand-overs reference units), imports, and the industry profile.
+      await tx.costComparison.deleteMany({ where });
+      await tx.serviceHandover.deleteMany({ where });
+      const installedUnits = await tx.installedUnit.deleteMany({ where });
+      await tx.installedBaseImport.deleteMany({ where });
+      await tx.tenant.updateMany({ where: { id: { in: ids }, isDemo: true }, data: { industryProfile: "software" } });
       // M14: interviews first (they reference their notes source), then the unreferenced interview sources.
       const interviews = await tx.winLossInterview.deleteMany({ where });
       await tx.source.deleteMany({ where: { ...where, kind: "interview", claimEvidence: { none: {} }, competitorEvidence: { none: {} } } });
       const auditEvents = await tx.auditEvent.deleteMany({
-        where: { ...where, entityType: { in: ["Asset", "WorkflowRun", "Campaign", "Kpi", "Release", "WinLossInterview", "Launch", "RegulatoryChange"] } },
+        where: { ...where, entityType: { in: ["Asset", "WorkflowRun", "Campaign", "Kpi", "Release", "WinLossInterview", "Launch", "RegulatoryChange", "InstalledBaseImport", "ServiceHandover", "CostComparison", "Tenant"] } },
       });
       return {
         tenants: tenants.map((t) => t.slug),
@@ -85,6 +92,7 @@ export async function resetDemoData(
         interviews: interviews.count,
         launches: launches.count,
         regulatoryChanges: regulatoryChanges.count,
+        installedUnits: installedUnits.count,
         auditEvents: auditEvents.count,
       };
     },

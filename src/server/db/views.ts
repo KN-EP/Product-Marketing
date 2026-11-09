@@ -600,6 +600,104 @@ export function tenantViews(tenantId: string, db: DbTx) {
      * What the system enforced in this tenant — from the audit log (counts only).
      * The difference to a prompt plugin, made visible on the dashboard.
      */
+    /** M18: all installed units with product and their hand-overs (triggers are computed on the page). */
+    installedUnits: () =>
+      db.installedUnit.findMany({
+        where: { tenantId },
+        orderBy: [{ installedOn: "asc" }, { unitRef: "asc" }],
+        select: {
+          id: true,
+          unitRef: true,
+          accountLabel: true,
+          region: true,
+          application: true,
+          installedOn: true,
+          serviceContract: true,
+          sparePartOrders12m: true,
+          materialChangePlanned: true,
+          regulatedApplication: true,
+          lastServiceOn: true,
+          isSynthetic: true,
+          product: { select: { id: true, name: true } },
+          handovers: { where: { tenantId }, select: { id: true, status: true } },
+        },
+      }),
+
+    /** M18: one unit with hand-overs and cost comparisons (all filtered on the tenant). */
+    installedUnit: async (id: string) =>
+      orNotFound(
+        await db.installedUnit.findFirst({
+          where: { id, tenantId },
+          select: {
+            id: true,
+            unitRef: true,
+            accountLabel: true,
+            region: true,
+            application: true,
+            installedOn: true,
+            serviceContract: true,
+            sparePartOrders12m: true,
+            materialChangePlanned: true,
+            regulatedApplication: true,
+            lastServiceOn: true,
+            isSynthetic: true,
+            product: { select: { id: true, name: true } },
+            handovers: {
+              where: { tenantId },
+              orderBy: { reportedAt: "desc" },
+              select: { id: true, offer: true, finding: true, status: true, reportedAt: true, dueOn: true, contactedAt: true, offeredAt: true, closedAt: true, reasons: true, note: true, reportedBy: { select: { name: true } } },
+            },
+            costComparisons: { where: { tenantId }, orderBy: { createdAt: "desc" }, select: { id: true, title: true, result: true, createdAt: true } },
+          },
+        }),
+        "installed unit",
+      ),
+
+    /** M18: the service → sales pipeline. */
+    handovers: () =>
+      db.serviceHandover.findMany({
+        where: { tenantId },
+        orderBy: [{ dueOn: "asc" }, { reportedAt: "asc" }],
+        select: {
+          id: true,
+          offer: true,
+          finding: true,
+          status: true,
+          reportedAt: true,
+          dueOn: true,
+          contactedAt: true,
+          closedAt: true,
+          reasons: true,
+          unit: { select: { id: true, unitRef: true, accountLabel: true, region: true, product: { select: { id: true, name: true } } } },
+        },
+      }),
+
+    /** M18: cost comparisons (newest first). */
+    costComparisons: () =>
+      db.costComparison.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        select: { id: true, title: true, result: true, createdAt: true, product: { select: { id: true, name: true } }, unit: { select: { id: true, unitRef: true } } },
+      }),
+
+    costComparison: async (id: string) =>
+      orNotFound(
+        await db.costComparison.findFirst({
+          where: { id, tenantId },
+          select: { id: true, title: true, inputs: true, result: true, createdAt: true, product: { select: { id: true, name: true } }, unit: { select: { id: true, unitRef: true, accountLabel: true } }, createdBy: { select: { name: true } } },
+        }),
+        "cost comparison",
+      ),
+
+    installedBaseImports: () =>
+      db.installedBaseImport.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: { id: true, fileName: true, rowCount: true, acceptedRows: true, rejectedRows: true, createdAt: true },
+      }),
+
     governance: async () => {
       const count = (action: string) => db.auditEvent.count({ where: { tenantId, action } });
       const [approved, approvalBlocked, exportBlocked, exported, goBlocked, goDecisions, staleClaims, consentWithdrawn, openAlerts, expertAck] = await Promise.all([

@@ -12,6 +12,7 @@ import {
   MIN_INTERVIEWS_FOR_SYNTHESIS,
   OUTCOME_LABEL,
   REASON_LABEL,
+  REASONS_BY_PROFILE,
   type ConsentStatus,
   type DealOutcome,
 } from "@/domain/research/win-loss";
@@ -31,7 +32,8 @@ const reasonLabel = (r: string) => (REASON_LABEL as Record<string, string>)[r] ?
 export default async function ResearchPage() {
   const actor = await requirePageActor();
   const v = tenantDb(actor, getDb()).views;
-  const [interviews, products, competitors, syntheses] = await Promise.all([v.interviews(), v.products(), v.competitors(), v.winLossSyntheses()]);
+  const tdb = tenantDb(actor, getDb());
+  const [interviews, products, competitors, syntheses, profile] = await Promise.all([v.interviews(), v.products(), v.competitors(), v.winLossSyntheses(), tdb.tenant.industryProfile()]);
   const canEdit = hasRole(actor, "editor");
 
   const byProduct = products
@@ -201,7 +203,7 @@ export default async function ResearchPage() {
         {!canEdit ? (
           <EmptyState>Only editors can record interviews.</EmptyState>
         ) : products.length ? (
-          <InterviewForm products={products.map((p) => ({ id: p.id, label: p.name }))} competitors={competitors.map((c) => ({ id: c.id, label: c.name }))} />
+          <InterviewForm products={products.map((p) => ({ id: p.id, label: p.name }))} competitors={competitors.map((c) => ({ id: c.id, label: c.name }))} reasonCodes={REASONS_BY_PROFILE[profile]} />
         ) : (
           <EmptyState>An interview needs a product.</EmptyState>
         )}

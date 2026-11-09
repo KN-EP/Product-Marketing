@@ -2,6 +2,8 @@ import { PageHeader, Section } from "@/components/app/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { WORKFLOW_LIMITS } from "@/domain/workflow/workflow-state";
+import { ProfileForm } from "@/components/installed-base/profile-form";
+import { hasRole } from "@/domain/actor";
 import { isCredentialsLoginEnabled, isDemoSwitcherEnabled } from "@/server/auth/demo-mode";
 import { requirePageActor } from "@/server/auth/actor";
 import { getDb } from "@/server/db";
@@ -15,7 +17,7 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const actor = await requirePageActor();
   const tdb = tenantDb(actor, getDb());
-  const [tenant, members] = await Promise.all([tdb.views.tenantSettings(), tdb.views.members()]);
+  const [tenant, members, profile] = await Promise.all([tdb.views.tenantSettings(), tdb.views.members(), tdb.tenant.industryProfile()]);
   const llm = decideLlmMode();
 
   const row = (label: string, value: React.ReactNode) => (
@@ -27,7 +29,7 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Settings" description="Read-only overview. Tenant policy changes are an administrator operation and are not editable in this version." />
+      <PageHeader title="Settings" description="Overview. Tenant policy changes are an administrator operation; only the industry profile can be changed here (admins)." />
       <div className="grid gap-6 lg:grid-cols-2">
         <Section title="Tenant">
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
@@ -35,6 +37,13 @@ export default async function SettingsPage() {
             {row("Slug", <span className="font-mono text-xs">{tenant.slug}</span>)}
             {row("Demo tenant", tenant.isDemo ? "Yes — synthetic data only" : "No")}
           </dl>
+        </Section>
+        <Section title="Industry profile" description="Selects the win/loss reason codes (interviews and service hand-overs). Admins can change it.">
+          {hasRole(actor, "admin") ? (
+            <ProfileForm profile={profile} />
+          ) : (
+            <p className="text-sm">{profile === "machinery" ? "Machine builder" : "Software vendor"}</p>
+          )}
         </Section>
         <Section title="External model policy" description="Checked before every external model call.">
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">

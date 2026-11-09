@@ -335,3 +335,35 @@ and "50 %" quoted without "bis zu" and without the claim's comparison basis.
 
 Gates are deterministic patterns; they make gaps visible and do not establish truth. Unit
 `tests/unit/industry-gates.test.ts`.
+
+# Extension M18 — installed base
+
+For machine builders, revenue after the sale lives in the machines already at customers: service
+contracts, spare parts, retrofits, upgrades, replacement. From a role-play with a thermoforming
+machine builder (pilot: retrofit of one series in one region, sold by new-machine sales).
+
+1. **Installed units** (`/installed-base`): CSV export from ERP or service system — product (series),
+   unit ref, pseudonymised account, region, application, installation year or date, service contract,
+   spare-part orders in 12 months, planned material change, regulated application, last service.
+   English or German headers; rows with e-mail or phone are rejected; a re-import updates a unit
+   (unique per tenant, product, unit ref). Imports are audited with counts only.
+2. **Triggers and target list** — computed in code: older than 10 / 20 years, no service contract,
+   ≥ 3 spare-part orders, material change planned, regulated application, no service in 12 months;
+   weighted score; suggested offer by a fixed rule (material change or old and worn → retrofit; older
+   than 20 and worn → replacement; no contract → service contract; else spare parts). People decide.
+3. **Service → sales hand-over**: a finding (no contact data) becomes a hand-over due in 5 days;
+   open → contacted → offered → won / lost / no decision; overdue while open past the due day.
+   Closing records reason codes from the win/loss taxonomy (required for lost / no decision).
+4. **Industry profile** (tenant, admins): `software` or `machinery` selects the reason codes offered
+   and accepted (interviews and hand-overs). Machinery adds cost per part, technology risk, trial
+   result, delivery time, financing, local presence, third-party retrofitter, used equipment.
+5. **Cost-per-part calculator** (`/installed-base/calculator`): as is vs. retrofit (vs. new machine).
+   Cost per good part = (depreciation + maintenance + energy + labour + material) ÷ good parts
+   (output × hours × OEE × (1 − scrap)); payback = investment ÷ annual operating savings. Every input
+   carries its basis (measured, customer input, benchmark to verify, illustrative); the result says
+   "contains assumptions" and lists them. Computed in code; a model may quote it, never compute it.
+
+Demo data stays generic: no installed base is seeded; the import form offers a fictional sample.
+Demo reset removes installed-base data and sets the profile back to `software`.
+Unit `tests/unit/installed-base.test.ts`; integration `tests/integration/installed-base.test.ts`;
+E2E `tests/e2e/installed-base-flow.spec.ts`.

@@ -8,6 +8,7 @@ import type { CampaignType } from "../../domain/schemas/campaign";
 import type { ReleaseType } from "../../domain/schemas/release";
 import type { ReadinessFacts } from "../../domain/launches/launch";
 import type { LaunchPhase, LaunchTier } from "../../domain/schemas/launch";
+import type { HandoverOffer, HandoverStatus } from "../../domain/installed-base/installed-base";
 import { SALES_TOOLKIT_TYPES } from "../../domain/schemas/enablement";
 import type { KpiPatch, KpiSeed } from "../../domain/kpis/kpi";
 import { assertWorkflowTransition, type WorkflowStatus } from "../../domain/workflow/workflow-state";
@@ -97,6 +98,12 @@ export function tenantDb(actor: Actor, db: DbTx) {
           "tenant",
         );
         return { tenantId, ...t };
+      },
+      /** M18: the industry profile (selects the win/loss reason codes). */
+      industryProfile: async (): Promise<"software" | "machinery"> =>
+        orNotFound(await db.tenant.findFirst({ where: { id: tenantId }, select: { industryProfile: true } }), "tenant").industryProfile,
+      setIndustryProfile: async (profile: "software" | "machinery") => {
+        await db.tenant.updateMany({ where: { id: tenantId }, data: { industryProfile: profile } });
       },
     },
 
@@ -313,6 +320,61 @@ export function tenantDb(actor: Actor, db: DbTx) {
     },
 
     /** M15: staged launches, readiness facts and go / no-go decisions. */
+    /** M18: installed base — units, imports, service → sales hand-overs, cost comparisons. */
+    installedBase: {
+      productsByName: async () =>
+        new Map((await db.product.findMany({ where: { tenantId }, select: { id: true, name: true } })).map((p) => [p.name.trim().toLowerCase(), p.id] as const)),
+      createImport: (data: { fileName: string; rowCount: number; acceptedRows: number; rejectedRows: { line: number; reason: string }[]; importedById: string }) =>
+        db.installedBaseImport.create({ data: { ...data, rejectedRows: json(data.rejectedRows), tenantId }, select: { id: true } }),
+      /** Upsert by (tenant, product, unit ref): a re-import updates the facts, never duplicates a unit. */
+      upsertUnit: async (data: {
+        productId: string;
+        unitRef: string;
+        accountLabel: string;
+        region: string;
+        application: string;
+        installedOn: Date;
+        serviceContract: boolean;
+        sparePartOrders12m: number;
+        materialChangePlanned: boolean;
+        regulatedApplication: boolean;
+        lastServiceOn: Date | null;
+        importId: string | null;
+        isSynthetic?: boolean;
+      }) => {
+        const { productId, unitRef, ...rest } = data;
+        const r = await db.installedUnit.upsert({
+          where: { tenantId_productId_unitRef: { tenantId, productId, unitRef } },
+          create: { tenantId, productId, unitRef, ...rest },
+          update: rest,
+          select: { id: true, createdAt: true, updatedAt: true },
+        });
+        return { id: r.id, created: r.createdAt.getTime() === r.updatedAt.getTime() };
+      },
+      getUnit: async (id: string) =>
+        orNotFound(
+          await db.installedUnit.findFirst({
+            where: { id, tenantId },
+            select: { id: true, unitRef: true, accountLabel: true, product: { select: { id: true, name: true } } },
+          }),
+          "installed unit",
+        ),
+      createHandover: (data: { unitId: string; offer: HandoverOffer; finding: string; reportedById: string; reportedAt: Date; dueOn: Date }) =>
+        db.serviceHandover.create({ data: { ...data, tenantId }, select: { id: true } }),
+      getHandover: async (id: string) =>
+        orNotFound(
+          await db.serviceHandover.findFirst({ where: { id, tenantId }, select: { id: true, status: true, unitId: true, offer: true } }),
+          "hand-over",
+        ),
+      /** Optimistic status move (from → to). */
+      moveHandover: async (id: string, from: HandoverStatus, data: { status: HandoverStatus; contactedAt?: Date; offeredAt?: Date; closedAt?: Date; reasons?: string[]; note?: string | null }) => {
+        const r = await db.serviceHandover.updateMany({ where: { id, tenantId, status: from }, data });
+        if (r.count !== 1) throw new ConflictError("The hand-over changed concurrently; reload and try again.");
+      },
+      createComparison: (data: { productId: string; unitId: string | null; title: string; inputs: unknown; result: unknown; createdById: string }) =>
+        db.costComparison.create({ data: { ...data, inputs: json(data.inputs), result: json(data.result), tenantId }, select: { id: true } }),
+    },
+
     launches: {
       getById: async (id: string) =>
         orNotFound(

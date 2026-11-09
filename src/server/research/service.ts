@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { hasRole, type Actor } from "../../domain/actor";
 import { claimsToMarkStale } from "../../domain/claims/claim-state";
-import { WinLossInterviewInput } from "../../domain/research/win-loss";
+import { reasonsOutsideProfile, WinLossInterviewInput } from "../../domain/research/win-loss";
 import type { Db } from "../db/client";
 import { withTenantTx } from "../db/tenant-scope";
 import { HttpError } from "../errors";
@@ -28,6 +28,11 @@ export async function recordInterview(actor: Actor, db: Db, raw: unknown, now: D
   }
   const i = parsed.data;
   return withTenantTx(actor, db, async (t) => {
+    // M18: reason codes must belong to the tenant's industry profile.
+    const outside = reasonsOutsideProfile(await t.tenant.industryProfile(), i.reasons);
+    if (outside.length) {
+      throw new HttpError(400, "invalid_input", "Invalid interview.", [{ path: "reasons", message: `Not a reason code of this tenant's industry profile: ${outside.join(", ")}` }]);
+    }
     const product = await t.products.getById(i.productId);
     const competitor = i.competitorId ? await t.competitors.getById(i.competitorId) : null;
     let sourceId: string | null = null;

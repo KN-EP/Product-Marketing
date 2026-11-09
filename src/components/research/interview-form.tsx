@@ -17,7 +17,7 @@ const selectClass =
   "h-9 w-full rounded-md border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
 
 /** Win/loss interview form (M14). Notes only with granted consent; validation is repeated server-side. */
-export function InterviewForm({ products, competitors }: { products: Option[]; competitors: Option[] }) {
+export function InterviewForm({ products, competitors, reasonCodes }: { products: Option[]; competitors: Option[]; reasonCodes: readonly string[] }) {
   const router = useRouter();
   const [productId, setProductId] = useState(products[0]?.id ?? "");
   const [accountLabel, setAccountLabel] = useState("");
@@ -128,7 +128,7 @@ export function InterviewForm({ products, competitors }: { products: Option[]; c
       <fieldset className="rounded-lg border p-3 md:col-span-2">
         <legend className="px-1 text-sm font-medium">Reasons ({reasons.length}/5) — same codes as the CRM reason field</legend>
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
-          {Object.entries(REASON_LABEL).map(([v, l]) => (
+          {reasonCodes.map((v) => [v, REASON_LABEL[v as keyof typeof REASON_LABEL] ?? v] as const).map(([v, l]) => (
             <label key={v} className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={reasons.includes(v)} onChange={() => setReasons(toggleIn(v))} className="size-4 accent-primary" />
               {l}
