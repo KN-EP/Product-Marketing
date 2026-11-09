@@ -218,6 +218,41 @@ export function tenantViews(tenantId: string, db: DbTx) {
         "release",
       ),
 
+    /** M14: win/loss interviews (no notes: those live in the consented interview source). */
+    interviews: () =>
+      db.winLossInterview.findMany({
+        where: { tenantId },
+        orderBy: [{ decidedOn: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
+        select: {
+          id: true,
+          accountLabel: true,
+          segment: true,
+          outcome: true,
+          decidedOn: true,
+          reasons: true,
+          primaryReason: true,
+          consentStatus: true,
+          isSynthetic: true,
+          sourceId: true,
+          product: { select: { id: true, name: true } },
+          competitor: { select: { id: true, name: true } },
+        },
+      }),
+
+    /** M14: win/loss syntheses, newest first, with the product they were generated for (run inputRefs). */
+    winLossSyntheses: () =>
+      db.asset.findMany({
+        where: { tenantId, type: "win_loss_synthesis" },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          title: true,
+          state: true,
+          createdAt: true,
+          versions: { where: { tenantId }, orderBy: { versionNumber: "desc" }, take: 1, select: { versionNumber: true, gatesPassed: true, generationMode: true } },
+        },
+      }),
+
     /** M12: use case maps generated for a product (via the run's inputRefs), newest first. */
     useCaseMapsForProduct: (productId: string) =>
       db.asset.findMany({
@@ -464,6 +499,10 @@ export function tenantViews(tenantId: string, db: DbTx) {
         releasePlans,
         enablementAssets,
         enablementApproved,
+        interviews,
+        winLossSyntheses,
+        winLossApproved,
+        consentWithdrawn,
       ] = await Promise.all([
         db.workflowRun.count({ where: { tenantId, status: "completed", kind: "pmm_three_asset" } }),
         db.asset.count({ where: { tenantId, state: "pending_review", ...DELIVERABLE } }),
@@ -483,6 +522,10 @@ export function tenantViews(tenantId: string, db: DbTx) {
         db.asset.count({ where: { tenantId, type: "release_communication_plan" } }),
         db.asset.count({ where: { tenantId, type: { in: [...ENABLEMENT_TYPES] } } }),
         db.asset.count({ where: { tenantId, state: "approved", type: { in: [...ENABLEMENT_TYPES] } } }),
+        db.winLossInterview.count({ where: { tenantId } }),
+        db.asset.count({ where: { tenantId, type: "win_loss_synthesis" } }),
+        db.asset.count({ where: { tenantId, type: "win_loss_synthesis", state: "approved" } }),
+        db.winLossInterview.count({ where: { tenantId, consentStatus: "withdrawn" } }),
       ]);
       return {
         runsCompleted,
@@ -503,6 +546,10 @@ export function tenantViews(tenantId: string, db: DbTx) {
         kpis,
         kpiImports,
         performanceReviews,
+        interviews,
+        winLossSyntheses,
+        winLossApproved,
+        consentWithdrawn,
       };
     },
   };

@@ -93,6 +93,8 @@ enum AssetType {
   persona_playbook
   roi_argument
   sales_training
+  /// M14: win/loss synthesis (win_loss_synthesis run)
+  win_loss_synthesis
 }
 
 enum KpiUnit {
@@ -130,6 +132,22 @@ enum ReleaseType {
   maintenance_update
   security_update
   deprecation
+}
+
+/// M14: outcome of the deal a win/loss interview is about.
+enum DealOutcome {
+  won
+  lost
+  churned
+  no_decision
+}
+
+/// M14: consent of the interviewee to store and use the interview notes.
+enum ConsentStatus {
+  requested
+  granted
+  declined
+  withdrawn
 }
 
 enum AssetState {
@@ -199,6 +217,7 @@ model Tenant {
   kpis                   Kpi[]
   kpiMeasurements        KpiMeasurement[]
   kpiImports             KpiImport[]
+  winLossInterviews      WinLossInterview[]
 }
 
 model User {
@@ -246,6 +265,7 @@ model Product {
   claims    Claim[]
   campaigns Campaign[]
   releases  Release[]
+  winLossInterviews WinLossInterview[]
 
   @@unique([id, tenantId])
   @@index([tenantId])
@@ -292,6 +312,7 @@ model Source {
   tenant             Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   claimEvidence      ClaimEvidence[]
   competitorEvidence CompetitorEvidence[]
+  winLossInterviews  WinLossInterview[]
 
   @@unique([id, tenantId])
   @@index([tenantId, status])
@@ -429,8 +450,9 @@ model Competitor {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  tenant   Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  evidence CompetitorEvidence[]
+  tenant            Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  evidence          CompetitorEvidence[]
+  winLossInterviews WinLossInterview[]
 
   @@unique([id, tenantId])
   @@index([tenantId])
@@ -470,6 +492,46 @@ model RegulatoryTrigger {
 
   @@unique([id, tenantId])
   @@index([tenantId])
+}
+
+// ───────────────────────── Win/loss & research (M14) ─────────────────────────
+
+/// One win/loss (or churn) interview. Human input. The account is pseudonymised
+/// (no personal names). Notes are stored only with GRANTED consent, as a
+/// confidential Source of kind "interview" — so statements in a synthesis can
+/// cite verbatim excerpts (gate G4). Withdrawn consent erases the notes and
+/// invalidates the source; everything that cited it fails the gates again.
+model WinLossInterview {
+  id             String        @id @default(cuid())
+  tenantId       String
+  productId      String
+  /// Pseudonymised account label, e.g. "Mid-sized automotive supplier A".
+  accountLabel   String
+  segment        String
+  outcome        DealOutcome
+  decidedOn      DateTime?     @db.Date
+  /// The competitor the deal was won against or lost to (same tenant).
+  competitorId   String?
+  /// Reason codes from the fixed taxonomy (src/domain/research/win-loss.ts).
+  reasons        String[]
+  /// The single most important reason (one of `reasons`).
+  primaryReason  String
+  interviewedOn  DateTime?     @db.Date
+  consentStatus  ConsentStatus @default(requested)
+  consentRecordedAt DateTime?
+  /// Interview notes live in this source (null without granted consent).
+  sourceId       String?
+  isSynthetic    Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product    Product     @relation(fields: [productId, tenantId], references: [id, tenantId])
+  competitor Competitor? @relation(fields: [competitorId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  source     Source?     @relation(fields: [sourceId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@unique([id, tenantId])
+  @@index([tenantId, productId])
 }
 
 // ───────────────────────── Campaigns (M8–M10) ─────────────────────────

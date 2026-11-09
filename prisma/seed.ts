@@ -23,6 +23,7 @@ import {
   SIMULATED_MESSAGING_FRAMEWORK,
 } from "../src/demo/fixtures";
 import { buildSnapshot, type ClaimRecord, type SourceRecord } from "../src/domain/knowledge/snapshot";
+import { DEMO_INTERVIEWS } from "../src/demo/research-fixtures";
 import { runQualityGates } from "../src/domain/quality-gates/gates";
 import type { Role } from "../src/domain/actor";
 import { createPrismaClient, type Db } from "../src/server/db/client";
@@ -76,6 +77,7 @@ export const SEED_IDS = {
     competitors: ["cmp_a", "cmp_b", "cmp_c"],
     campaign: "cmpg_demo_ai_inventory",
     release: "rel_demo_2_4",
+    interview: "wli_demo_a",
   },
   [OTHER_TENANT_ID]: {
     asset: "ast_other_brief",
@@ -87,6 +89,7 @@ export const SEED_IDS = {
     competitors: ["cmp_other_1", "cmp_other_2", "cmp_other_3"],
     campaign: "cmpg_other_demo",
     release: "rel_other_demo",
+    interview: "wli_other_a",
   },
 } as const;
 
@@ -169,6 +172,44 @@ async function upsertRelease(
   const ids = SEED_IDS[tenantId];
   const r = { ...data, productId: ids.product, plannedOn: data.plannedOn ? new Date(`${data.plannedOn}T00:00:00Z`) : null, isSynthetic: true };
   await db.release.upsert({ where: { id: ids.release }, create: { id: ids.release, tenantId, ...r }, update: r });
+}
+
+/**
+ * M14: synthetic win/loss interviews. Notes (only with granted consent) are a
+ * confidential source of kind "interview". The upsert also restores consent
+ * and notes after a demo withdrawal.
+ */
+async function upsertInterviews(db: Db, tenantId: string) {
+  for (const i of DEMO_INTERVIEWS.filter((x) => x.tenantId === tenantId)) {
+    if (i.source) {
+      const data = {
+        kind: "interview" as const,
+        classification: "confidential" as const,
+        title: i.source.title,
+        url: null,
+        status: "active" as const,
+        content: i.source.content,
+        contentHash: sha256(i.source.content),
+        isSynthetic: true,
+      };
+      await db.source.upsert({ where: { id: i.source.id }, create: { id: i.source.id, tenantId, ...data }, update: data });
+    }
+    const data = {
+      productId: i.productId,
+      accountLabel: i.accountLabel,
+      segment: i.segment,
+      outcome: i.outcome,
+      decidedOn: new Date(`${seedWindow(30, 0).startsOn}T00:00:00Z`),
+      competitorId: i.competitorId,
+      reasons: i.reasons,
+      primaryReason: i.primaryReason,
+      consentStatus: i.consentStatus,
+      consentRecordedAt: i.consentStatus === "requested" ? null : new Date(`${seedWindow(30, 0).startsOn}T00:00:00Z`),
+      sourceId: i.source?.id ?? null,
+      isSynthetic: true,
+    };
+    await db.winLossInterview.upsert({ where: { id: i.id }, create: { id: i.id, tenantId, ...data }, update: data });
+  }
 }
 
 export function seedUserEmail(tenantIndex: 0 | 1, role: Role): string {
@@ -334,6 +375,7 @@ export async function seed(db: Db, opts: { password: string }): Promise<void> {
     communicationChannels: ["Email", "In-product notice", "Partner newsletter"],
     salesChannels: ["customer_success", "partner_reseller"],
   });
+  await upsertInterviews(db, DEMO_TENANT_ID);
   for (const e of DEMO_COMPETITOR_EVIDENCE) {
     const data = { competitorId: e.competitorId, sourceId: e.sourceId, assertion: e.assertion, excerpt: e.excerpt, state: e.state };
     await db.competitorEvidence.upsert({ where: { id: e.id }, create: { id: e.id, tenantId: DEMO_TENANT_ID, ...data }, update: data });
@@ -389,6 +431,7 @@ export async function seed(db: Db, opts: { password: string }): Promise<void> {
     communicationChannels: ["Email"],
     salesChannels: [],
   });
+  await upsertInterviews(db, OTHER_TENANT_ID);
   const otherKb = buildSnapshot({ tenantId: OTHER_TENANT_ID, sources: [OTHER_SOURCE], claims: [FOREIGN_CLAIM] });
   const otherContent = { ...SIMULATED_MESSAGING_FRAMEWORK, pillars: [], objections: [] };
   await upsertAsset(db, OTHER_TENANT_ID, {

@@ -11,6 +11,7 @@ import { campaignIdempotencyKey, idempotencyKey, scopedIdempotencyKey, WORKFLOW_
 import { releaseBriefNotes } from "../../domain/releases/release";
 import { GtmStrategyBriefV1, UseCaseMapV1 } from "../../domain/schemas/strategy";
 import { ENABLEMENT_CATALOG, ENABLEMENT_TYPES, type EnablementType } from "../../domain/schemas/enablement";
+import { computeWinLossStats, MIN_INTERVIEWS_FOR_SYNTHESIS, winLossBriefNotes, type DealOutcome, type ConsentStatus } from "../../domain/research/win-loss";
 import { Prisma } from "../../generated/prisma/client";
 import type { Db } from "../db/client";
 import { tenantDb, withTenantTx, type TenantDb } from "../db/tenant-scope";
@@ -35,6 +36,9 @@ import {
   StartWorkflowInput,
   USE_CASE_DEFINITION,
   USE_CASE_PROMPT_VERSIONS,
+  RESEARCH_PROMPT_VERSIONS,
+  WIN_LOSS_SYNTHESIS,
+  type WinLossRunInputRefs,
   type CampaignAssetRunInputRefs,
   type CampaignRunInputRefs,
   type ReleaseRunInputRefs,
@@ -51,6 +55,7 @@ import {
   runReleasePipeline,
   runStrategyPipeline,
   runUseCasePipeline,
+  runWinLossPipeline,
 } from "./pipeline";
 
 type Env = Record<string, string | undefined>;
@@ -110,6 +115,7 @@ const ASSET_LABEL: Record<AssetType, string> = {
   use_case_map: "Use case map & ICP",
   gtm_strategy_brief: "GTM strategy brief",
   release_communication_plan: "Release communication plan",
+  win_loss_synthesis: "Win/loss synthesis",
   // M13a + M13b
   ...(Object.fromEntries(ENABLEMENT_TYPES.map((t) => [t, ENABLEMENT_CATALOG[t].label])) as Record<EnablementType, string>),
 };
@@ -309,6 +315,33 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
         campaignId: null,
         releaseId: release.id,
       };
+    } else if (parsed.data.kind === WIN_LOSS_SYNTHESIS) {
+      const { kind, requestNonce, ...refs } = parsed.data;
+      const product = await tdb.products.getById(refs.productId);
+      const interviews = await tdb.winLoss.listForProduct(product.id);
+      const consented = interviews.filter((i) => i.consentStatus === "granted");
+      if (consented.length < MIN_INTERVIEWS_FOR_SYNTHESIS) {
+        throw new HttpError(
+          409,
+          "not_enough_interviews",
+          `A win/loss synthesis needs at least ${MIN_INTERVIEWS_FOR_SYNTHESIS} interviews with granted consent (this product has ${consented.length}).`,
+        );
+      }
+      admission = {
+        kind,
+        key: await scopedIdempotencyKey({
+          tenantId: actor.tenantId,
+          kind,
+          scope: { productId: product.id },
+          promptVersions: RESEARCH_PROMPT_VERSIONS,
+          // New, withdrawn or changed interviews mean a new synthesis run.
+          dataVersion: interviews.map((i) => `${i.id}:${i.consentStatus}:${i.updatedAt.toISOString()}`).join("|"),
+          ...(requestNonce ? { requestNonce } : {}),
+        }),
+        promptVersions: RESEARCH_PROMPT_VERSIONS,
+        inputRefs: refs,
+        campaignId: null,
+      };
     } else if (parsed.data.kind === CAMPAIGN_PERFORMANCE) {
       const { kind, requestNonce, ...refs } = parsed.data;
       const campaign = await tdb.campaigns.getById(refs.campaignId);
@@ -499,7 +532,7 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
       const refs = inputRefs as RunInputRefs;
       const { product, persona, trigger, competitors } = await this.resolve(tdb, refs);
       const [{ snapshot, sourceClassifications }, policy] = await Promise.all([
-        tdb.knowledge.snapshot({ competitorIds: refs.competitorIds }),
+        tdb.knowledge.snapshot({ competitorIds: refs.competitorIds, forAgent: true }),
         tdb.tenant.policy(),
       ]);
       const base = {
@@ -526,7 +559,7 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
       const refs = inputRefs as CampaignRunInputRefs;
       const campaign = await tdb.campaigns.getById(refs.campaignId);
       const [{ snapshot, sourceClassifications }, policy, approvedMf, approvedStrategy] = await Promise.all([
-        tdb.knowledge.snapshot(),
+        tdb.knowledge.snapshot({ forAgent: true }),
         tdb.tenant.policy(),
         tdb.assets.latestApprovedContent("messaging_framework", { productId: campaign.product.id, personaId: campaign.persona.id }),
         tdb.assets.latestApprovedForCampaign("gtm_strategy_brief", campaign.id),
@@ -568,7 +601,7 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
       const refs = inputRefs as CampaignAssetRunInputRefs;
       const campaign = await tdb.campaigns.getById(refs.campaignId);
       const [{ snapshot, sourceClassifications }, policy, approvedMf, approvedStrategy, approvedPlan] = await Promise.all([
-        tdb.knowledge.snapshot(),
+        tdb.knowledge.snapshot({ forAgent: true }),
         tdb.tenant.policy(),
         tdb.assets.latestApprovedContent("messaging_framework", { productId: campaign.product.id, personaId: campaign.persona.id }),
         tdb.assets.latestApprovedForCampaign("gtm_strategy_brief", campaign.id),
@@ -612,7 +645,7 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
       const refs = inputRefs as CampaignRunInputRefs;
       const campaign = await tdb.campaigns.getById(refs.campaignId);
       const [{ snapshot, sourceClassifications }, policy, approvedMf, approvedUcm] = await Promise.all([
-        tdb.knowledge.snapshot(),
+        tdb.knowledge.snapshot({ forAgent: true }),
         tdb.tenant.policy(),
         tdb.assets.latestApprovedContent("messaging_framework", { productId: campaign.product.id, personaId: campaign.persona.id }),
         tdb.assets.latestApprovedForProduct("use_case_map", campaign.product.id),
@@ -648,7 +681,7 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
       const refs = inputRefs as UseCaseRunInputRefs;
       const product = await tdb.products.getById(refs.productId);
       const [{ snapshot, sourceClassifications }, policy, personas] = await Promise.all([
-        tdb.knowledge.snapshot(),
+        tdb.knowledge.snapshot({ forAgent: true }),
         tdb.tenant.policy(),
         tdb.personas.list(),
       ]);
@@ -674,7 +707,7 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
     if (kind === RELEASE_COMMUNICATION) {
       const refs = inputRefs as ReleaseRunInputRefs;
       const release = await tdb.releases.getById(refs.releaseId);
-      const [{ snapshot, sourceClassifications }, policy] = await Promise.all([tdb.knowledge.snapshot(), tdb.tenant.policy()]);
+      const [{ snapshot, sourceClassifications }, policy] = await Promise.all([tdb.knowledge.snapshot({ forAgent: true }), tdb.tenant.policy()]);
       const base = {
         snapshot,
         sourceClassifications,
@@ -691,6 +724,48 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
         validationMeta: () => ({ releaseType: release.type, audiences: release.audiences.length }),
       };
     }
+    if (kind === WIN_LOSS_SYNTHESIS) {
+      const refs = inputRefs as WinLossRunInputRefs;
+      const product = await tdb.products.getById(refs.productId);
+      const interviews = await tdb.winLoss.listForProduct(product.id);
+      const consented = interviews.filter((i) => i.consentStatus === "granted");
+      if (consented.length < MIN_INTERVIEWS_FOR_SYNTHESIS) {
+        throw new HttpError(409, "not_enough_interviews", "Consent was withdrawn meanwhile: not enough consented interviews for a synthesis.");
+      }
+      const asOf = this.now().toISOString().slice(0, 10);
+      // Deterministic numbers: computed here from the consented interviews, never by the model.
+      const stats = computeWinLossStats(
+        interviews.map((i) => ({
+          outcome: i.outcome as DealOutcome,
+          segment: i.segment,
+          reasons: i.reasons,
+          primaryReason: i.primaryReason,
+          consentStatus: i.consentStatus as ConsentStatus,
+          competitorName: i.competitor?.name ?? null,
+        })),
+      );
+      const interviewSources = consented.filter((i) => i.sourceId).map((i) => ({ sourceId: i.sourceId!, label: i.accountLabel, outcome: i.outcome }));
+      // Only the consented interview sources of THIS product enter the prompt (and the generation-time gates).
+      const [{ snapshot, sourceClassifications }, policy] = await Promise.all([
+        tdb.knowledge.snapshot({ forAgent: true, interviewSourceIds: interviewSources.map((s) => s.sourceId) }),
+        tdb.tenant.policy(),
+      ]);
+      const base = {
+        snapshot,
+        sourceClassifications,
+        policy,
+        brief: { productName: product.name, notes: winLossBriefNotes(stats, interviewSources) },
+        winLossStats: { asOf, stats },
+      };
+      return {
+        snapshot,
+        titleSuffix: `${product.name} (${asOf})`,
+        campaignId: null,
+        run: (provider: LlmProvider, budget: CostBudget, progress: Progress, onStep: () => Promise<unknown>) =>
+          runWinLossPipeline(base, provider, budget, progress, onStep),
+        validationMeta: () => ({ asOf, interviews: stats.interviews, excludedWithoutConsent: stats.excludedWithoutConsent }),
+      };
+    }
     if (kind === CAMPAIGN_PERFORMANCE) {
       const refs = inputRefs as CampaignRunInputRefs;
       const campaign = await tdb.campaigns.getById(refs.campaignId);
@@ -698,7 +773,7 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
       const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
       const [kpis, { snapshot, sourceClassifications }, policy, plan] = await Promise.all([
         tdb.kpis.listForCampaign(campaign.id),
-        tdb.knowledge.snapshot(),
+        tdb.knowledge.snapshot({ forAgent: true }),
         tdb.tenant.policy(),
         tdb.assets.latestApprovedForCampaign("campaign_plan", campaign.id),
       ]);
@@ -820,4 +895,4 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
   }
 }
 
-export { CAMPAIGN_ASSET, CAMPAIGN_GTM, CAMPAIGN_PERFORMANCE, CAMPAIGN_STRATEGY, PMM_THREE_ASSET, RELEASE_COMMUNICATION, USE_CASE_DEFINITION };
+export { CAMPAIGN_ASSET, CAMPAIGN_GTM, CAMPAIGN_PERFORMANCE, CAMPAIGN_STRATEGY, PMM_THREE_ASSET, RELEASE_COMMUNICATION, USE_CASE_DEFINITION, WIN_LOSS_SYNTHESIS };

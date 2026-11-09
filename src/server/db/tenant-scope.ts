@@ -221,6 +221,60 @@ export function tenantDb(actor: Actor, db: DbTx) {
       }) => db.release.create({ data: { ...data, tenantId }, select: { id: true } }),
     },
 
+    /** M14: win/loss interviews (pseudonymised; notes only as a consented interview source). */
+    winLoss: {
+      getById: async (id: string) =>
+        orNotFound(
+          await db.winLossInterview.findFirst({
+            where: { id, tenantId },
+            select: { id: true, productId: true, outcome: true, consentStatus: true, sourceId: true },
+          }),
+          "interview",
+        ),
+      /** Product and competitor must already be resolved through this DAL (404 on a foreign id). */
+      create: (data: {
+        productId: string;
+        accountLabel: string;
+        segment: string;
+        outcome: "won" | "lost" | "churned" | "no_decision";
+        decidedOn: Date | null;
+        competitorId: string | null;
+        reasons: string[];
+        primaryReason: string;
+        interviewedOn: Date | null;
+        consentStatus: "requested" | "granted" | "declined";
+        consentRecordedAt: Date | null;
+        sourceId: string | null;
+        isSynthetic?: boolean;
+      }) => db.winLossInterview.create({ data: { ...data, tenantId }, select: { id: true } }),
+      /** Interviews of a product with the competitor name and the notes source id (stats + synthesis input). */
+      listForProduct: (productId: string) =>
+        db.winLossInterview.findMany({
+          where: { tenantId, productId },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          select: {
+            id: true,
+            accountLabel: true,
+            segment: true,
+            outcome: true,
+            reasons: true,
+            primaryReason: true,
+            consentStatus: true,
+            sourceId: true,
+            updatedAt: true,
+            competitor: { select: { name: true } },
+          },
+        }),
+      /** Optimistic: only an interview that is not yet withdrawn. */
+      markWithdrawn: async (id: string, at: Date) => {
+        const r = await db.winLossInterview.updateMany({
+          where: { id, tenantId, consentStatus: { not: "withdrawn" } },
+          data: { consentStatus: "withdrawn", consentRecordedAt: at },
+        });
+        if (r.count !== 1) throw new ConflictError("Interview changed concurrently; reload and try again.");
+      },
+    },
+
     kpis: {
       /** The campaign's KPI tree with its measurements (YYYY-MM-DD, number). */
       listForCampaign: async (campaignId: string) => {
@@ -277,12 +331,28 @@ export function tenantDb(actor: Actor, db: DbTx) {
        * Tenant-scoped read model for gates and agents, plus the classifications
        * of the sources it contains (input to the external-model gate).
        */
-      snapshot: async (opts: { competitorIds?: string[] } = {}): Promise<{
+      snapshot: async (
+        opts: {
+          competitorIds?: string[];
+          /**
+           * M14: agent prompts never see interview notes by default (confidential,
+           * consent-bound). Gates (review, export) use the full snapshot. A win/loss
+           * run passes the consented interview sources of its product explicitly.
+           */
+          forAgent?: boolean;
+          interviewSourceIds?: string[];
+        } = {},
+      ): Promise<{
         snapshot: KnowledgeSnapshot;
         sourceClassifications: DataClassification[];
       }> => {
         const [sources, claims, evidence] = await Promise.all([
-          db.source.findMany({ where: { tenantId } }),
+          db.source.findMany({
+            where: {
+              tenantId,
+              ...(opts.forAgent ? { OR: [{ kind: { not: "interview" } }, { id: { in: opts.interviewSourceIds ?? [] } }] } : {}),
+            },
+          }),
           db.claim.findMany({ where: { tenantId }, include: { evidence: { where: { tenantId } } } }),
           db.competitorEvidence.findMany({
             where: { tenantId, ...(opts.competitorIds ? { competitorId: { in: opts.competitorIds } } : {}) },
@@ -489,6 +559,9 @@ export function tenantDb(actor: Actor, db: DbTx) {
           orderBy: { createdAt: "asc" },
           select: { id: true, text: true, category: true, state: true, isSynthetic: true },
         }),
+      /** Claims (with evidence) as domain records — e.g. to find claims that cite a changed source. */
+      listRecords: async (): Promise<ClaimRecord[]> =>
+        (await db.claim.findMany({ where: { tenantId }, include: { evidence: { where: { tenantId } } } })).map(toClaimRecord),
       getById: async (id: string) =>
         orNotFound(
           await db.claim.findFirst({
@@ -525,6 +598,23 @@ export function tenantDb(actor: Actor, db: DbTx) {
         }),
       getById: async (id: string) =>
         orNotFound(await db.source.findFirst({ where: { id, tenantId } }), "source"),
+      /** M14: the notes of a consented interview, stored as a confidential interview source. */
+      createInterview: (data: { title: string; content: string; contentHash: string; retrievedAt: Date; isSynthetic?: boolean }) =>
+        db.source.create({
+          data: { tenantId, kind: "interview", classification: "confidential", url: null, publisher: null, status: "active", ...data },
+          select: { id: true },
+        }),
+      /**
+       * M14 consent withdrawn: the notes are erased and the source is invalid —
+       * anything that cited it fails gate G4 on its next check.
+       */
+      erase: async (id: string, placeholder: string, contentHash: string) => {
+        const r = await db.source.updateMany({
+          where: { id, tenantId },
+          data: { content: placeholder, contentHash, status: "invalid", version: { increment: 1 } },
+        });
+        if (r.count !== 1) throw new NotFoundError("source");
+      },
     },
 
     workflowRuns: {

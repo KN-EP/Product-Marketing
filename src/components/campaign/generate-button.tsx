@@ -10,7 +10,8 @@ type RunStart =
   | { kind: "campaign_gtm" | "campaign_performance" | "campaign_strategy"; campaignId: string }
   | { kind: "release_communication"; releaseId: string }
   | { kind: "campaign_asset"; campaignId: string; deliverableType: string }
-  | { kind: "use_case_definition"; productId: string; market: string };
+  | { kind: "use_case_definition"; productId: string; market: string }
+  | { kind: "win_loss_synthesis"; productId: string };
 
 /** Starts a record-scoped run (same validation, idempotency and limits as every run) and opens it. */
 export function StartRunButton({

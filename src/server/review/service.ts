@@ -164,7 +164,15 @@ export async function exportAssetMarkdown(actor: Actor, db: Db, assetId: string)
   assertDeliverable(rec.type);
   const { snapshot } = await tdb.knowledge.snapshot();
   const names = await tdb.memberNames([...new Set(rec.approvals.map((a) => a.reviewerId))]);
-  const markdown = exportApprovedMarkdown(rec, actor, snapshot, (id) => names.get(id) ?? "Former member");
+  let markdown: string;
+  try {
+    markdown = exportApprovedMarkdown(rec, actor, snapshot, (id) => names.get(id) ?? "Former member");
+  } catch (e) {
+    if (e instanceof DomainError && e.code === "approval_outdated") {
+      await tdb.audit.record({ actorId: actor.userId, action: "asset.export_blocked", entityType: "Asset", entityId: assetId, metadata: { reason: e.code } });
+    }
+    throw e;
+  }
   const approved = latestApprovedVersion(rec)!;
   await tdb.audit.record({
     actorId: actor.userId,

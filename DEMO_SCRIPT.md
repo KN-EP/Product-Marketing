@@ -71,5 +71,15 @@ no real company has reviewed it. Simulated mode replays prepared outputs — not
     illustrative), never a fact. **Case study:** anonymous until the customer approves — a named
     customer without documented approval is blocked (G12). **Ad copy:** Google and LinkedIn limits (G13).
 
-Current state (M13a + M13b): every step runs in the UI; steps 1–11 and the campaign generation, the strategy brief gate, the blocked content matrix, use cases, releases and campaign/release isolation are covered by the Playwright E2E suite. Before a demo,
+**Win/loss & research (M14, ~5 more minutes)**
+
+26. **/research:** six pseudonymised interviews with CRM reason codes; five with granted consent (notes
+    are a confidential interview source), one only "requested" — counted, never analysed. The
+    statistics are computed in code.
+27. **Generate win/loss synthesis:** drivers, patterns and implications; numbers only from the stats
+    (G15), quotes only as verbatim interview excerpts (G4). Approve and export.
+28. **Withdraw consent** for "automotive supplier A": notes erased, source invalid. Export the
+    approved synthesis again → blocked (`approval_outdated`). A new synthesis leaves the interview out.
+
+Current state (M13a + M13b, M14): every step runs in the UI; steps 1–11 and the campaign generation, the strategy brief gate, the blocked content matrix, use cases, releases and campaign/release isolation are covered by the Playwright E2E suite. Before a demo,
 run `npm run demo:reset` for a clean state (demo tenants only).

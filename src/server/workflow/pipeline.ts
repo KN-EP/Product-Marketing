@@ -13,6 +13,7 @@ import {
   runReleaseAgent,
   runStrategyAgent,
   runUseCaseAgent,
+  runWinLossAgent,
   type AgentInput,
   type AgentResult,
 } from "../agents";
@@ -28,6 +29,7 @@ import {
   AGENT_F_SALES_PLAY_PROMPT,
   AGENT_G_PERFORMANCE_PROMPT,
   AGENT_RELEASE_PROMPT,
+  AGENT_RESEARCH_PROMPT,
   AGENT_STRATEGY_PROMPT,
   AGENT_USE_CASE_PROMPT,
   renderPrompt,
@@ -190,4 +192,22 @@ export const runReleasePipeline = singleStep(AGENT_RELEASE_PROMPT, runReleaseAge
 /** campaign_asset (M13a + M13b): enablement agent for one deliverable type of a campaign. */
 export function runEnablementPipeline(type: EnablementType) {
   return singleStep(AGENT_ENABLEMENT_PROMPT, (input, provider) => runEnablementAgent(input, provider, type));
+}
+
+/**
+ * win_loss_synthesis (M14): the research agent writes the draft; the server
+ * then adds `asOf` and the deterministic `stats`, so the stored numbers never
+ * come from the model (gate G15 checks the text).
+ */
+export async function runWinLossPipeline(
+  base: AgentInput & { winLossStats: NonNullable<AgentInput["winLossStats"]> },
+  provider: LlmProvider,
+  budget: CostBudget,
+  progress: PipelineProgress = newProgress(),
+  onStep?: () => Promise<unknown>,
+): Promise<PipelineProgress> {
+  const step = stepper(budget, progress, onStep);
+  const r = await step(AGENT_RESEARCH_PROMPT, base, () => runWinLossAgent(base, provider));
+  (r as AgentResult<unknown>).output = { ...r.output, asOf: base.winLossStats.asOf, stats: base.winLossStats.stats };
+  return progress;
 }

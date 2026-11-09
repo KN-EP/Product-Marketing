@@ -19,12 +19,15 @@ export const PERFORMANCE_DELIVERABLE_TYPES: readonly AssetType[] = ["performance
 export const STRATEGY_DELIVERABLE_TYPES: readonly AssetType[] = ["use_case_map", "gtm_strategy_brief", "release_communication_plan"];
 /** M13a + M13b: product assets and sales toolkit (campaign_asset run). */
 export const ENABLEMENT_DELIVERABLE_TYPES: readonly AssetType[] = ENABLEMENT_TYPES;
+/** M14: win/loss synthesis (win_loss_synthesis run). */
+export const RESEARCH_DELIVERABLE_TYPES: readonly AssetType[] = ["win_loss_synthesis"];
 export const DELIVERABLE_ASSET_TYPES: readonly AssetType[] = [
   ...PMM_DELIVERABLE_TYPES,
   ...CAMPAIGN_DELIVERABLE_TYPES,
   ...PERFORMANCE_DELIVERABLE_TYPES,
   ...STRATEGY_DELIVERABLE_TYPES,
   ...ENABLEMENT_DELIVERABLE_TYPES,
+  ...RESEARCH_DELIVERABLE_TYPES,
 ];
 
 export const INPUT_BRIEF_LABEL = "Input brief (internal — not for external use)";

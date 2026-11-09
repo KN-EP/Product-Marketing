@@ -4,6 +4,8 @@ import { allowedNumbers, unknownNumbers } from "../kpis/analysis";
 import type { KpiResult } from "../schemas/performance";
 import type { EnablementAsset } from "../schemas/enablement";
 import { runEnablementGates } from "./enablement-gates";
+import { runResearchGates } from "./research-gates";
+import type { WinLossSynthesis } from "../schemas/research";
 
 /**
  * Automated quality gates. These are supporting controls: they check structure,
@@ -28,7 +30,9 @@ export type GateId =
   | "G11_number_basis"
   | "G12_customer_approval"
   | "G13_channel_limits"
-  | "G14_deliverable_type";
+  | "G14_deliverable_type"
+  // M14: win/loss synthesis (research-gates.ts)
+  | "G15_win_loss_numbers";
 
 export interface Finding {
   gate: GateId;
@@ -199,6 +203,9 @@ export function runQualityGates(
 
   // ── G11–G14: M13 deliverables (numbers, customer approval, ad limits, type) ──
   runEnablementGates(assetType, parsed.data as EnablementAsset, kb, add);
+
+  // ── G15: M14 win/loss synthesis (numbers only from the computed stats, sample size) ──
+  if (assetType === "win_loss_synthesis") runResearchGates(parsed.data as WinLossSynthesis, statements, add);
 
   return finalize(assetType, findings, statements.map((x) => x.s.kind), now);
 }

@@ -12,6 +12,7 @@ import { PerformanceReviewDraftV1, type KpiResult } from "../../domain/schemas/p
 import { ReleaseCommunicationPlanV1 } from "../../domain/schemas/release";
 import { GtmStrategyBriefV1, UseCaseMapV1 } from "../../domain/schemas/strategy";
 import { EnablementAssetV1, type EnablementType } from "../../domain/schemas/enablement";
+import { WinLossSynthesisDraftV1, type WinLossStats } from "../../domain/schemas/research";
 import { promptClassification, type DataClassification, type ExternalModelPolicy } from "../llm/classification";
 import type { LlmMode, LlmProvider, LlmUsage, OutputSpec } from "../llm/types";
 import {
@@ -25,6 +26,7 @@ import {
   AGENT_F_SALES_PLAY_PROMPT,
   AGENT_G_PERFORMANCE_PROMPT,
   AGENT_RELEASE_PROMPT,
+  AGENT_RESEARCH_PROMPT,
   AGENT_STRATEGY_PROMPT,
   AGENT_USE_CASE_PROMPT,
   renderPrompt,
@@ -53,6 +55,8 @@ export interface AgentInput {
   useCaseMap?: z.infer<typeof UseCaseMapV1>;
   /** M12: the campaign's APPROVED GTM strategy brief (agents D–F). */
   gtmStrategy?: z.infer<typeof GtmStrategyBriefV1>;
+  /** M14: server-computed statistics of the consented win/loss interviews. */
+  winLossStats?: { asOf: string; stats: WinLossStats };
 }
 
 /** The prompt input an agent sees: only the context blocks that are set. */
@@ -65,6 +69,7 @@ export function promptInputOf(input: AgentInput): PromptInput {
     ...(input.kpiResults ? { kpiResults: input.kpiResults } : {}),
     ...(input.useCaseMap ? { useCaseMap: input.useCaseMap } : {}),
     ...(input.gtmStrategy ? { gtmStrategy: input.gtmStrategy } : {}),
+    ...(input.winLossStats ? { winLossStats: input.winLossStats } : {}),
   };
 }
 
@@ -146,6 +151,13 @@ export const OUTPUT_SPECS = {
     schema: PerformanceReviewDraftV1,
     toolName: "submit_performance_review",
     toolDescription: "Submit the performance review (performance_review.v1, without KPI numbers — those are added by the system).",
+  },
+  // M14: the model writes the DRAFT; the server adds asOf + stats before the gates.
+  win_loss_synthesis: {
+    assetType: "win_loss_synthesis",
+    schema: WinLossSynthesisDraftV1,
+    toolName: "submit_win_loss_synthesis",
+    toolDescription: "Submit the win/loss synthesis (win_loss_synthesis.v1, without statistics — those are added by the system).",
   },
 } as const satisfies Record<string, OutputSpec>;
 
@@ -231,3 +243,7 @@ export function enablementSpec(type: EnablementType): OutputSpec<typeof Enableme
 /** Agent H — product assets and sales toolkit (M13a, M13b): one deliverable per run. */
 export const runEnablementAgent = (input: AgentInput, provider: LlmProvider, type: EnablementType) =>
   runAgent(enablementSpec(type), AGENT_ENABLEMENT_PROMPT, input, provider);
+
+/** M14 research agent — win/loss synthesis. Writes the draft; the statistics come from the server. */
+export const runWinLossAgent = (input: AgentInput, provider: LlmProvider) =>
+  runAgent(OUTPUT_SPECS.win_loss_synthesis, AGENT_RESEARCH_PROMPT, input, provider);

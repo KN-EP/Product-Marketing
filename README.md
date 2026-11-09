@@ -23,6 +23,9 @@ This repository is being built milestone by milestone (see `IMPLEMENTATION_PLAN.
 | M7 | Demo correctness (QA), demo reset, hardening, Playwright E2E | 🔍 in review |
 | M8–M10 | Campaign package: campaigns, agents D/E/F (campaign plan, content matrix, sales play), `/campaigns`, guided demo steps 16–19 | 🔍 in review (`feature/m8-gtm-capabilities`) |
 | M11 | KPI analysis: KPI tree from the approved plan, CSV import, computed target vs. actual, agent G performance review (gate G10), demo steps 20–22 | 🔍 in review (`feature/m11-kpi-analysis`, stacked on M8–M10) |
+| M12 | Strategy first: use cases & ICP, GTM strategy brief as gate, release communication | 🔍 in review (`feature/m12-strategy-first`) |
+| M13 | Product assets and sales toolkit (17 deliverables, gates G11–G14) | 🔍 in review (`feature/m13-assets-sales-toolkit`) |
+| M14 | Win/loss & research: pseudonymised interviews with consent tracking, computed statistics, win/loss synthesis (gate G15), consent withdrawal invalidates evidence, export re-checks the gates | 🔍 in review (`feature/m14-win-loss-research`) |
 
 ## Requirements
 

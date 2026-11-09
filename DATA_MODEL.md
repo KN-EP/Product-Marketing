@@ -21,6 +21,7 @@ record at database level.
 | Competitor, CompetitorEvidence | Competitive facts | evidence has its own review state |
 | RegulatoryTrigger | e.g. EU AI Act | links source ids |
 | Campaign | Campaign briefing (M8) | type (demand_generation / conversion / retention / loyalty / sales_enablement), objective, product, persona, market, **`communicationChannels`** (free text, e.g. LinkedIn, email, webinar) and **`salesChannels`** (fixed list: direct_sales, inside_sales, partner_reseller, marketplace, customer_success) — split in M12, formerly one `channels` list; optional `startsOn`/`endsOn` (date) and `budgetEur`; composite FKs to Product and Persona |
+| WinLossInterview | Win/loss interview (M14) | product, pseudonymised `accountLabel`, segment, outcome (won / lost / churned / no_decision), optional competitor and dates, `reasons[]` + `primaryReason` (fixed taxonomy), `consentStatus` (requested / granted / declined / withdrawn), `sourceId` → the confidential `interview` source holding the notes (only with granted consent); composite FKs to Product, Competitor, Source |
 | Release | Planned release or update (M12) | product, name, version, type (major_release / feature_update / maintenance_update / security_update / deprecation), optional `plannedOn` (date), summary, `changes[]`, `audiences[]` (existing_customers, prospects, partners_resellers, internal_sales, internal_support), communication and sales channels; composite FK to Product |
 | Kpi | KPI of a campaign (M11) | from the approved plan (`sourceVersionId`, `position`); human `target`, `baseline`, `unit`, `direction`, `aggregation`; unique per campaign and name; cascades with the campaign |
 | KpiMeasurement | One value per KPI and period start | `@@unique([kpiId, periodStart])` → a re-import replaces; `importId` (composite FK) |
@@ -39,7 +40,8 @@ record at database level.
 deliverables — product assets (`product_page`, `solution_brief`, `whitepaper_outline`,
 `thought_leadership`, `regulatory_explainer`, `case_study`, `ad_copy`, `webinar_outline`,
 `video_script`, `industry_narrative`) and the sales toolkit (`pitch_deck_outline`, `demo_story`,
-`one_pager`, `discovery_guide`, `persona_playbook`, `roi_argument`, `sales_training`). All seventeen
+`one_pager`, `discovery_guide`, `persona_playbook`, `roi_argument`, `sales_training`), since M14
+`win_loss_synthesis` (stored with the server-computed `stats` and `asOf`). All seventeen
 share `enablement_asset.v1` (sections of blocks, each block a Statement; named assumptions; an
 optional customer reference for case studies) and are linked to their campaign. Schemas:
 `src/domain/schemas/agents.ts`, `campaign.ts`, `performance.ts`, `strategy.ts`, `release.ts`,
@@ -53,4 +55,6 @@ keys back into schema order (`src/domain/schemas/display-order.ts`).
 `20261019190729_init`, `20261020090000_human_edit_provenance`, `20261028190000_campaigns`,
 `20261029090000_kpis`, `20261030120000_strategy_first` (renames `Campaign.channels` to
 `communicationChannels` and moves "Sales outreach" / "Customer success" into `salesChannels`),
-`20261107120000_assets_sales_toolkit` (17 new `AssetType` values; no table or data changes).
+`20261107120000_assets_sales_toolkit` (17 new `AssetType` values; no table or data changes),
+`20261109120000_win_loss_research` (`DealOutcome`, `ConsentStatus`, `WinLossInterview`, asset type
+`win_loss_synthesis`).

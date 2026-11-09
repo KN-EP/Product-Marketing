@@ -33,7 +33,8 @@ export class DomainError extends Error {
       | "expert_ack_required"
       | "not_current_version"
       | "tenant_mismatch"
-      | "not_approved",
+      | "not_approved"
+      | "approval_outdated",
     message: string,
   ) {
     super(message);
