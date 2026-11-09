@@ -61,9 +61,15 @@ export default async function DemoPage() {
     { n: "26", title: "Release communication plan", what: "On the release, “Generate communication plan”: release tier, message per audience, timeline from internal enablement (T-14) to follow-up, release notes, customer notice and sales/support FAQ. Planned features are stated as planned, not as facts.", href: "/releases", linkText: "Releases", done: p.releasePlans > 0 },
   ];
 
+  const assetSteps: Step[] = [
+    { n: "27", title: "Assets & sales toolkit", what: "On the campaign (strategy brief approved), section “3 · Assets & sales toolkit”: pick a deliverable — product page, solution brief, case study, ad copy, pitch deck outline, demo story, discovery guide, ROI argument and more — and generate it. One deliverable per run, built on the approved strategy brief.", href: "/campaigns", linkText: "Campaigns", done: p.enablementAssets > 0 },
+    { n: "28", title: "One-pager: a number without basis is blocked", what: "Generate the one-pager: “Teams save 40 % …” is stated as fact without a claim → gate G11 blocks approval. As editor, “Create corrected version” → “Load prepared correction (simulated)”: the number becomes a marked, illustrative assumption. Save v2, submit, approve.", href: "/approvals", linkText: "Review queue" },
+    { n: "29", title: "ROI argument and case study", what: "Generate the ROI argument: every number rests on a named assumption (customer input, benchmark to verify, illustrative) and is never a fact. The case study stays anonymous — a named customer without documented approval would be blocked (gate G12). Approve and export.", href: "/campaigns", linkText: "Campaigns", done: p.enablementApproved > 0 },
+  ];
+
   return (
     <>
-      <PageHeader title="Guided demo" description="P0 demonstration flow (steps 1–15, ~15 minutes), strategy first and the campaign package (steps 16–21, ~12 minutes), the KPI analysis (steps 22–24, ~5 minutes) and release communication (steps 25–26, ~3 minutes). Every step opens the real page." />
+      <PageHeader title="Guided demo" description="P0 demonstration flow (steps 1–15, ~15 minutes), strategy first and the campaign package (steps 16–21, ~12 minutes), the KPI analysis (steps 22–24, ~5 minutes), release communication (steps 25–26, ~3 minutes) and assets & sales toolkit (steps 27–29, ~5 minutes). Every step opens the real page." />
       <Alert>
         <AlertTitle>Say this up front</AlertTitle>
         <AlertDescription>
@@ -81,6 +87,7 @@ export default async function DemoPage() {
       <StepList title="Strategy first and campaign package (M8–M10, M12)" steps={campaignSteps} />
       <StepList title="KPI analysis (M11)" steps={kpiSteps} />
       <StepList title="Release & update communication (M12)" steps={releaseSteps} />
+      <StepList title="Assets & sales toolkit (M13)" steps={assetSteps} />
       <Section title="Isolation check (optional)">
         <p className="text-sm text-muted-foreground">
           Sign in as a user of the second demo tenant and open an asset, run or campaign URL of the first demo tenant: it returns 404, exactly like an id that does not exist.

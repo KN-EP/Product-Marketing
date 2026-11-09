@@ -141,7 +141,7 @@ describe("B8 — demo reset", () => {
     await decideAction({ assetId: mf.assetId, versionId: mf.versionId, decision: "rejected", comment: "x" });
 
     const counts = await resetDemoData(db);
-    expect(counts.tenants.sort()).toEqual(["dataguard-demo", "other-demo"]);
+    expect(counts.tenants.sort()).toEqual(["nordlicht-demo", "other-demo"]);
     expect(counts.workflowRuns).toBeGreaterThanOrEqual(1);
     expect(counts.assets).toBeGreaterThanOrEqual(4);
     expect(counts.approvals).toBeGreaterThanOrEqual(1);
@@ -160,7 +160,7 @@ describe("B8 — demo reset", () => {
   it("refuses a non-demo tenant and NODE_ENV=production", async () => {
     await getDb().tenant.upsert({ where: { id: NON_DEMO.id }, create: { ...NON_DEMO, name: "IT non-demo tenant", isDemo: false }, update: { isDemo: false } });
     await expect(resetDemoData(getDb(), { tenantSlugs: [NON_DEMO.slug] })).rejects.toBeInstanceOf(DemoResetRefused);
-    await expect(resetDemoData(getDb(), { tenantSlugs: ["dataguard-demo", NON_DEMO.slug] })).rejects.toThrow(/not a demo tenant/);
+    await expect(resetDemoData(getDb(), { tenantSlugs: ["nordlicht-demo", NON_DEMO.slug] })).rejects.toThrow(/not a demo tenant/);
     await expect(resetDemoData(getDb(), { env: { NODE_ENV: "production" } })).rejects.toThrow(/production/);
   });
 

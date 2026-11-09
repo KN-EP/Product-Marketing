@@ -1,8 +1,8 @@
 /**
  * Seed: SYNTHETIC demo data only.
  *
- * - "DataGuard Demo – Unofficial" from src/demo/fixtures.ts (synthetic; not a
- *   DataGuard product and implies no approval by DataGuard).
+ * - "Nordlicht Demo (fiktiv)" from src/demo/fixtures.ts (synthetic; not a
+ *   real company's product and implies no approval by any company).
  * - A second synthetic tenant, used to prove tenant isolation.
  * - editor / reviewer / admin per tenant. Passwords: DEMO_USER_PASSWORD.
  *
@@ -60,7 +60,7 @@ export const OTHER_TENANT_NAME = "Other Demo Tenant – Synthetic";
 const ROLES: Role[] = ["editor", "reviewer", "admin"];
 
 export const SEED_TENANTS = [
-  { id: DEMO_TENANT_ID, slug: "dataguard-demo", name: DEMO_TENANT_NAME, emailDomain: "dataguard-demo.example", userPrefix: "usr_demo" },
+  { id: DEMO_TENANT_ID, slug: "nordlicht-demo", name: DEMO_TENANT_NAME, emailDomain: "nordlicht-demo.example", userPrefix: "usr_demo" },
   { id: OTHER_TENANT_ID, slug: "other-demo", name: OTHER_TENANT_NAME, emailDomain: "other-demo.example", userPrefix: "usr_other" },
 ] as const;
 
@@ -274,12 +274,12 @@ export async function seed(db: Db, opts: { password: string }): Promise<void> {
     }
   }
 
-  // ── Tenant A: DataGuard Demo – Unofficial (fixtures) ──
+  // ── Tenant A: Nordlicht Demo (fiktiv) (fixtures) ──
   const demoProduct = "prd_demo_ai_governance";
   const productData = {
     name: "[SYNTHETIC] AI Governance module (demo)",
     area: "AI governance",
-    description: "Synthetic demo product. Does not describe a real DataGuard product.",
+    description: "Synthetic demo product. Does not describe a real company's product.",
     isSynthetic: true,
   };
   await db.product.upsert({

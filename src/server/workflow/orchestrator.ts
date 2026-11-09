@@ -10,6 +10,7 @@ import { MessagingFrameworkV1 } from "../../domain/schemas/agents";
 import { campaignIdempotencyKey, idempotencyKey, scopedIdempotencyKey, WORKFLOW_LIMITS, type WorkflowStatus } from "../../domain/workflow/workflow-state";
 import { releaseBriefNotes } from "../../domain/releases/release";
 import { GtmStrategyBriefV1, UseCaseMapV1 } from "../../domain/schemas/strategy";
+import { ENABLEMENT_CATALOG, ENABLEMENT_TYPES, type EnablementType } from "../../domain/schemas/enablement";
 import { Prisma } from "../../generated/prisma/client";
 import type { Db } from "../db/client";
 import { tenantDb, withTenantTx, type TenantDb } from "../db/tenant-scope";
@@ -19,10 +20,12 @@ import { INPUT_BRIEF_LABEL, isInternalAssetType } from "../assets/deliverables";
 import { log } from "../log";
 import { sanitizeError } from "./errors";
 import {
+  CAMPAIGN_ASSET,
   CAMPAIGN_GTM,
   CAMPAIGN_PERFORMANCE,
   CAMPAIGN_PROMPT_VERSIONS,
   CAMPAIGN_STRATEGY,
+  ENABLEMENT_PROMPT_VERSIONS,
   PERFORMANCE_PROMPT_VERSIONS,
   PMM_THREE_ASSET,
   PROMPT_VERSIONS,
@@ -32,6 +35,7 @@ import {
   StartWorkflowInput,
   USE_CASE_DEFINITION,
   USE_CASE_PROMPT_VERSIONS,
+  type CampaignAssetRunInputRefs,
   type CampaignRunInputRefs,
   type ReleaseRunInputRefs,
   type RunInputRefs,
@@ -41,6 +45,7 @@ import { assertCanRetry, assertConcurrencyAvailable, CostBudget, costCapUsd } fr
 import {
   newProgress,
   runCampaignPipeline,
+  runEnablementPipeline,
   runPerformancePipeline,
   runPmmPipeline,
   runReleasePipeline,
@@ -105,6 +110,8 @@ const ASSET_LABEL: Record<AssetType, string> = {
   use_case_map: "Use case map & ICP",
   gtm_strategy_brief: "GTM strategy brief",
   release_communication_plan: "Release communication plan",
+  // M13a + M13b
+  ...(Object.fromEntries(ENABLEMENT_TYPES.map((t) => [t, ENABLEMENT_CATALOG[t].label])) as Record<EnablementType, string>),
 };
 
 /** An active run whose row has not changed for this long is considered stale. */
@@ -225,6 +232,28 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
           ...(requestNonce ? { requestNonce } : {}),
         }),
         promptVersions: CAMPAIGN_PROMPT_VERSIONS,
+        inputRefs: refs,
+        campaignId: campaign.id,
+      };
+    } else if (parsed.data.kind === CAMPAIGN_ASSET) {
+      const { kind, requestNonce, ...refs } = parsed.data;
+      const campaign = await tdb.campaigns.getById(refs.campaignId);
+      // M13: like the campaign package, every asset is built on a human-approved GTM strategy brief.
+      const strategy = await tdb.assets.latestApprovedForCampaign("gtm_strategy_brief", campaign.id);
+      if (!strategy || !GtmStrategyBriefV1.safeParse(strategy.content).success) {
+        throw new HttpError(409, "strategy_not_approved", "Approve the GTM strategy brief before generating assets or sales toolkit deliverables.");
+      }
+      admission = {
+        kind,
+        key: await scopedIdempotencyKey({
+          tenantId: actor.tenantId,
+          kind,
+          scope: { campaignId: campaign.id, deliverableType: refs.deliverableType },
+          promptVersions: ENABLEMENT_PROMPT_VERSIONS,
+          dataVersion: strategy.versionId,
+          ...(requestNonce ? { requestNonce } : {}),
+        }),
+        promptVersions: ENABLEMENT_PROMPT_VERSIONS,
         inputRefs: refs,
         campaignId: campaign.id,
       };
@@ -535,6 +564,50 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
         }),
       };
     }
+    if (kind === CAMPAIGN_ASSET) {
+      const refs = inputRefs as CampaignAssetRunInputRefs;
+      const campaign = await tdb.campaigns.getById(refs.campaignId);
+      const [{ snapshot, sourceClassifications }, policy, approvedMf, approvedStrategy, approvedPlan] = await Promise.all([
+        tdb.knowledge.snapshot(),
+        tdb.tenant.policy(),
+        tdb.assets.latestApprovedContent("messaging_framework", { productId: campaign.product.id, personaId: campaign.persona.id }),
+        tdb.assets.latestApprovedForCampaign("gtm_strategy_brief", campaign.id),
+        tdb.assets.latestApprovedForCampaign("campaign_plan", campaign.id),
+      ]);
+      const mf = approvedMf ? MessagingFrameworkV1.safeParse(approvedMf.content) : null;
+      const strategy = approvedStrategy ? GtmStrategyBriefV1.safeParse(approvedStrategy.content) : null;
+      if (!strategy?.success) {
+        throw new HttpError(409, "strategy_not_approved", "Approve the GTM strategy brief before generating assets or sales toolkit deliverables.");
+      }
+      const plan = approvedPlan ? CampaignPlanV1.safeParse(approvedPlan.content) : null;
+      const base = {
+        snapshot,
+        sourceClassifications,
+        policy,
+        brief: {
+          productName: campaign.product.name,
+          market: campaign.market,
+          persona: `${campaign.persona.name} (${campaign.persona.role})`,
+          notes: `${campaignBriefNotes(campaign)}\nrequested_deliverable_type: ${refs.deliverableType}`,
+        },
+        ...(mf?.success ? { messagingFramework: mf.data } : {}),
+        gtmStrategy: strategy.data,
+        ...(plan?.success ? { campaignPlan: plan.data } : {}),
+      };
+      return {
+        snapshot,
+        titleSuffix: campaign.name,
+        campaignId: campaign.id,
+        run: (provider: LlmProvider, budget: CostBudget, progress: Progress, onStep: () => Promise<unknown>) =>
+          runEnablementPipeline(refs.deliverableType)(base, provider, budget, progress, onStep),
+        validationMeta: () => ({
+          deliverableType: refs.deliverableType,
+          approvedStrategyVersionId: approvedStrategy!.versionId,
+          approvedMessagingFrameworkVersionId: mf?.success ? approvedMf!.versionId : null,
+          approvedCampaignPlanVersionId: plan?.success ? approvedPlan!.versionId : null,
+        }),
+      };
+    }
     if (kind === CAMPAIGN_STRATEGY) {
       const refs = inputRefs as CampaignRunInputRefs;
       const campaign = await tdb.campaigns.getById(refs.campaignId);
@@ -747,4 +820,4 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
   }
 }
 
-export { CAMPAIGN_GTM, CAMPAIGN_PERFORMANCE, CAMPAIGN_STRATEGY, PMM_THREE_ASSET, RELEASE_COMMUNICATION, USE_CASE_DEFINITION };
+export { CAMPAIGN_ASSET, CAMPAIGN_GTM, CAMPAIGN_PERFORMANCE, CAMPAIGN_STRATEGY, PMM_THREE_ASSET, RELEASE_COMMUNICATION, USE_CASE_DEFINITION };

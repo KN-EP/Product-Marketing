@@ -11,6 +11,7 @@ import { CampaignPlanV1, ContentMatrixV1, SalesPlayV1 } from "../../domain/schem
 import { PerformanceReviewDraftV1, type KpiResult } from "../../domain/schemas/performance";
 import { ReleaseCommunicationPlanV1 } from "../../domain/schemas/release";
 import { GtmStrategyBriefV1, UseCaseMapV1 } from "../../domain/schemas/strategy";
+import { EnablementAssetV1, type EnablementType } from "../../domain/schemas/enablement";
 import { promptClassification, type DataClassification, type ExternalModelPolicy } from "../llm/classification";
 import type { LlmMode, LlmProvider, LlmUsage, OutputSpec } from "../llm/types";
 import {
@@ -20,6 +21,7 @@ import {
   AGENT_C_REGULATORY_PROMPT,
   AGENT_D_CAMPAIGN_PLAN_PROMPT,
   AGENT_E_CONTENT_MATRIX_PROMPT,
+  AGENT_ENABLEMENT_PROMPT,
   AGENT_F_SALES_PLAY_PROMPT,
   AGENT_G_PERFORMANCE_PROMPT,
   AGENT_RELEASE_PROMPT,
@@ -212,3 +214,20 @@ export const runStrategyAgent = (input: AgentInput, provider: LlmProvider) =>
 /** M12 release agent — release and update communication plan. */
 export const runReleaseAgent = (input: AgentInput, provider: LlmProvider) =>
   runAgent(OUTPUT_SPECS.release_communication_plan, AGENT_RELEASE_PROMPT, input, provider);
+
+/**
+ * M13a + M13b: output spec of one enablement deliverable. All 17 types share
+ * enablement_asset.v1 and the tool; the asset type is the requested deliverable.
+ */
+export function enablementSpec(type: EnablementType): OutputSpec<typeof EnablementAssetV1> {
+  return {
+    assetType: type,
+    schema: EnablementAssetV1,
+    toolName: "submit_enablement_asset",
+    toolDescription: "Submit the requested enablement deliverable (enablement_asset.v1).",
+  };
+}
+
+/** Agent H — product assets and sales toolkit (M13a, M13b): one deliverable per run. */
+export const runEnablementAgent = (input: AgentInput, provider: LlmProvider, type: EnablementType) =>
+  runAgent(enablementSpec(type), AGENT_ENABLEMENT_PROMPT, input, provider);

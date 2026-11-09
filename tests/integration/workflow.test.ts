@@ -340,7 +340,7 @@ describe("review persistence (acceptance E, F, G)", () => {
     expect(exp.ok).toBe(true);
     const md = (exp as { data: { markdown: string } }).data.markdown;
     expect(md).toContain(`| Version | v2 (${v2}) |`);
-    expect(md).toContain("[SYNTHETIC] DataGuard Demo – Unofficial reviewer");
+    expect(md).toContain("[SYNTHETIC] Nordlicht Demo (fiktiv) reviewer");
     expect(md).toContain("## Sources");
     expect(md).toContain("`src_demo_competitor_a`");
     expect(md).toContain("competitor-evidence:cev_a_no_register");

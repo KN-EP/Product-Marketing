@@ -27,7 +27,7 @@ record at database level.
 | KpiImport | CSV import record | file name, row counts, rejected rows (line + reason only), importer |
 | Asset | Logical deliverable | state, `currentVersionId`; `campaignId` for campaign deliverables, `releaseId` for release communication plans (composite FKs, ON DELETE RESTRICT) |
 | AssetVersion | Immutable content snapshot | `content`, `gateReport`, `gatesPassed`, `generationMode` (live/simulated) |
-| WorkflowRun | Execution record | kind (`pmm_three_asset` / `campaign_strategy` / `campaign_gtm` / `campaign_performance` / `use_case_definition` / `release_communication`), status, idempotencyKey (unique per tenant), model, prompt versions, usage, cost, error; `campaignId` for campaign runs, `releaseId` for release runs |
+| WorkflowRun | Execution record | kind (`pmm_three_asset` / `campaign_strategy` / `campaign_gtm` / `campaign_performance` / `use_case_definition` / `release_communication` / `campaign_asset`), status, idempotencyKey (unique per tenant), model, prompt versions, usage, cost, error; `campaignId` for campaign runs, `releaseId` for release runs |
 | Approval | Human decision on one AssetVersion | approved / rejected / changes_requested + comment |
 | AuditEvent | Change log | sanitized metadata only |
 
@@ -35,9 +35,15 @@ record at database level.
 `product_intelligence_brief` (internal input), `messaging_framework`, `competitive_battlecard`,
 `regulatory_gtm_brief`, since M8 `campaign_plan`, `content_matrix`, `sales_play`, and since M11
 `performance_review` (stored with the server-computed `kpiSnapshot`), since M12 `use_case_map`,
-`gtm_strategy_brief` and `release_communication_plan`. Schemas:
+`gtm_strategy_brief` and `release_communication_plan`, and since M13 seventeen enablement
+deliverables — product assets (`product_page`, `solution_brief`, `whitepaper_outline`,
+`thought_leadership`, `regulatory_explainer`, `case_study`, `ad_copy`, `webinar_outline`,
+`video_script`, `industry_narrative`) and the sales toolkit (`pitch_deck_outline`, `demo_story`,
+`one_pager`, `discovery_guide`, `persona_playbook`, `roi_argument`, `sales_training`). All seventeen
+share `enablement_asset.v1` (sections of blocks, each block a Statement; named assumptions; an
+optional customer reference for case studies) and are linked to their campaign. Schemas:
 `src/domain/schemas/agents.ts`, `campaign.ts`, `performance.ts`, `strategy.ts`, `release.ts`,
-`channels.ts`. Statements carry `kpiRefs`
+`channels.ts`, `enablement.ts`. Statements carry `kpiRefs`
 (KPI names; only valid in performance reviews).
 
 Stored content is `jsonb`, which does not keep object key order; the UI and the Markdown export put
@@ -46,4 +52,5 @@ keys back into schema order (`src/domain/schemas/display-order.ts`).
 ## Migrations
 `20261019190729_init`, `20261020090000_human_edit_provenance`, `20261028190000_campaigns`,
 `20261029090000_kpis`, `20261030120000_strategy_first` (renames `Campaign.channels` to
-`communicationChannels` and moves "Sales outreach" / "Customer success" into `salesChannels`).
+`communicationChannels` and moves "Sales outreach" / "Customer success" into `salesChannels`),
+`20261107120000_assets_sales_toolkit` (17 new `AssetType` values; no table or data changes).

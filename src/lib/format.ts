@@ -1,3 +1,4 @@
+import { ENABLEMENT_CATALOG, ENABLEMENT_TYPES } from "@/domain/schemas/enablement";
 const DATE_FMT = new Intl.DateTimeFormat("en-GB", {
   year: "numeric",
   month: "short",
@@ -32,6 +33,8 @@ export const ASSET_TYPE_LABEL: Record<string, string> = {
   use_case_map: "Use case map & ICP",
   gtm_strategy_brief: "GTM strategy brief",
   release_communication_plan: "Release communication plan",
+  // M13a + M13b
+  ...Object.fromEntries(ENABLEMENT_TYPES.map((t) => [t, ENABLEMENT_CATALOG[t].label])),
 };
 
 export const CAMPAIGN_TYPE_LABEL: Record<string, string> = {
@@ -49,6 +52,7 @@ export const RUN_KIND_LABEL: Record<string, string> = {
   use_case_definition: "Use cases & ICP",
   campaign_strategy: "GTM strategy brief",
   release_communication: "Release communication plan",
+  campaign_asset: "Asset / sales toolkit deliverable",
 };
 
 /** Calendar date (UTC) for date-only fields such as campaign start/end. */

@@ -5,7 +5,7 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { login } from "./helpers";
 
-const USERS = { editor: "editor@dataguard-demo.example", otherAdmin: "admin@other-demo.example" };
+const USERS = { editor: "editor@nordlicht-demo.example", otherAdmin: "admin@other-demo.example" };
 const SEEDED_RELEASE = "[SYNTHETIC] Review reminders and bulk export · 2.4";
 
 async function noHorizontalScroll(page: Page) {
@@ -69,7 +69,7 @@ test("editor plans a new release through the form", async () => {
   await expect(page.getByRole("heading", { name: "Security patch · 2.4.1" })).toBeVisible();
 });
 
-test("a user of another tenant gets 404 for the DataGuard release URL", async ({ page: other }) => {
+test("a user of another tenant gets 404 for the demo release URL", async ({ page: other }) => {
   await login(other, USERS.otherAdmin);
   const res = await other.goto(releaseUrl);
   expect(res?.status()).toBe(404);

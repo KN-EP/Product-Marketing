@@ -3,9 +3,9 @@
 AI-assisted, human-managed Product Marketing operating system for B2B technology companies.
 Built by ExtendPartner Solutions GmbH.
 
-> **Demo data disclaimer.** The seeded tenant "DataGuard Demo – Unofficial" contains only
-> **synthetic** example data. It is not a DataGuard product, does not describe real DataGuard
-> features and implies no approval by DataGuard.
+> **Demo data disclaimer.** The seeded tenant "Nordlicht Demo (fiktiv)" contains only
+> **synthetic** example data. It is not a real company's product, does not describe real
+> features and implies no approval by any company.
 
 ## Status
 
@@ -99,7 +99,7 @@ npm run dev                   # http://localhost:3000/login → /demo
 ```
 
 Seeded demo users (password: `DEMO_USER_PASSWORD`), all synthetic:
-`editor|reviewer|admin@dataguard-demo.example` and `editor|reviewer|admin@other-demo.example`.
+`editor|reviewer|admin@nordlicht-demo.example` and `editor|reviewer|admin@other-demo.example`.
 With `DEMO_MODE=true` in development, `/login` also shows a one-click demo identity switcher;
 it is hard-disabled when `NODE_ENV=production`.
 

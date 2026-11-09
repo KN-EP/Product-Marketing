@@ -2,6 +2,8 @@ import Link from "next/link";
 import { GatesBadge, ModeBadge, StateBadge, SyntheticTag } from "@/components/app/badges";
 import { EmptyState, PageHeader, Section } from "@/components/app/page-header";
 import { GenerateCampaignPackageButton, GenerateStrategyButton } from "@/components/campaign/generate-button";
+import { AssetStart } from "@/components/campaign/asset-start";
+import { isEnablementType } from "@/domain/schemas/enablement";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -30,7 +32,9 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
   const play = playTypeFor(c.type);
   // Performance reviews are listed on the performance page; the strategy brief has its own section (M12).
   const strategyAssets = c.assets.filter((a) => a.type === "gtm_strategy_brief");
-  const packageAssets = c.assets.filter((a) => a.type !== "performance_review" && a.type !== "gtm_strategy_brief");
+  const packageAssets = c.assets.filter((a) => a.type !== "performance_review" && a.type !== "gtm_strategy_brief" && !isEnablementType(a.type));
+  // M13a + M13b: product assets and sales toolkit, one run per deliverable.
+  const enablementAssets = c.assets.filter((a) => isEnablementType(a.type));
   const strategyApproved = strategyAssets.some((a) => a.state === "approved");
 
   const briefing: [string, React.ReactNode][] = [
@@ -127,6 +131,24 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
           <EmptyState>No deliverables yet. {canGenerate ? "Generate the campaign package to create them." : "An editor can generate them."}</EmptyState>
         ) : (
           <AssetTable assets={packageAssets} />
+        )}
+      </Section>
+
+      <Section
+        id="assets"
+        title="3 · Assets & sales toolkit"
+        description="Product pages, solution briefs, case studies, ad copy, decks, demo stories, discovery guides, ROI arguments and more — one deliverable per run, built on the approved strategy brief and checked by the gates (numbers need a claim or a marked assumption; named customers need documented approval; ad copy within platform limits)."
+      >
+        {canGenerate ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <AssetStart campaignId={c.id} strategyApproved={strategyApproved} />
+            {!strategyApproved ? <span className="text-sm text-muted-foreground">Assets and sales toolkit are available once the strategy brief is approved.</span> : null}
+          </div>
+        ) : null}
+        {enablementAssets.length === 0 ? (
+          <EmptyState>No assets or sales toolkit deliverables yet.</EmptyState>
+        ) : (
+          <AssetTable assets={enablementAssets} />
         )}
       </Section>
 

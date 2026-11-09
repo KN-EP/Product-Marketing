@@ -2,6 +2,8 @@ import { ASSET_SCHEMAS, collectStatements, type AssetType } from "../schemas/age
 import { excerptExistsInSource, type KnowledgeSnapshot } from "../knowledge/snapshot";
 import { allowedNumbers, unknownNumbers } from "../kpis/analysis";
 import type { KpiResult } from "../schemas/performance";
+import type { EnablementAsset } from "../schemas/enablement";
+import { runEnablementGates } from "./enablement-gates";
 
 /**
  * Automated quality gates. These are supporting controls: they check structure,
@@ -21,7 +23,12 @@ export type GateId =
   | "G6_fact_interpretation_separation"
   | "G7_regulatory_expert_review"
   | "G7b_comparative_support"
-  | "G10_kpi_numbers";
+  | "G10_kpi_numbers"
+  // M13: product assets and sales toolkit (enablement-gates.ts)
+  | "G11_number_basis"
+  | "G12_customer_approval"
+  | "G13_channel_limits"
+  | "G14_deliverable_type";
 
 export interface Finding {
   gate: GateId;
@@ -189,6 +196,9 @@ export function runQualityGates(
       add("G7b_comparative_support", "critical", path, "Comparative assertion without approved competitor evidence");
     }
   }
+
+  // ── G11–G14: M13 deliverables (numbers, customer approval, ad limits, type) ──
+  runEnablementGates(assetType, parsed.data as EnablementAsset, kb, add);
 
   return finalize(assetType, findings, statements.map((x) => x.s.kind), now);
 }

@@ -1,9 +1,9 @@
 # Demo script (target, ~15 minutes)
 
-Say up front: *"Everything you see uses synthetic demo data. This is not a DataGuard product and
-DataGuard has not reviewed it. Simulated mode replays prepared outputs — nothing is generated live."*
+Say up front: *"Everything you see uses synthetic demo data. This is a fictional company and
+no real company has reviewed it. Simulated mode replays prepared outputs — nothing is generated live."*
 
-1. **/demo → Select "DataGuard Demo – Unofficial".** Point out the *Simulated* banner.
+1. **/demo → Select "Nordlicht Demo (fiktiv)".** Point out the *Simulated* banner.
 2. **Context:** AI Governance · CISO · Germany · EU AI Act.
 3. **Knowledge:** open a claim; show its source and exact excerpt. Show the pending claim
    "automatically classifies AI systems" — not approved, no evidence.
@@ -20,7 +20,7 @@ DataGuard has not reviewed it. Simulated mode replays prepared outputs — nothi
    “Approve” explicitly (nothing is pre-selected) → approved.
 9. **Regulatory brief:** regulatory facts backed by source excerpts; "do not say" list; approve with ack.
 10. **Export** the Messaging Framework as Markdown: version, approver, claim and source references, synthetic label.
-11. **Isolation:** switch to the second demo tenant; the DataGuard demo URLs return 404.
+11. **Isolation:** switch to the second demo tenant; the first demo tenant's URLs return 404.
 
 **Campaign package (M8–M10, ~10 more minutes)**
 
@@ -60,5 +60,16 @@ DataGuard has not reviewed it. Simulated mode replays prepared outputs — nothi
     enablement (T-14) to follow-up, release notes, customer notice, FAQ — planned features stay
     “planned”.
 
-Current state (M12): every step runs in the UI; steps 1–11 and the campaign generation, the strategy brief gate, the blocked content matrix, use cases, releases and campaign/release isolation are covered by the Playwright E2E suite. Before a demo,
+**Assets & sales toolkit (M13, ~5 more minutes)**
+
+23. On the campaign (strategy brief approved), section **3 · Assets & sales toolkit**: pick a
+    deliverable and generate it — one deliverable per run, built on the approved strategy brief.
+24. **One-pager v1:** "Teams save 40 % …" is a fact without a claim → gate G11 blocks approval.
+    Request changes; as editor load the prepared correction: the number becomes a marked,
+    illustrative assumption. Save v2, submit, approve.
+25. **ROI argument:** every number rests on a named assumption (customer input, benchmark to verify,
+    illustrative), never a fact. **Case study:** anonymous until the customer approves — a named
+    customer without documented approval is blocked (G12). **Ad copy:** Google and LinkedIn limits (G13).
+
+Current state (M13a + M13b): every step runs in the UI; steps 1–11 and the campaign generation, the strategy brief gate, the blocked content matrix, use cases, releases and campaign/release isolation are covered by the Playwright E2E suite. Before a demo,
 run `npm run demo:reset` for a clean state (demo tenants only).

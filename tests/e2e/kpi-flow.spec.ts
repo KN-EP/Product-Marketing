@@ -7,7 +7,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { approveStrategyViaUi } from "./helpers";
 
 const PASSWORD = process.env.E2E_PASSWORD!;
-const USERS = { editor: "editor@dataguard-demo.example", reviewer: "reviewer@dataguard-demo.example" };
+const USERS = { editor: "editor@nordlicht-demo.example", reviewer: "reviewer@nordlicht-demo.example" };
 const SEEDED_CAMPAIGN = "[SYNTHETIC] AI inventory campaign — CISOs DACH";
 
 async function login(page: Page, email: string) {

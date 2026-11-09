@@ -8,8 +8,8 @@ import { expect, test, type Page } from "@playwright/test";
 import { approveStrategyViaUi, login } from "./helpers";
 
 const USERS = {
-  editor: "editor@dataguard-demo.example",
-  reviewer: "reviewer@dataguard-demo.example",
+  editor: "editor@nordlicht-demo.example",
+  reviewer: "reviewer@nordlicht-demo.example",
   otherAdmin: "admin@other-demo.example",
 };
 const SEEDED_CAMPAIGN = "[SYNTHETIC] AI inventory campaign — CISOs DACH";
@@ -79,7 +79,7 @@ test("editor creates a retention campaign through the form", async ({ page }) =>
   await expect(page.getByText("2027-01-04 – 2027-02-26")).toBeVisible();
 });
 
-test("a user of another tenant gets 404 for the DataGuard campaign URL", async ({ page }) => {
+test("a user of another tenant gets 404 for the demo campaign URL", async ({ page }) => {
   await login(page, USERS.otherAdmin);
   const res = await page.goto(campaignUrl);
   expect(res?.status()).toBe(404);
