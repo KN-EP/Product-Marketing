@@ -24,6 +24,7 @@ const GROUPS: { label: string; links: { href: string; label: string }[] }[] = [
       { href: "/campaigns", label: "Campaigns" },
       { href: "/releases", label: "Releases" },
       { href: "/launches", label: "Launches" },
+      { href: "/installed-base", label: "Installed base" },
       { href: "/research", label: "Win/loss & research" },
       { href: "/workflows", label: "Workflows" },
       { href: "/assets", label: "Assets" },

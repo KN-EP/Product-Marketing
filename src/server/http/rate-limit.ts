@@ -24,6 +24,8 @@ export const RATE_LIMITS = {
   launchWrite: { limit: 30, windowMs: 60_000 },
   /** per tenant + user (regulatory radar, M16) */
   radarWrite: { limit: 20, windowMs: 60_000 },
+  /** per tenant + user (installed base: import, findings, hand-overs, cost comparisons — M18) */
+  installedBaseWrite: { limit: 60, windowMs: 60_000 },
 } as const;
 
 export type RateLimitKind = keyof typeof RATE_LIMITS;

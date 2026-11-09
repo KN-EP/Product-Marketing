@@ -30,7 +30,7 @@ async function main() {
     console.log(`Demo tenants reset: ${counts.tenants.join(", ") || "(none found)"}`);
     console.log(
       `Deleted: ${counts.workflowRuns} workflow runs, ${counts.assets} assets, ${counts.assetVersions} versions, ` +
-        `${counts.approvals} approvals, ${counts.campaigns} campaigns, ${counts.releases} releases, ${counts.interviews} interviews, ${counts.launches} launches, ${counts.regulatoryChanges} regulatory changes, ${counts.auditEvents} audit events.`,
+        `${counts.approvals} approvals, ${counts.campaigns} campaigns, ${counts.releases} releases, ${counts.interviews} interviews, ${counts.launches} launches, ${counts.regulatoryChanges} regulatory changes, ${counts.installedUnits} installed units, ${counts.auditEvents} audit events.`,
     );
     await seed(db, { password });
     console.log("Re-seeded synthetic demo data.");

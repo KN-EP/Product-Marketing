@@ -36,10 +36,41 @@ export const REASON_LABEL = {
   existing_system: "Existing system kept",
   trust_references: "Trust / references",
   budget_ownership: "No clear budget owner",
+  // M18: machine builders (industry profile "machinery")
+  cost_per_part: "Cost per part over the lifecycle",
+  technology_risk: "Material / technology risk",
+  delivery_time: "Delivery time / capacity",
+  financing: "Financing terms",
+  local_presence: "Local presence / service",
+  trial_result: "Trial / sample production result",
+  third_party_retrofit: "Third-party retrofitter",
+  used_equipment: "Used equipment",
 } as const;
 export const ReasonCode = z.enum(Object.keys(REASON_LABEL) as [keyof typeof REASON_LABEL, ...(keyof typeof REASON_LABEL)[]]);
 export type ReasonCode = z.infer<typeof ReasonCode>;
 export const REASON_CODES = ReasonCode.options;
+
+/**
+ * M18: the reason codes a tenant uses, by industry profile. One taxonomy, two
+ * views: a software vendor never sees "trial result", a machine builder never
+ * sees "time to audit". Recording a reason outside the profile is rejected.
+ */
+export type IndustryProfile = "software" | "machinery";
+export const REASONS_BY_PROFILE: Record<IndustryProfile, readonly ReasonCode[]> = {
+  software: [
+    "price_value", "functionality", "integrations", "expert_support", "time_to_audit", "effort_reduction", "platform_breadth",
+    "competitor_strength", "status_quo", "timing_budget", "existing_system", "trust_references", "budget_ownership",
+  ],
+  machinery: [
+    "cost_per_part", "price_value", "functionality", "technology_risk", "trial_result", "delivery_time", "financing", "local_presence",
+    "expert_support", "competitor_strength", "third_party_retrofit", "used_equipment", "existing_system", "status_quo", "timing_budget",
+    "trust_references", "budget_ownership",
+  ],
+};
+export function reasonsOutsideProfile(profile: IndustryProfile, reasons: readonly string[]): string[] {
+  const allowed = new Set<string>(REASONS_BY_PROFILE[profile]);
+  return reasons.filter((r) => !allowed.has(r));
+}
 
 export const OUTCOME_LABEL: Record<DealOutcome, string> = { won: "Won", lost: "Lost", churned: "Churned", no_decision: "No decision" };
 export const CONSENT_LABEL: Record<ConsentStatus, string> = {
