@@ -15,6 +15,7 @@ export interface DemoResetCounts {
   workflowRuns: number;
   campaigns: number;
   releases: number;
+  interviews: number;
   auditEvents: number;
 }
 
@@ -44,7 +45,7 @@ export async function resetDemoData(
     tenants = await db.tenant.findMany({ where: { isDemo: true }, select: { id: true, slug: true, isDemo: true } });
   }
   const ids = tenants.map((t) => t.id);
-  if (ids.length === 0) return { tenants: [], approvals: 0, assetVersions: 0, assets: 0, workflowRuns: 0, campaigns: 0, releases: 0, auditEvents: 0 };
+  if (ids.length === 0) return { tenants: [], approvals: 0, assetVersions: 0, assets: 0, workflowRuns: 0, campaigns: 0, releases: 0, interviews: 0, auditEvents: 0 };
 
   return db.$transaction(
     async (tx) => {
@@ -59,8 +60,11 @@ export async function resetDemoData(
       const campaigns = await tx.campaign.deleteMany({ where });
       // M12: releases are referenced by assets and runs too (ON DELETE RESTRICT).
       const releases = await tx.release.deleteMany({ where });
+      // M14: interviews first (they reference their notes source), then the unreferenced interview sources.
+      const interviews = await tx.winLossInterview.deleteMany({ where });
+      await tx.source.deleteMany({ where: { ...where, kind: "interview", claimEvidence: { none: {} }, competitorEvidence: { none: {} } } });
       const auditEvents = await tx.auditEvent.deleteMany({
-        where: { ...where, entityType: { in: ["Asset", "WorkflowRun", "Campaign", "Kpi", "Release"] } },
+        where: { ...where, entityType: { in: ["Asset", "WorkflowRun", "Campaign", "Kpi", "Release", "WinLossInterview"] } },
       });
       return {
         tenants: tenants.map((t) => t.slug),
@@ -70,6 +74,7 @@ export async function resetDemoData(
         workflowRuns: workflowRuns.count,
         campaigns: campaigns.count,
         releases: releases.count,
+        interviews: interviews.count,
         auditEvents: auditEvents.count,
       };
     },

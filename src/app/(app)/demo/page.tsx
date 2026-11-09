@@ -67,9 +67,15 @@ export default async function DemoPage() {
     { n: "29", title: "ROI argument and case study", what: "Generate the ROI argument: every number rests on a named assumption (customer input, benchmark to verify, illustrative) and is never a fact. The case study stays anonymous — a named customer without documented approval would be blocked (gate G12). Approve and export.", href: "/campaigns", linkText: "Campaigns", done: p.enablementApproved > 0 },
   ];
 
+  const researchSteps: Step[] = [
+    { n: "30", title: "Win/loss interviews with consent", what: "Open “Win/loss & research”: six pseudonymised interviews with reason codes from the CRM taxonomy. Five have granted consent (notes stored as a confidential interview source), one only “requested” — it is counted, never analysed. Record one more if you like: notes are refused without consent and contact data is refused always.", href: "/research", linkText: "Win/loss & research", done: p.interviews > 0 },
+    { n: "31", title: "Win/loss synthesis", what: "“Generate win/loss synthesis”: the counts and the win rate are computed in code; the agent writes drivers, patterns and implications and may only quote those numbers (gate G15) and verbatim interview excerpts (gate G4). Fewer than five interviews → every driver is flagged as a hypothesis. Approve and export it.", href: "/research", linkText: "Generate synthesis", done: p.winLossApproved > 0 },
+    { n: "32", title: "Consent withdrawn", what: "Withdraw consent for “automotive supplier A”: the notes are erased and the source becomes invalid. Try to export the approved synthesis again — blocked: the approval no longer holds because its evidence is gone (approval_outdated). A new synthesis leaves the interview out.", href: "/research", linkText: "Interviews", done: p.consentWithdrawn > 0 },
+  ];
+
   return (
     <>
-      <PageHeader title="Guided demo" description="P0 demonstration flow (steps 1–15, ~15 minutes), strategy first and the campaign package (steps 16–21, ~12 minutes), the KPI analysis (steps 22–24, ~5 minutes), release communication (steps 25–26, ~3 minutes) and assets & sales toolkit (steps 27–29, ~5 minutes). Every step opens the real page." />
+      <PageHeader title="Guided demo" description="P0 demonstration flow (steps 1–15, ~15 minutes), strategy first and the campaign package (steps 16–21, ~12 minutes), the KPI analysis (steps 22–24, ~5 minutes), release communication (steps 25–26, ~3 minutes), assets & sales toolkit (steps 27–29, ~5 minutes) and win/loss & research (steps 30–32, ~5 minutes). Every step opens the real page." />
       <Alert>
         <AlertTitle>Say this up front</AlertTitle>
         <AlertDescription>
@@ -88,6 +94,7 @@ export default async function DemoPage() {
       <StepList title="KPI analysis (M11)" steps={kpiSteps} />
       <StepList title="Release & update communication (M12)" steps={releaseSteps} />
       <StepList title="Assets & sales toolkit (M13)" steps={assetSteps} />
+      <StepList title="Win/loss & research (M14)" steps={researchSteps} />
       <Section title="Isolation check (optional)">
         <p className="text-sm text-muted-foreground">
           Sign in as a user of the second demo tenant and open an asset, run or campaign URL of the first demo tenant: it returns 404, exactly like an id that does not exist.

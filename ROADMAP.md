@@ -21,12 +21,14 @@ End-to-end flow per PRODUCT_SPEC, simulated + live mode, review/approval, export
 - M13f measurement (demand-gen KPIs, win rate, launch adoption, PMM impact from the approval log)
 - M13g channels (Google Ads, SEO/GEO, co-marketing), ABM and expansion campaigns, regulatory calendar
 - M13h suite messaging (umbrella + module level, cross-sell paths)
-- M14 market, competitive and customer loop: field intelligence (interviews, win/loss), competitive
-  and trend loop, insight & opportunity briefs, consistency check, customer meeting preparation
+- ✅ M14 win/loss & research: pseudonymised interviews with consent tracking and CRM reason codes,
+  computed statistics, win/loss synthesis (G15), consent withdrawal invalidates evidence, export
+  re-checks the gates
+- M14b rest of the customer loop: competitive and trend loop, insight & opportunity briefs,
+  consistency check, customer meeting preparation
 - M15+: HubSpot (read-only), channel audit and editorial calendar (F3), product usage data
 
 ## P1
-- Customer & market research module (interview synthesis with consent tracking)
 - Launch & GTM planning assets
 - Source change detection (scheduled re-hash of curated URLs via an allow-listed fetcher)
 - Claim review reminders (`reviewDueAt`)

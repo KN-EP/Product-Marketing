@@ -177,3 +177,46 @@ regulation → 5. **Release & update** → 6. GTM strategy brief → campaign (p
 - Unit: `tests/unit/strategy.test.ts`; integration: `tests/integration/strategy.test.ts` (strategy
   gate, use case map as context, releases, isolation of every new entry point, demo reset); E2E:
   `tests/e2e/release-flow.spec.ts` and the updated campaign/KPI flows.
+
+---
+
+# Extension M14 — win/loss & research (station "Win/loss & research")
+
+## Purpose
+Replace assumptions about why deals are won and lost with evidence. In a regulated market, interview
+statements are personal data and quotes are evidence — so consent, pseudonymisation and verbatim
+excerpts are built in, not left to discipline.
+
+## Flow
+1. **Record an interview** (`/research`, editors): product, pseudonymised account (no person, no
+   e-mail or phone number — refused), segment, outcome (won / lost / churned / no decision), optional
+   competitor and date, up to five **reason codes** from a fixed taxonomy (the same list a CRM
+   loss-reason field should use) with one primary reason, and the consent state.
+2. **Notes only with granted consent.** They are stored as a `Source` of kind `interview`,
+   classification `confidential`. Agent prompts never see interview sources — except the win/loss
+   synthesis of the same product, which gets exactly that product's consented interview sources.
+3. **Statistics in code** (`src/domain/research/win-loss.ts`): counts per outcome, win rate of decided
+   deals, reasons (named, primary, by outcome), competitors, segments — consented interviews only;
+   interviews without consent are counted, never analysed.
+4. **Win/loss synthesis** (`win_loss_synthesis`, per product, ≥ 3 consented interviews, else 409
+   `not_enough_interviews`): the research agent (`agent-wl.win-loss-synthesis` 1.0.0) writes the
+   summary, win and loss drivers, competitor and segment patterns, implications per area (messaging,
+   product, sales enablement, pricing & packaging, segment focus, CRM data), hypotheses to validate,
+   limitations. The server attaches `asOf` and `stats`. Idempotent until an interview changes.
+5. **Consent withdrawn** (editors): the notes are erased, the source becomes `invalid`, claims citing
+   it become stale, the interview drops out of every future synthesis.
+
+## Gates
+- **G15** — numbers: every number a statement quotes must be in the computed stats (critical in a
+  fact, warning otherwise). Fewer than five consented interviews: warning on `$.stats`; a driver
+  stated as fact from such a sample is critical.
+- G4 applies to interview quotes: an excerpt must exist verbatim in an **active** interview source.
+- **Export re-checks the gates** (all asset types): an approved version whose evidence no longer
+  holds (erased interview, changed source, stale claim) cannot be exported as approved — 409
+  `approval_outdated`, audited as `asset.export_blocked`.
+
+## Acceptance tests
+Unit `tests/unit/research.test.ts` (input rules, stats, G15, simulated agent, erased source → G4);
+integration `tests/integration/research.test.ts` (consent and source handling, audit without free
+text, 404/400/403/401, synthesis run and prompt scoping, 409, idempotency, withdrawal blocks export,
+demo reset).

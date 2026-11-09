@@ -4,6 +4,7 @@ import type { KnowledgeSnapshot } from "../knowledge/snapshot";
 import { collectStatements } from "../schemas/agents";
 import { orderedEntries } from "../schemas/display-order";
 import type { KpiResult } from "../schemas/performance";
+import { runQualityGates } from "../quality-gates/gates";
 
 const LABEL: Record<string, string> = {
   fact: "FACT",
@@ -25,6 +26,16 @@ export function exportApprovedMarkdown(asset: AssetRecord, actor: Actor, kb: Kno
   const approved = latestApprovedVersion(asset);
   if (!approved) throw new DomainError("not_approved", "Asset has no approved version");
   const { version, approval } = approved;
+  // M14/M16: an approval holds only while its evidence holds. If a source changed or was
+  // erased (withdrawn consent, regulatory change) or a claim became stale, the approved
+  // version fails the gates again and cannot leave the system as "approved".
+  const recheck = runQualityGates(asset.type, version.content, kb);
+  if (!recheck.passed) {
+    throw new DomainError(
+      "approval_outdated",
+      `Approved v${version.versionNumber} no longer passes the quality gates (${recheck.findings.filter((f) => f.severity === "critical").length} critical finding(s)): a source or claim it relies on has changed. Create a new version and review it again.`,
+    );
+  }
 
   const lines: string[] = [];
   lines.push(`# ${asset.title}`, "");

@@ -5,6 +5,7 @@ import { PerformanceReviewV1 } from "./performance";
 import { ReleaseCommunicationPlanV1 } from "./release";
 import { GtmStrategyBriefV1, UseCaseMapV1 } from "./strategy";
 import { ENABLEMENT_TYPES, EnablementAssetV1, type EnablementType } from "./enablement";
+import { WinLossSynthesisV1 } from "./research";
 
 // ── Agent A: Product & Market Intelligence ──
 export const ProductIntelligenceBriefV1 = z.object({
@@ -84,6 +85,8 @@ export const ASSET_SCHEMAS = {
   performance_review: PerformanceReviewV1,
   // M13a + M13b: product assets and sales toolkit (src/domain/schemas/enablement.ts) — one schema, one type each
   ...(Object.fromEntries(ENABLEMENT_TYPES.map((t) => [t, EnablementAssetV1])) as Record<EnablementType, typeof EnablementAssetV1>),
+  // M14 win/loss & research (src/domain/schemas/research.ts) — stored form incl. the server-computed stats
+  win_loss_synthesis: WinLossSynthesisV1,
 } as const;
 
 export type AssetType = keyof typeof ASSET_SCHEMAS;

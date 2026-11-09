@@ -25,6 +25,8 @@ export interface PromptInput {
   useCaseMap?: unknown;
   /** M12: the APPROVED GTM strategy brief of the campaign (context for agents D–F). */
   gtmStrategy?: unknown;
+  /** M14: server-computed win/loss statistics for the research agent. */
+  winLossStats?: { asOf: string; stats: unknown };
 }
 
 export interface PromptTemplate {
@@ -53,7 +55,7 @@ Truthfulness:
 /** Neutralise anything that could close or open one of our delimiter tags. */
 export function escapeDelimiters(text: string): string {
   return text.replace(
-    /<\s*\/?\s*(brief|knowledge_base|untrusted_sources|source|claim|competitor_evidence|evidence|messaging_framework|campaign_plan|kpi_results|use_case_map|gtm_strategy)\b[^>]*>/gi,
+    /<\s*\/?\s*(brief|knowledge_base|untrusted_sources|source|claim|competitor_evidence|evidence|messaging_framework|campaign_plan|kpi_results|use_case_map|gtm_strategy|win_loss_stats)\b[^>]*>/gi,
     "[removed tag]",
   );
 }
@@ -138,4 +140,13 @@ export function renderGtmStrategy(g: unknown): string {
 GTM strategy brief for this campaign, approved by a human: ICP, target segments, buying center, prioritised use cases, positioning and the split into communication and sales channels. Everything you produce must follow it; it is NOT evidence. Facts still need approved claim ids.
 ${escapeDelimiters(JSON.stringify(g, null, 2))}
 </gtm_strategy>`;
+}
+
+/** M14: server-computed win/loss statistics. Deterministic numbers, but still delimited data. */
+export function renderWinLossStats(w: { asOf: string; stats: unknown } | undefined): string {
+  if (!w) return "";
+  return `<win_loss_stats as_of="${attr(w.asOf)}">
+Computed from the consented interviews only. These are the ONLY numbers you may quote.
+${escapeDelimiters(JSON.stringify(w.stats, null, 2))}
+</win_loss_stats>`;
 }

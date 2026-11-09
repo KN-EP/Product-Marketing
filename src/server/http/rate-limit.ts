@@ -18,6 +18,8 @@ export const RATE_LIMITS = {
   releaseCreate: { limit: 20, windowMs: 60_000 },
   /** per tenant + user (KPI tree, KPI edits, CSV imports) */
   kpiWrite: { limit: 60, windowMs: 60_000 },
+  /** per tenant + user (win/loss interviews and consent withdrawal, M14) */
+  researchWrite: { limit: 30, windowMs: 60_000 },
 } as const;
 
 export type RateLimitKind = keyof typeof RATE_LIMITS;

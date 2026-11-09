@@ -46,6 +46,8 @@ describe("A1 — three deliverables; the input brief is internal", () => {
       "release_communication_plan",
       // M13a + M13b product assets and sales toolkit
       ...ENABLEMENT_TYPES,
+      // M14 win/loss & research
+      "win_loss_synthesis",
     ]);
     expect(() => assertDeliverable("product_intelligence_brief")).toThrow(expect.objectContaining({ status: 409, code: "internal_input" }));
     expect(() => assertDeliverable("competitive_battlecard")).not.toThrow();

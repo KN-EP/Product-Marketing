@@ -10,6 +10,7 @@ import {
   AGENT_F_SALES_PLAY_PROMPT,
   AGENT_G_PERFORMANCE_PROMPT,
   AGENT_RELEASE_PROMPT,
+  AGENT_RESEARCH_PROMPT,
   AGENT_STRATEGY_PROMPT,
   AGENT_USE_CASE_PROMPT,
 } from "../prompts";
@@ -28,6 +29,8 @@ export const CAMPAIGN_STRATEGY = "campaign_strategy";
 export const RELEASE_COMMUNICATION = "release_communication";
 /** M13a + M13b: one product asset or sales toolkit deliverable for a campaign (needs the approved GTM strategy brief). */
 export const CAMPAIGN_ASSET = "campaign_asset";
+/** M14: win/loss synthesis of one product from its consented interviews (station "Win/loss & research"). */
+export const WIN_LOSS_SYNTHESIS = "win_loss_synthesis";
 export type RunKind =
   | typeof PMM_THREE_ASSET
   | typeof CAMPAIGN_GTM
@@ -35,7 +38,8 @@ export type RunKind =
   | typeof USE_CASE_DEFINITION
   | typeof CAMPAIGN_STRATEGY
   | typeof RELEASE_COMMUNICATION
-  | typeof CAMPAIGN_ASSET;
+  | typeof CAMPAIGN_ASSET
+  | typeof WIN_LOSS_SYNTHESIS;
 
 const Id = z.string().trim().min(1).max(64);
 /** Optional: a new nonce deliberately starts a new run with the same inputs. */
@@ -103,6 +107,13 @@ export const StartCampaignAssetInput = z.strictObject({
   requestNonce: Nonce,
 });
 
+/** M14: start input of the win_loss_synthesis run (needs ≥ 3 consented interviews of the product). */
+export const StartWinLossInput = z.strictObject({
+  kind: z.literal(WIN_LOSS_SYNTHESIS),
+  productId: Id,
+  requestNonce: Nonce,
+});
+
 export const StartWorkflowInput = z.union([
   StartPmmInput,
   StartCampaignInput,
@@ -111,6 +122,7 @@ export const StartWorkflowInput = z.union([
   StartStrategyInput,
   StartReleaseInput,
   StartCampaignAssetInput,
+  StartWinLossInput,
 ]);
 export type StartWorkflowInput = z.infer<typeof StartWorkflowInput>;
 
@@ -120,6 +132,7 @@ export type CampaignRunInputRefs = Omit<z.infer<typeof StartCampaignInput>, "kin
 export type UseCaseRunInputRefs = Omit<z.infer<typeof StartUseCaseInput>, "kind" | "requestNonce">;
 export type CampaignAssetRunInputRefs = Omit<z.infer<typeof StartCampaignAssetInput>, "kind" | "requestNonce">;
 export type ReleaseRunInputRefs = Omit<z.infer<typeof StartReleaseInput>, "kind" | "requestNonce">;
+export type WinLossRunInputRefs = Omit<z.infer<typeof StartWinLossInput>, "kind" | "requestNonce">;
 
 const versions = (...ts: { id: string; version: string }[]) => Object.fromEntries(ts.map((t) => [t.id, t.version]));
 
@@ -141,3 +154,4 @@ export const USE_CASE_PROMPT_VERSIONS: Record<string, string> = versions(AGENT_U
 export const STRATEGY_PROMPT_VERSIONS: Record<string, string> = versions(AGENT_STRATEGY_PROMPT);
 export const RELEASE_PROMPT_VERSIONS: Record<string, string> = versions(AGENT_RELEASE_PROMPT);
 export const ENABLEMENT_PROMPT_VERSIONS: Record<string, string> = versions(AGENT_ENABLEMENT_PROMPT);
+export const RESEARCH_PROMPT_VERSIONS: Record<string, string> = versions(AGENT_RESEARCH_PROMPT);

@@ -194,3 +194,24 @@ integration **142/142** (7 files) · E2E **19/19** · build OK (Google font stub
 only). Migration `20261030120000_strategy_first` is hand-written in Prisma's format (binaries.prisma.sh
 blocked in the sandbox) and was verified with `psql`, including the channel data move — confirm with
 `prisma migrate dev --create-only` before deploying.
+
+
+---
+
+# Addendum — M14 win/loss & research (branch `feature/m14-win-loss-research`, 2026-11-09)
+
+Input: a product marketing role-play (regulated SaaS + services provider): the first gap was that every
+reason for winning and losing deals was a hypothesis — no win/loss data.
+
+| Area | What it does |
+|---|---|
+| Interviews | `WinLossInterview` + `/research`: pseudonymised account (contact data refused), outcome, competitor, CRM reason taxonomy (13 codes, primary reason), consent state |
+| Consent | Notes only with granted consent, as a confidential `interview` source; prompts of other runs never see interview sources; withdrawal erases the notes, invalidates the source, marks citing claims stale |
+| Synthesis | `win_loss_synthesis` run (≥ 3 consented interviews), research agent `agent-wl.win-loss-synthesis` 1.0.0, stats computed in code and attached by the server, gate **G15** |
+| Export | every export re-runs the gates: an approval whose evidence no longer holds → 409 `approval_outdated` (audited) |
+| Demo | six synthetic interviews (one without consent) per demo tenant; guided demo steps 30–32; demo reset includes interviews |
+
+Test results (local Postgres 16, simulated mode): typecheck OK · unit **278/278** (12 files) ·
+integration **158/158** (9 files). Migration `20261109120000_win_loss_research` is hand-written in
+Prisma's format (binaries.prisma.sh blocked in the sandbox) and applied with `psql` — confirm with
+`prisma migrate dev --create-only` before deploying.
