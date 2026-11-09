@@ -14,6 +14,7 @@ import { GtmStrategyBriefV1, UseCaseMapV1 } from "../../domain/schemas/strategy"
 import { EnablementAssetV1, type EnablementType } from "../../domain/schemas/enablement";
 import { WinLossSynthesisDraftV1, type WinLossStats } from "../../domain/schemas/research";
 import { LaunchPlanDraftV1 } from "../../domain/schemas/launch";
+import { RegulatoryChangeBriefV1 } from "../../domain/schemas/regulatory";
 import { promptClassification, type DataClassification, type ExternalModelPolicy } from "../llm/classification";
 import type { LlmMode, LlmProvider, LlmUsage, OutputSpec } from "../llm/types";
 import {
@@ -27,6 +28,7 @@ import {
   AGENT_F_SALES_PLAY_PROMPT,
   AGENT_G_PERFORMANCE_PROMPT,
   AGENT_LAUNCH_PROMPT,
+  AGENT_REGULATORY_CHANGE_PROMPT,
   AGENT_RELEASE_PROMPT,
   AGENT_RESEARCH_PROMPT,
   AGENT_STRATEGY_PROMPT,
@@ -168,6 +170,12 @@ export const OUTPUT_SPECS = {
     toolName: "submit_launch_plan",
     toolDescription: "Submit the staged launch plan (launch_plan.v1, without readiness — that is computed by the system).",
   },
+  regulatory_change_brief: {
+    assetType: "regulatory_change_brief",
+    schema: RegulatoryChangeBriefV1,
+    toolName: "submit_regulatory_change_brief",
+    toolDescription: "Submit the regulatory change brief (regulatory_change_brief.v1).",
+  },
 } as const satisfies Record<string, OutputSpec>;
 
 async function runAgent<S extends z.ZodType>(
@@ -259,3 +267,7 @@ export const runWinLossAgent = (input: AgentInput, provider: LlmProvider) =>
 
 /** M15 launch agent — staged launch plan. Readiness comes from the server. */
 export const runLaunchAgent = (input: AgentInput, provider: LlmProvider) => runAgent(OUTPUT_SPECS.launch_plan, AGENT_LAUNCH_PROMPT, input, provider);
+
+/** M16 regulatory change agent — what changed and which messages to update. */
+export const runRegulatoryChangeAgent = (input: AgentInput, provider: LlmProvider) =>
+  runAgent(OUTPUT_SPECS.regulatory_change_brief, AGENT_REGULATORY_CHANGE_PROMPT, input, provider);

@@ -22,6 +22,8 @@ export const RATE_LIMITS = {
   researchWrite: { limit: 30, windowMs: 60_000 },
   /** per tenant + user (launch briefing and proof, M15) */
   launchWrite: { limit: 30, windowMs: 60_000 },
+  /** per tenant + user (regulatory radar, M16) */
+  radarWrite: { limit: 20, windowMs: 60_000 },
 } as const;
 
 export type RateLimitKind = keyof typeof RATE_LIMITS;

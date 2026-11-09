@@ -3,6 +3,28 @@
 AI-assisted, human-managed Product Marketing operating system for B2B technology companies.
 Built by ExtendPartner Solutions GmbH.
 
+## Positioning: a governed system of record, not a prompt plugin
+
+Prompt-based skill sets (e.g. a "product management" or "product marketing" plugin for an AI
+assistant) are fast: they draft specs, briefs and messaging in a conversation. They forget everything
+afterwards and control nothing. For compliance-driven and regulated customers that is the gap — their
+product marketing makes statements about security, privacy and regulation that must be true, current
+and approved.
+
+| | Prompt plugin | Product Marketing OS ("the street") |
+|---|---|---|
+| Knowledge | per conversation | approved claims, sources, competitor evidence, interviews — kept and versioned |
+| Truth | whatever the model writes | every statement labelled fact / interpretation / hypothesis / suggestion; facts need approved claims or verbatim excerpts (gates G1–G16) |
+| Approval | none | human reviewer per version; expert acknowledgement for regulatory content; audit trail |
+| Change | none | a changed source or a withdrawn consent makes claims stale and blocks the export of approvals that rest on them; the regulatory radar shows every affected asset |
+| Decisions | none | readiness computed in code; launch go / no-go only by a person, stored with its readiness |
+| Numbers | invented if asked | computed in code (KPIs, win/loss); the model may only quote them |
+
+The dashboard shows what the system enforced (approvals, blocked approvals and exports, refused
+"go" decisions, stale claims, open regulatory alerts). The full street runs as a managed service
+(senior-led by ExtendPartner); a lighter, conversational entry product ("PMM Lite" — skills plus a
+"gates lite" check) can start the work before a tenant exists.
+
 > **Demo data disclaimer.** The seeded tenant "Nordlicht Demo (fiktiv)" contains only
 > **synthetic** example data. It is not a real company's product, does not describe real
 > features and implies no approval by any company.
@@ -26,6 +48,7 @@ This repository is being built milestone by milestone (see `IMPLEMENTATION_PLAN.
 | M12 | Strategy first: use cases & ICP, GTM strategy brief as gate, release communication | 🔍 in review (`feature/m12-strategy-first`) |
 | M13 | Product assets and sales toolkit (17 deliverables, gates G11–G14) | 🔍 in review (`feature/m13-assets-sales-toolkit`) |
 | M14 | Win/loss & research: pseudonymised interviews with consent tracking, computed statistics, win/loss synthesis (gate G15), consent withdrawal invalidates evidence, export re-checks the gates | 🔍 in review (`feature/m14-win-loss-research`) |
+| M16 | Regulatory radar: watched regulatory items, recorded changes with computed impact (stale claims, affected assets with reasons), change brief, reviewer resolution; launch readiness and export follow; governance panel on the dashboard | 🔍 in review (`feature/m16-regulatory-radar`) |
 | M15 | Station "Launch": staged launches (early access → GA → customers → market), readiness per phase computed in code, human go / no-go with stored readiness, launch plan (gate G16) | 🔍 in review (`feature/m15-launch`) |
 
 ## Requirements

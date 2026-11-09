@@ -24,6 +24,8 @@ record at database level.
 | WinLossInterview | Win/loss interview (M14) | product, pseudonymised `accountLabel`, segment, outcome (won / lost / churned / no_decision), optional competitor and dates, `reasons[]` + `primaryReason` (fixed taxonomy), `consentStatus` (requested / granted / declined / withdrawn), `sourceId` → the confidential `interview` source holding the notes (only with granted consent); composite FKs to Product, Competitor, Source |
 | Launch | Staged launch (M15) | product, optional release, tier (tier_1 / tier_2 / tier_3), summary, pricing model, target segments, `earlyAccessOn`, `generalAvailabilityOn`, `customerLaunchOn`, `marketLaunchOn`, `externalReferences`, `internalPilot`; composite FKs to Product, Release |
 | LaunchDecision | Human go / no-go for one phase (M15) | launch, phase, decision (go / no_go), comment, `readiness` (snapshot of the phase's computed checks), decided by; insert-only |
+| RegulatoryWatch | Watched regulatory item (M16) | name, jurisdiction, topic, `sourceId` (current wording), optional regulatory trigger, `currentDeadline`; composite FKs |
+| RegulatoryChange | Recorded change = alert (M16) | watch, kind (deadline_shift / scope_change / new_guidance / repeal / other), summary, previous/new deadline, previous/new content hash, `impact` (stale claim ids, affected assets with reasons), recorded by, `resolvedAt` / by / note |
 | Release | Planned release or update (M12) | product, name, version, type (major_release / feature_update / maintenance_update / security_update / deprecation), optional `plannedOn` (date), summary, `changes[]`, `audiences[]` (existing_customers, prospects, partners_resellers, internal_sales, internal_support), communication and sales channels; composite FK to Product |
 | Kpi | KPI of a campaign (M11) | from the approved plan (`sourceVersionId`, `position`); human `target`, `baseline`, `unit`, `direction`, `aggregation`; unique per campaign and name; cascades with the campaign |
 | KpiMeasurement | One value per KPI and period start | `@@unique([kpiId, periodStart])` → a re-import replaces; `importId` (composite FK) |
@@ -44,7 +46,8 @@ deliverables — product assets (`product_page`, `solution_brief`, `whitepaper_o
 `video_script`, `industry_narrative`) and the sales toolkit (`pitch_deck_outline`, `demo_story`,
 `one_pager`, `discovery_guide`, `persona_playbook`, `roi_argument`, `sales_training`), since M14
 `win_loss_synthesis` (stored with the server-computed `stats` and `asOf`), since M15 `launch_plan`
-(stored with the server-computed `readiness`, linked via `Asset.launchId`). All seventeen
+(stored with the server-computed `readiness`, linked via `Asset.launchId`), since M16
+`regulatory_change_brief`. All seventeen
 share `enablement_asset.v1` (sections of blocks, each block a Statement; named assumptions; an
 optional customer reference for case studies) and are linked to their campaign. Schemas:
 `src/domain/schemas/agents.ts`, `campaign.ts`, `performance.ts`, `strategy.ts`, `release.ts`,
@@ -61,4 +64,6 @@ keys back into schema order (`src/domain/schemas/display-order.ts`).
 `20261107120000_assets_sales_toolkit` (17 new `AssetType` values; no table or data changes),
 `20261109120000_win_loss_research` (`DealOutcome`, `ConsentStatus`, `WinLossInterview`, asset type
 `win_loss_synthesis`), `20261109130000_launch` (`LaunchTier`, `LaunchPhase`, `GoDecision`, `Launch`,
-`LaunchDecision`, `Asset.launchId`, `WorkflowRun.launchId`, asset type `launch_plan`).
+`LaunchDecision`, `Asset.launchId`, `WorkflowRun.launchId`, asset type `launch_plan`),
+`20261109140000_regulatory_radar` (`RegulatoryChangeKind`, `RegulatoryWatch`, `RegulatoryChange`,
+asset type `regulatory_change_brief`).

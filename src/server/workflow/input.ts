@@ -12,6 +12,7 @@ import {
   AGENT_RELEASE_PROMPT,
   AGENT_RESEARCH_PROMPT,
   AGENT_LAUNCH_PROMPT,
+  AGENT_REGULATORY_CHANGE_PROMPT,
   AGENT_STRATEGY_PROMPT,
   AGENT_USE_CASE_PROMPT,
 } from "../prompts";
@@ -34,6 +35,8 @@ export const CAMPAIGN_ASSET = "campaign_asset";
 export const WIN_LOSS_SYNTHESIS = "win_loss_synthesis";
 /** M15: staged launch plan for one launch (station "Launch"). */
 export const LAUNCH_PLANNING = "launch_planning";
+/** M16: regulatory change brief for one recorded change (regulatory radar). */
+export const REGULATORY_IMPACT = "regulatory_impact";
 export type RunKind =
   | typeof PMM_THREE_ASSET
   | typeof CAMPAIGN_GTM
@@ -43,7 +46,8 @@ export type RunKind =
   | typeof RELEASE_COMMUNICATION
   | typeof CAMPAIGN_ASSET
   | typeof WIN_LOSS_SYNTHESIS
-  | typeof LAUNCH_PLANNING;
+  | typeof LAUNCH_PLANNING
+  | typeof REGULATORY_IMPACT;
 
 const Id = z.string().trim().min(1).max(64);
 /** Optional: a new nonce deliberately starts a new run with the same inputs. */
@@ -125,6 +129,13 @@ export const StartLaunchInput = z.strictObject({
   requestNonce: Nonce,
 });
 
+/** M16: start input of the regulatory_impact run: everything else comes from the (tenant-scoped) change record. */
+export const StartRegulatoryImpactInput = z.strictObject({
+  kind: z.literal(REGULATORY_IMPACT),
+  changeId: Id,
+  requestNonce: Nonce,
+});
+
 export const StartWorkflowInput = z.union([
   StartPmmInput,
   StartCampaignInput,
@@ -135,6 +146,7 @@ export const StartWorkflowInput = z.union([
   StartCampaignAssetInput,
   StartWinLossInput,
   StartLaunchInput,
+  StartRegulatoryImpactInput,
 ]);
 export type StartWorkflowInput = z.infer<typeof StartWorkflowInput>;
 
@@ -144,6 +156,7 @@ export type CampaignRunInputRefs = Omit<z.infer<typeof StartCampaignInput>, "kin
 export type UseCaseRunInputRefs = Omit<z.infer<typeof StartUseCaseInput>, "kind" | "requestNonce">;
 export type CampaignAssetRunInputRefs = Omit<z.infer<typeof StartCampaignAssetInput>, "kind" | "requestNonce">;
 export type ReleaseRunInputRefs = Omit<z.infer<typeof StartReleaseInput>, "kind" | "requestNonce">;
+export type RegulatoryImpactRunInputRefs = Omit<z.infer<typeof StartRegulatoryImpactInput>, "kind" | "requestNonce">;
 export type LaunchRunInputRefs = Omit<z.infer<typeof StartLaunchInput>, "kind" | "requestNonce">;
 export type WinLossRunInputRefs = Omit<z.infer<typeof StartWinLossInput>, "kind" | "requestNonce">;
 
@@ -169,3 +182,4 @@ export const RELEASE_PROMPT_VERSIONS: Record<string, string> = versions(AGENT_RE
 export const ENABLEMENT_PROMPT_VERSIONS: Record<string, string> = versions(AGENT_ENABLEMENT_PROMPT);
 export const RESEARCH_PROMPT_VERSIONS: Record<string, string> = versions(AGENT_RESEARCH_PROMPT);
 export const LAUNCH_PROMPT_VERSIONS: Record<string, string> = versions(AGENT_LAUNCH_PROMPT);
+export const REGULATORY_PROMPT_VERSIONS: Record<string, string> = versions(AGENT_REGULATORY_CHANGE_PROMPT);

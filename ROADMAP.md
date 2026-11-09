@@ -26,12 +26,14 @@ End-to-end flow per PRODUCT_SPEC, simulated + live mode, review/approval, export
   re-checks the gates
 - ✅ M15 station "Launch": staged launches, computed readiness per phase, human go / no-go with
   stored readiness, launch plan (G16)
+- ✅ M16 regulatory radar: watched items, recorded changes with computed impact, change brief,
+  reviewer resolution; governance panel on the dashboard
+- M16b allow-listed fetcher for watched sources (scheduled re-hash → proposed change for a person to confirm)
 - M14b rest of the customer loop: competitive and trend loop, insight & opportunity briefs,
   consistency check, customer meeting preparation
 - M15+: HubSpot (read-only), channel audit and editorial calendar (F3), product usage data
 
 ## P1
-- Source change detection (scheduled re-hash of curated URLs via an allow-listed fetcher)
 - Claim review reminders (`reviewDueAt`)
 - Export to DOCX/PDF; Google Docs/Notion handoff
 - SSO/OIDC, per-tenant audit export

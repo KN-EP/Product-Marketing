@@ -1,5 +1,10 @@
 # Demo script (target, ~15 minutes)
 
+> **Opening line (positioning):** "A prompt plugin writes. This system governs: every statement has
+> evidence, every deliverable has a human approval, an approval expires when its evidence changes —
+> and a launch only goes ahead when a person says go." Close the demo on the dashboard's governance
+> panel.
+
 Say up front: *"Everything you see uses synthetic demo data. This is a fictional company and
 no real company has reviewed it. Simulated mode replays prepared outputs — nothing is generated live."*
 
@@ -91,5 +96,15 @@ no real company has reviewed it. Simulated mode replays prepared outputs — not
 31. **Go / no-go** as reviewer: early access "go" with acknowledged risks; market launch "go" →
     refused. As editor, update the proof (two references): the check turns green.
 
-Current state (M13a + M13b, M14, M15): every step runs in the UI; steps 1–11 and the campaign generation, the strategy brief gate, the blocked content matrix, use cases, releases and campaign/release isolation are covered by the Playwright E2E suite. Before a demo,
+**Regulatory radar (M16, ~5 more minutes)**
+
+32. **/radar:** the watched (synthetic) AI Act application date and the approved claim that depends on
+    it. "Load prepared change (simulated)" → deadline moves → record. Claim stale; every affected
+    asset listed with the reason.
+33. **Consequences:** the launch is "not ready" in every phase; an approval that relied on the claim
+    cannot be exported. **Generate change brief** (expert acknowledgement required).
+34. **Resolve** as reviewer: refused while the claim is stale → retire it (claims page) → resolve.
+    Back on the **dashboard**: the governance panel counts what the system enforced.
+
+Current state (M13a + M13b, M14, M15, M16): every step runs in the UI; steps 1–11 and the campaign generation, the strategy brief gate, the blocked content matrix, use cases, releases and campaign/release isolation are covered by the Playwright E2E suite. Before a demo,
 run `npm run demo:reset` for a clean state (demo tenants only).

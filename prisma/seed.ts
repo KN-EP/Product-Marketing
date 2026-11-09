@@ -25,6 +25,7 @@ import {
 import { buildSnapshot, type ClaimRecord, type SourceRecord } from "../src/domain/knowledge/snapshot";
 import { DEMO_INTERVIEWS } from "../src/demo/research-fixtures";
 import { DEMO_LAUNCHES } from "../src/demo/launch-fixtures";
+import { DEMO_WATCHES } from "../src/demo/regulatory-fixtures";
 import { runQualityGates } from "../src/domain/quality-gates/gates";
 import type { Role } from "../src/domain/actor";
 import { createPrismaClient, type Db } from "../src/server/db/client";
@@ -80,6 +81,7 @@ export const SEED_IDS = {
     release: "rel_demo_2_4",
     interview: "wli_demo_a",
     launch: "lnc_demo_ai_monitoring",
+    watch: "rwt_demo_high_risk_date",
   },
   [OTHER_TENANT_ID]: {
     asset: "ast_other_brief",
@@ -93,6 +95,7 @@ export const SEED_IDS = {
     release: "rel_other_demo",
     interview: "wli_other_a",
     launch: "lnc_other_demo",
+    watch: "rwt_other_demo",
   },
 } as const;
 
@@ -236,6 +239,22 @@ async function upsertLaunches(db: Db, tenantId: string) {
       isSynthetic: true,
     };
     await db.launch.upsert({ where: { id: l.id }, create: { id: l.id, tenantId, ...data }, update: data });
+  }
+}
+
+/** M16: watched regulatory items (the source text and claim states are restored by upsertKnowledge). */
+async function upsertWatches(db: Db, tenantId: string) {
+  for (const w of DEMO_WATCHES.filter((x) => x.tenantId === tenantId)) {
+    const data = {
+      name: w.name,
+      jurisdiction: w.jurisdiction,
+      topic: w.topic,
+      sourceId: w.sourceId,
+      regulatoryTriggerId: w.regulatoryTriggerId,
+      currentDeadline: w.currentDeadline ? new Date(`${w.currentDeadline}T00:00:00Z`) : null,
+      isSynthetic: true,
+    };
+    await db.regulatoryWatch.upsert({ where: { id: w.id }, create: { id: w.id, tenantId, ...data }, update: data });
   }
 }
 
@@ -404,6 +423,7 @@ export async function seed(db: Db, opts: { password: string }): Promise<void> {
   });
   await upsertInterviews(db, DEMO_TENANT_ID);
   await upsertLaunches(db, DEMO_TENANT_ID);
+  await upsertWatches(db, DEMO_TENANT_ID);
   for (const e of DEMO_COMPETITOR_EVIDENCE) {
     const data = { competitorId: e.competitorId, sourceId: e.sourceId, assertion: e.assertion, excerpt: e.excerpt, state: e.state };
     await db.competitorEvidence.upsert({ where: { id: e.id }, create: { id: e.id, tenantId: DEMO_TENANT_ID, ...data }, update: data });
@@ -461,6 +481,7 @@ export async function seed(db: Db, opts: { password: string }): Promise<void> {
   });
   await upsertInterviews(db, OTHER_TENANT_ID);
   await upsertLaunches(db, OTHER_TENANT_ID);
+  await upsertWatches(db, OTHER_TENANT_ID);
   const otherKb = buildSnapshot({ tenantId: OTHER_TENANT_ID, sources: [OTHER_SOURCE], claims: [FOREIGN_CLAIM] });
   const otherContent = { ...SIMULATED_MESSAGING_FRAMEWORK, pillars: [], objections: [] };
   await upsertAsset(db, OTHER_TENANT_ID, {

@@ -4,6 +4,13 @@
 Enable ExtendPartner to run senior-led, AI-assisted Product Marketing as a managed service.
 AI drafts and flags; humans own strategy, approvals and every external representation.
 
+## Positioning
+A governed system of record for product marketing — the difference to every prompt plugin: evidence
+per statement, human approval per version, approvals that expire when their evidence changes, and
+decisions (launch go / no-go) that only people make. Built for compliance-driven and regulated B2B
+companies, whose marketing statements about security, privacy and regulation must be true, current
+and approved.
+
 ## First use case
 30-day Product Marketing Accelerator demonstration for a prospect in AI Governance /
 EU AI Act messaging and sales enablement. The demo tenant is **"Nordlicht Demo (fiktiv)"**
@@ -260,3 +267,43 @@ human go / no-go.
 Unit `tests/unit/launch.test.ts` (input, readiness rules per tier and phase, the role-play case, G16,
 simulated plan); integration `tests/integration/launch.test.ts` (briefing, 404/400/403/401, plan run
 and links, idempotency, go/no-go rules incl. phase order and risk acknowledgement, proof, reset).
+
+---
+
+# Extension M16 — regulatory radar
+
+## Purpose
+Regulatory timelines move. Messaging that argues with an old deadline becomes wrong overnight, and
+nobody notices until a customer does. The radar makes a regulatory change a recorded event with a
+computed impact.
+
+## Flow
+1. **Watched items** (`RegulatoryWatch`): name, jurisdiction, topic, the source holding the current
+   wording, optional regulatory trigger, current deadline.
+2. **Record a change** (`/radar`, editors): kind (deadline shift / scope change / new guidance /
+   repeal / other), summary, new deadline (required for a deadline shift), the verified new wording.
+   Nothing is fetched automatically (an allow-listed fetcher is on the roadmap). In one transaction:
+   - impact computed in code (`src/domain/regulatory/radar.ts`): claims citing the source; assets
+     (current and latest approved version) that cite the source, quote text that is no longer in it,
+     rely on a stale claim, or mention the previous deadline (EN/DE spellings);
+   - the source gets the new wording (version + 1), the claims become stale (with reason), the
+     deadline moves, the change is stored as an **open alert** with its impact; audited with counts.
+3. **Consequences** follow from existing rules: approvals that rest on removed text or a stale claim
+   fail the gates at export (409 `approval_outdated`, M14); launch readiness (M15) is "not ready" for
+   every phase of an affected product while the alert is open or a claim is stale.
+4. **Change brief** (`regulatory_impact`, per change): agent `agent-rr.regulatory-change-brief` 1.0.0 —
+   what changed (verbatim excerpt of the new wording), why it matters, affected messages with a
+   suggested change, implications, customer communication, updated do-not-say, what an expert must
+   validate. Regulatory statements require expert acknowledgement (G7).
+5. **Resolve** (reviewers): refused while any claim the change made stale is still stale (409
+   `claims_still_stale`) — re-verify it against the new text or retire it first.
+
+## Governance panel
+The dashboard counts, from the audit log: human approvals (with expert acknowledgement), approvals
+blocked by gates, exports blocked, launch "go" refused, stale claims, open regulatory alerts and
+withdrawn interview consents.
+
+## Acceptance tests
+Unit `tests/unit/radar.test.ts` (input, deadline tokens, impact reasons, simulated brief);
+integration `tests/integration/radar.test.ts` (recording, 409/400/404/403/401, export blocked,
+launch readiness, change brief, resolution rules, isolation, reset).

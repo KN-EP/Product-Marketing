@@ -46,7 +46,9 @@ export const DEMO_SOURCES: SourceRecord[] = [
     content:
       "SYNTHETIC SUMMARY FOR DEMONSTRATION, NOT LEGAL TEXT. The EU AI Act establishes a risk-based approach to AI systems. " +
       "Obligations differ depending on the risk classification of an AI system and the role of the organisation. " +
-      "Organisations will need an overview of which AI systems they use in order to assess their obligations.",
+      "Organisations will need an overview of which AI systems they use in order to assess their obligations. " +
+      // M16 radar demo: the watched deadline (synthetic scenario, not legal text).
+      "In this demo scenario, obligations for high-risk AI systems apply from 2 August 2026.",
   },
   {
     id: "src_demo_competitor_a",
@@ -117,6 +119,16 @@ export const DEMO_CLAIMS: ClaimRecord[] = [
     isSynthetic: true,
     text: "[SYNTHETIC] Approvals are recorded with reviewer identity and timestamp.",
     evidence: [ev("src_demo_security_note", "approvals in the module are recorded with reviewer identity and timestamp")],
+  },
+  {
+    // M16 radar demo: a regulatory claim that depends on the watched deadline.
+    id: "clm_reg_high_risk_date",
+    tenantId: DEMO_TENANT_ID,
+    category: "regulatory",
+    state: "approved",
+    isSynthetic: true,
+    text: "[SYNTHETIC] In the demo scenario, obligations for high-risk AI systems apply from 2 August 2026.",
+    evidence: [ev("src_demo_regulatory_summary", "obligations for high-risk AI systems apply from 2 August 2026")],
   },
   {
     // Deliberately NOT approved: used to demonstrate that gates block it.
