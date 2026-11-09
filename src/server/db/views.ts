@@ -1,6 +1,7 @@
 import type { DbTx } from "./tenant-scope";
 import { NotFoundError } from "../errors";
 import { INTERNAL_ASSET_TYPES } from "../assets/deliverables";
+import { ENABLEMENT_TYPES } from "../../domain/schemas/enablement";
 
 /** Deliverables only: the internal input brief is never listed, queued or counted. */
 const DELIVERABLE = { type: { notIn: [...INTERNAL_ASSET_TYPES] } };
@@ -95,6 +96,7 @@ export function tenantViews(tenantId: string, db: DbTx) {
           approvedAt: true,
           lastVerifiedAt: true,
           staleReason: true,
+          conditions: true,
           product: { select: { id: true, name: true } },
           evidence: {
             where: { tenantId },
@@ -134,6 +136,344 @@ export function tenantViews(tenantId: string, db: DbTx) {
           },
         },
       }),
+
+    campaigns: () =>
+      db.campaign.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          market: true,
+          startsOn: true,
+          endsOn: true,
+          isSynthetic: true,
+          product: { select: { name: true } },
+          persona: { select: { name: true, role: true } },
+          assets: { where: { tenantId }, select: { state: true } },
+          _count: { select: { workflowRuns: { where: { tenantId } } } },
+        },
+      }),
+
+    /** M12: the release plan — planned releases and updates, next first (undated last). */
+    releases: () =>
+      db.release.findMany({
+        where: { tenantId },
+        orderBy: [{ plannedOn: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }],
+        select: {
+          id: true,
+          name: true,
+          version: true,
+          type: true,
+          plannedOn: true,
+          audiences: true,
+          isSynthetic: true,
+          product: { select: { id: true, name: true } },
+          assets: { where: { tenantId }, select: { state: true } },
+        },
+      }),
+
+    /** M12: release briefing + its runs and communication plans (all filtered on the tenant). */
+    release: async (id: string) =>
+      orNotFound(
+        await db.release.findFirst({
+          where: { id, tenantId },
+          select: {
+            id: true,
+            name: true,
+            version: true,
+            type: true,
+            plannedOn: true,
+            summary: true,
+            changes: true,
+            audiences: true,
+            communicationChannels: true,
+            salesChannels: true,
+            isSynthetic: true,
+            createdAt: true,
+            product: { select: { id: true, name: true } },
+            workflowRuns: {
+              where: { tenantId },
+              orderBy: { createdAt: "desc" },
+              select: { id: true, status: true, generationMode: true, createdAt: true },
+            },
+            assets: {
+              where: { tenantId },
+              orderBy: { createdAt: "desc" },
+              select: {
+                id: true,
+                title: true,
+                type: true,
+                state: true,
+                versions: {
+                  where: { tenantId },
+                  orderBy: { versionNumber: "desc" },
+                  take: 1,
+                  select: { id: true, versionNumber: true, gatesPassed: true, generationMode: true },
+                },
+              },
+            },
+          },
+        }),
+        "release",
+      ),
+
+    /** M16: watched regulatory items with their source and changes (newest first). */
+    radar: () =>
+      db.regulatoryWatch.findMany({
+        where: { tenantId },
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          name: true,
+          jurisdiction: true,
+          topic: true,
+          currentDeadline: true,
+          isSynthetic: true,
+          source: { select: { id: true, title: true, content: true, version: true, retrievedAt: true } },
+          changes: {
+            where: { tenantId },
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            select: {
+              id: true,
+              kind: true,
+              summary: true,
+              previousDeadline: true,
+              newDeadline: true,
+              impact: true,
+              createdAt: true,
+              resolvedAt: true,
+              resolutionNote: true,
+              recordedBy: { select: { name: true } },
+              resolvedBy: { select: { name: true } },
+            },
+          },
+        },
+      }),
+
+    /** M16: change briefs per change id (via the run's inputRefs). */
+    changeBriefs: async () => {
+      const rows = await db.asset.findMany({
+        where: { tenantId, type: "regulatory_change_brief" },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          title: true,
+          state: true,
+          versions: {
+            where: { tenantId },
+            orderBy: { versionNumber: "desc" },
+            take: 1,
+            select: { versionNumber: true, gatesPassed: true, generationMode: true, workflowRun: { select: { inputRefs: true } } },
+          },
+        },
+      });
+      return rows.map((a) => ({ ...a, changeId: ((a.versions[0]?.workflowRun?.inputRefs ?? {}) as { changeId?: string }).changeId ?? null }));
+    },
+
+    /** M15: launches, next first. */
+    launches: () =>
+      db.launch.findMany({
+        where: { tenantId },
+        orderBy: [{ generalAvailabilityOn: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }],
+        select: {
+          id: true,
+          name: true,
+          tier: true,
+          earlyAccessOn: true,
+          generalAvailabilityOn: true,
+          customerLaunchOn: true,
+          marketLaunchOn: true,
+          isSynthetic: true,
+          product: { select: { id: true, name: true } },
+          decisions: { where: { tenantId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: { phase: true, decision: true } },
+        },
+      }),
+
+    /** M15: launch briefing + decisions, plans and runs (all filtered on the tenant). */
+    launch: async (id: string) =>
+      orNotFound(
+        await db.launch.findFirst({
+          where: { id, tenantId },
+          select: {
+            id: true,
+            name: true,
+            tier: true,
+            summary: true,
+            pricingModel: true,
+            targetSegments: true,
+            earlyAccessOn: true,
+            generalAvailabilityOn: true,
+            customerLaunchOn: true,
+            marketLaunchOn: true,
+            externalReferences: true,
+            internalPilot: true,
+            isSynthetic: true,
+            createdAt: true,
+            product: { select: { id: true, name: true } },
+            release: { select: { id: true, name: true, version: true } },
+            decisions: {
+              where: { tenantId },
+              orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+              select: { id: true, phase: true, decision: true, comment: true, readiness: true, createdAt: true, decidedBy: { select: { name: true } } },
+            },
+            workflowRuns: { where: { tenantId }, orderBy: { createdAt: "desc" }, select: { id: true, status: true, generationMode: true, createdAt: true } },
+            assets: {
+              where: { tenantId },
+              orderBy: { createdAt: "desc" },
+              select: {
+                id: true,
+                title: true,
+                type: true,
+                state: true,
+                versions: { where: { tenantId }, orderBy: { versionNumber: "desc" }, take: 1, select: { id: true, versionNumber: true, gatesPassed: true, generationMode: true } },
+              },
+            },
+          },
+        }),
+        "launch",
+      ),
+
+    /** M14: win/loss interviews (no notes: those live in the consented interview source). */
+    interviews: () =>
+      db.winLossInterview.findMany({
+        where: { tenantId },
+        orderBy: [{ decidedOn: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
+        select: {
+          id: true,
+          accountLabel: true,
+          segment: true,
+          outcome: true,
+          decidedOn: true,
+          reasons: true,
+          primaryReason: true,
+          consentStatus: true,
+          isSynthetic: true,
+          sourceId: true,
+          product: { select: { id: true, name: true } },
+          competitor: { select: { id: true, name: true } },
+        },
+      }),
+
+    /** M14: win/loss syntheses, newest first, with the product they were generated for (run inputRefs). */
+    winLossSyntheses: () =>
+      db.asset.findMany({
+        where: { tenantId, type: "win_loss_synthesis" },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          title: true,
+          state: true,
+          createdAt: true,
+          versions: { where: { tenantId }, orderBy: { versionNumber: "desc" }, take: 1, select: { versionNumber: true, gatesPassed: true, generationMode: true } },
+        },
+      }),
+
+    /** M12: use case maps generated for a product (via the run's inputRefs), newest first. */
+    useCaseMapsForProduct: (productId: string) =>
+      db.asset.findMany({
+        where: {
+          tenantId,
+          type: "use_case_map",
+          versions: { some: { tenantId, workflowRun: { tenantId, inputRefs: { path: ["productId"], equals: productId } } } },
+        },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          title: true,
+          state: true,
+          createdAt: true,
+          versions: { where: { tenantId }, orderBy: { versionNumber: "desc" }, take: 1, select: { versionNumber: true, gatesPassed: true, generationMode: true } },
+        },
+      }),
+
+    /** Campaign briefing + its runs and deliverables (all filtered on the tenant). */
+    campaign: async (id: string) =>
+      orNotFound(
+        await db.campaign.findFirst({
+          where: { id, tenantId },
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            objective: true,
+            market: true,
+            communicationChannels: true,
+            salesChannels: true,
+            startsOn: true,
+            endsOn: true,
+            budgetEur: true,
+            isSynthetic: true,
+            createdAt: true,
+            product: { select: { id: true, name: true } },
+            persona: { select: { id: true, name: true, role: true } },
+            workflowRuns: {
+              where: { tenantId },
+              orderBy: { createdAt: "desc" },
+              select: { id: true, status: true, generationMode: true, createdAt: true, completedAt: true, error: true },
+            },
+            assets: {
+              where: { tenantId },
+              orderBy: { createdAt: "asc" },
+              select: {
+                id: true,
+                title: true,
+                type: true,
+                state: true,
+                updatedAt: true,
+                versions: {
+                  where: { tenantId },
+                  orderBy: { versionNumber: "desc" },
+                  take: 1,
+                  select: { id: true, versionNumber: true, gatesPassed: true, generationMode: true },
+                },
+              },
+            },
+          },
+        }),
+        "campaign",
+      ),
+
+    /** Performance page (M11): campaign window, KPI imports, performance reviews, approved plan. */
+    campaignPerformance: async (id: string) => {
+      const c = orNotFound(
+        await db.campaign.findFirst({
+          where: { id, tenantId },
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            startsOn: true,
+            endsOn: true,
+            kpiImports: {
+              where: { tenantId },
+              orderBy: { createdAt: "desc" },
+              take: 10,
+              select: { id: true, fileName: true, rowCount: true, acceptedRows: true, rejectedRows: true, createdAt: true },
+            },
+            assets: {
+              where: { tenantId, type: "performance_review" },
+              orderBy: { createdAt: "desc" },
+              select: {
+                id: true,
+                title: true,
+                state: true,
+                versions: { where: { tenantId }, orderBy: { versionNumber: "desc" }, take: 1, select: { versionNumber: true, gatesPassed: true, generationMode: true } },
+              },
+            },
+          },
+        }),
+        "campaign",
+      );
+      const plan = await db.approval.findFirst({
+        where: { tenantId, decision: "approved", assetVersion: { tenantId, asset: { tenantId, type: "campaign_plan", campaignId: c.id } } },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { assetVersion: { select: { versionNumber: true, assetId: true } } },
+      });
+      const planAsset = await db.asset.findFirst({ where: { tenantId, type: "campaign_plan", campaignId: c.id }, orderBy: { createdAt: "desc" }, select: { id: true, state: true } });
+      return { ...c, approvedPlan: plan?.assetVersion ?? null, latestPlan: planAsset };
+    },
 
     regulatoryTriggers: () =>
       db.regulatoryTrigger.findMany({
@@ -220,6 +560,9 @@ export function tenantViews(tenantId: string, db: DbTx) {
           createdAt: true,
           completedAt: true,
           error: true,
+          campaign: { select: { id: true, name: true } },
+          release: { select: { id: true, name: true, version: true } },
+          launch: { select: { id: true, name: true } },
         },
       }),
 
@@ -253,17 +596,216 @@ export function tenantViews(tenantId: string, db: DbTx) {
       });
     },
 
+    /**
+     * What the system enforced in this tenant — from the audit log (counts only).
+     * The difference to a prompt plugin, made visible on the dashboard.
+     */
+    /** M18: all installed units with product and their hand-overs (triggers are computed on the page). */
+    installedUnits: () =>
+      db.installedUnit.findMany({
+        where: { tenantId },
+        orderBy: [{ installedOn: "asc" }, { unitRef: "asc" }],
+        select: {
+          id: true,
+          unitRef: true,
+          accountLabel: true,
+          region: true,
+          application: true,
+          installedOn: true,
+          serviceContract: true,
+          sparePartOrders12m: true,
+          materialChangePlanned: true,
+          regulatedApplication: true,
+          lastServiceOn: true,
+          isSynthetic: true,
+          product: { select: { id: true, name: true } },
+          handovers: { where: { tenantId }, select: { id: true, status: true } },
+        },
+      }),
+
+    /** M18: one unit with hand-overs and cost comparisons (all filtered on the tenant). */
+    installedUnit: async (id: string) =>
+      orNotFound(
+        await db.installedUnit.findFirst({
+          where: { id, tenantId },
+          select: {
+            id: true,
+            unitRef: true,
+            accountLabel: true,
+            region: true,
+            application: true,
+            installedOn: true,
+            serviceContract: true,
+            sparePartOrders12m: true,
+            materialChangePlanned: true,
+            regulatedApplication: true,
+            lastServiceOn: true,
+            isSynthetic: true,
+            product: { select: { id: true, name: true } },
+            handovers: {
+              where: { tenantId },
+              orderBy: { reportedAt: "desc" },
+              select: { id: true, offer: true, finding: true, status: true, reportedAt: true, dueOn: true, contactedAt: true, offeredAt: true, closedAt: true, reasons: true, note: true, reportedBy: { select: { name: true } } },
+            },
+            costComparisons: { where: { tenantId }, orderBy: { createdAt: "desc" }, select: { id: true, title: true, result: true, createdAt: true } },
+          },
+        }),
+        "installed unit",
+      ),
+
+    /** M18: the service → sales pipeline. */
+    handovers: () =>
+      db.serviceHandover.findMany({
+        where: { tenantId },
+        orderBy: [{ dueOn: "asc" }, { reportedAt: "asc" }],
+        select: {
+          id: true,
+          offer: true,
+          finding: true,
+          status: true,
+          reportedAt: true,
+          dueOn: true,
+          contactedAt: true,
+          closedAt: true,
+          reasons: true,
+          unit: { select: { id: true, unitRef: true, accountLabel: true, region: true, product: { select: { id: true, name: true } } } },
+        },
+      }),
+
+    /** M18: cost comparisons (newest first). */
+    costComparisons: () =>
+      db.costComparison.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        select: { id: true, title: true, result: true, createdAt: true, product: { select: { id: true, name: true } }, unit: { select: { id: true, unitRef: true } } },
+      }),
+
+    costComparison: async (id: string) =>
+      orNotFound(
+        await db.costComparison.findFirst({
+          where: { id, tenantId },
+          select: { id: true, title: true, inputs: true, result: true, createdAt: true, product: { select: { id: true, name: true } }, unit: { select: { id: true, unitRef: true, accountLabel: true } }, createdBy: { select: { name: true } } },
+        }),
+        "cost comparison",
+      ),
+
+    installedBaseImports: () =>
+      db.installedBaseImport.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: { id: true, fileName: true, rowCount: true, acceptedRows: true, rejectedRows: true, createdAt: true },
+      }),
+
+    governance: async () => {
+      const count = (action: string) => db.auditEvent.count({ where: { tenantId, action } });
+      const [approved, approvalBlocked, exportBlocked, exported, goBlocked, goDecisions, staleClaims, consentWithdrawn, openAlerts, expertAck] = await Promise.all([
+        count("asset.decision.approved"),
+        count("asset.approval_blocked"),
+        count("asset.export_blocked"),
+        count("asset.exported"),
+        count("launch.go_blocked"),
+        db.launchDecision.count({ where: { tenantId } }),
+        db.claim.count({ where: { tenantId, state: "stale" } }),
+        count("interview.consent_withdrawn"),
+        db.regulatoryChange.count({ where: { tenantId, resolvedAt: null } }),
+        db.auditEvent.count({ where: { tenantId, action: "asset.decision.approved", metadata: { path: ["expertReviewAcknowledged"], equals: true } } }),
+      ]);
+      return { approved, approvalBlocked, exportBlocked, exported, goBlocked, goDecisions, staleClaims, consentWithdrawn, openAlerts, expertAck };
+    },
+
     /** Counters for the guided demo checklist. */
     demoProgress: async () => {
-      const [runsCompleted, assetsPending, assetsApproved, humanEdits, exports, claimsApproved] = await Promise.all([
-        db.workflowRun.count({ where: { tenantId, status: "completed" } }),
+      const [
+        runsCompleted,
+        assetsPending,
+        assetsApproved,
+        humanEdits,
+        exports,
+        claimsApproved,
+        campaigns,
+        campaignRunsCompleted,
+        campaignAssetsApproved,
+        kpis,
+        kpiImports,
+        performanceReviews,
+        useCaseMaps,
+        strategiesApproved,
+        releases,
+        releasePlans,
+        enablementAssets,
+        enablementApproved,
+        interviews,
+        winLossSyntheses,
+        winLossApproved,
+        consentWithdrawn,
+        launches,
+        launchPlans,
+        launchDecisions,
+        regulatoryChanges,
+        regulatoryResolved,
+        changeBriefs,
+      ] = await Promise.all([
+        db.workflowRun.count({ where: { tenantId, status: "completed", kind: "pmm_three_asset" } }),
         db.asset.count({ where: { tenantId, state: "pending_review", ...DELIVERABLE } }),
         db.asset.count({ where: { tenantId, state: "approved", ...DELIVERABLE } }),
         db.assetVersion.count({ where: { tenantId, generationMode: "human_edit" } }),
         db.auditEvent.count({ where: { tenantId, action: "asset.exported" } }),
         db.claim.count({ where: { tenantId, state: "approved" } }),
+        db.campaign.count({ where: { tenantId } }),
+        db.workflowRun.count({ where: { tenantId, status: "completed", kind: "campaign_gtm" } }),
+        db.asset.count({ where: { tenantId, state: "approved", campaignId: { not: null }, type: { notIn: ["gtm_strategy_brief", "performance_review"] } } }),
+        db.kpi.count({ where: { tenantId } }),
+        db.kpiImport.count({ where: { tenantId, acceptedRows: { gt: 0 } } }),
+        db.asset.count({ where: { tenantId, type: "performance_review" } }),
+        db.asset.count({ where: { tenantId, type: "use_case_map" } }),
+        db.asset.count({ where: { tenantId, type: "gtm_strategy_brief", state: "approved" } }),
+        db.release.count({ where: { tenantId } }),
+        db.asset.count({ where: { tenantId, type: "release_communication_plan" } }),
+        db.asset.count({ where: { tenantId, type: { in: [...ENABLEMENT_TYPES] } } }),
+        db.asset.count({ where: { tenantId, state: "approved", type: { in: [...ENABLEMENT_TYPES] } } }),
+        db.winLossInterview.count({ where: { tenantId } }),
+        db.asset.count({ where: { tenantId, type: "win_loss_synthesis" } }),
+        db.asset.count({ where: { tenantId, type: "win_loss_synthesis", state: "approved" } }),
+        db.winLossInterview.count({ where: { tenantId, consentStatus: "withdrawn" } }),
+        db.launch.count({ where: { tenantId } }),
+        db.asset.count({ where: { tenantId, type: "launch_plan" } }),
+        db.launchDecision.count({ where: { tenantId } }),
+        db.regulatoryChange.count({ where: { tenantId } }),
+        db.regulatoryChange.count({ where: { tenantId, resolvedAt: { not: null } } }),
+        db.asset.count({ where: { tenantId, type: "regulatory_change_brief" } }),
       ]);
-      return { runsCompleted, assetsPending, assetsApproved, humanEdits, exports, claimsApproved };
+      return {
+        runsCompleted,
+        assetsPending,
+        assetsApproved,
+        humanEdits,
+        exports,
+        claimsApproved,
+        campaigns,
+        campaignRunsCompleted,
+        campaignAssetsApproved,
+        useCaseMaps,
+        strategiesApproved,
+        releases,
+        releasePlans,
+        enablementAssets,
+        enablementApproved,
+        kpis,
+        kpiImports,
+        performanceReviews,
+        interviews,
+        winLossSyntheses,
+        winLossApproved,
+        consentWithdrawn,
+        launches,
+        launchPlans,
+        launchDecisions,
+        regulatoryChanges,
+        regulatoryResolved,
+        changeBriefs,
+      };
     },
   };
 }

@@ -3,7 +3,17 @@ import { hasRole, type Actor } from "../../domain/actor";
 import { ACTIVE_RUN_STATUSES } from "../db/tenant-scope";
 import { addVersion, currentVersion, submitForReview, type AssetRecord } from "../../domain/assets/asset-state";
 import type { AssetType } from "../../domain/schemas/agents";
-import { idempotencyKey, WORKFLOW_LIMITS, type WorkflowStatus } from "../../domain/workflow/workflow-state";
+import { campaignBriefNotes } from "../../domain/campaigns/campaign";
+import { computeKpiResults } from "../../domain/kpis/analysis";
+import { CampaignPlanV1 } from "../../domain/schemas/campaign";
+import { MessagingFrameworkV1 } from "../../domain/schemas/agents";
+import { campaignIdempotencyKey, idempotencyKey, scopedIdempotencyKey, WORKFLOW_LIMITS, type WorkflowStatus } from "../../domain/workflow/workflow-state";
+import { releaseBriefNotes } from "../../domain/releases/release";
+import { GtmStrategyBriefV1, UseCaseMapV1 } from "../../domain/schemas/strategy";
+import { ENABLEMENT_CATALOG, ENABLEMENT_TYPES, type EnablementType } from "../../domain/schemas/enablement";
+import { computeReadiness, launchBriefNotes } from "../../domain/launches/launch";
+import { changeBriefNotes, type Impact } from "../../domain/regulatory/radar";
+import { computeWinLossStats, MIN_INTERVIEWS_FOR_SYNTHESIS, winLossBriefNotes, type DealOutcome, type ConsentStatus } from "../../domain/research/win-loss";
 import { Prisma } from "../../generated/prisma/client";
 import type { Db } from "../db/client";
 import { tenantDb, withTenantTx, type TenantDb } from "../db/tenant-scope";
@@ -12,9 +22,51 @@ import type { LlmProvider } from "../llm/types";
 import { INPUT_BRIEF_LABEL, isInternalAssetType } from "../assets/deliverables";
 import { log } from "../log";
 import { sanitizeError } from "./errors";
-import { PMM_THREE_ASSET, PROMPT_VERSIONS, StartWorkflowInput, type RunInputRefs } from "./input";
+import {
+  CAMPAIGN_ASSET,
+  CAMPAIGN_GTM,
+  CAMPAIGN_PERFORMANCE,
+  CAMPAIGN_PROMPT_VERSIONS,
+  CAMPAIGN_STRATEGY,
+  ENABLEMENT_PROMPT_VERSIONS,
+  PERFORMANCE_PROMPT_VERSIONS,
+  PMM_THREE_ASSET,
+  PROMPT_VERSIONS,
+  RELEASE_COMMUNICATION,
+  RELEASE_PROMPT_VERSIONS,
+  STRATEGY_PROMPT_VERSIONS,
+  StartWorkflowInput,
+  USE_CASE_DEFINITION,
+  USE_CASE_PROMPT_VERSIONS,
+  RESEARCH_PROMPT_VERSIONS,
+  WIN_LOSS_SYNTHESIS,
+  LAUNCH_PLANNING,
+  LAUNCH_PROMPT_VERSIONS,
+  REGULATORY_IMPACT,
+  REGULATORY_PROMPT_VERSIONS,
+  type RegulatoryImpactRunInputRefs,
+  type LaunchRunInputRefs,
+  type WinLossRunInputRefs,
+  type CampaignAssetRunInputRefs,
+  type CampaignRunInputRefs,
+  type ReleaseRunInputRefs,
+  type RunInputRefs,
+  type UseCaseRunInputRefs,
+} from "./input";
 import { assertCanRetry, assertConcurrencyAvailable, CostBudget, costCapUsd } from "./limits";
-import { newProgress, runPmmPipeline } from "./pipeline";
+import {
+  newProgress,
+  runCampaignPipeline,
+  runEnablementPipeline,
+  runPerformancePipeline,
+  runPmmPipeline,
+  runReleasePipeline,
+  runStrategyPipeline,
+  runUseCasePipeline,
+  runWinLossPipeline,
+  runLaunchPipeline,
+  runRegulatoryChangePipeline,
+} from "./pipeline";
 
 type Env = Record<string, string | undefined>;
 
@@ -66,6 +118,18 @@ const ASSET_LABEL: Record<AssetType, string> = {
   messaging_framework: "Messaging framework",
   competitive_battlecard: "Competitive battlecard",
   regulatory_gtm_brief: "Regulatory GTM brief",
+  campaign_plan: "Campaign plan",
+  content_matrix: "Content matrix",
+  sales_play: "Sales play",
+  performance_review: "Performance review",
+  use_case_map: "Use case map & ICP",
+  gtm_strategy_brief: "GTM strategy brief",
+  release_communication_plan: "Release communication plan",
+  win_loss_synthesis: "Win/loss synthesis",
+  launch_plan: "Launch plan",
+  regulatory_change_brief: "Regulatory change brief",
+  // M13a + M13b
+  ...(Object.fromEntries(ENABLEMENT_TYPES.map((t) => [t, ENABLEMENT_CATALOG[t].label])) as Record<EnablementType, string>),
 };
 
 /** An active run whose row has not changed for this long is considered stale. */
@@ -75,6 +139,19 @@ export const STALE_AUTO_ERROR = "stale: No progress for 10 minutes; marked as fa
 
 export function isStale(run: { status: WorkflowStatus; updatedAt: Date }, now: Date): boolean {
   return ACTIVE_RUN_STATUSES.includes(run.status) && now.getTime() - run.updatedAt.getTime() >= STALE_RUN_AFTER_MS;
+}
+
+type Progress = ReturnType<typeof newProgress>;
+
+/** Everything a run kind needs to execute (see prepare()). */
+interface PreparedRun {
+  snapshot: Parameters<typeof addVersion>[3];
+  titleSuffix: string;
+  campaignId: string | null;
+  releaseId?: string | null;
+  launchId?: string | null;
+  run: (provider: LlmProvider, budget: CostBudget, progress: Progress, onStep: () => Promise<unknown>) => Promise<unknown>;
+  validationMeta: (p: Progress) => Record<string, unknown>;
 }
 
 const systemActor = (tenantId: string): Actor => ({ kind: "system", userId: null, tenantId, role: "editor" });
@@ -139,17 +216,222 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
     if (!parsed.success) {
       throw new HttpError(400, "invalid_input", "Invalid workflow input.", parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })));
     }
-    const { kind, requestNonce, ...refs } = parsed.data;
     const tdb = tenantDb(actor, this.deps.db);
-    await this.resolve(tdb, refs);
 
-    const key = await idempotencyKey({
-      tenantId: actor.tenantId,
-      kind,
-      ...refs,
-      promptVersions: PROMPT_VERSIONS,
-      ...(requestNonce ? { requestNonce } : {}),
-    });
+    // Per kind: resolve every referenced id (404 on any miss), then derive the idempotency key.
+    let admission: {
+      kind: string;
+      key: string;
+      promptVersions: Record<string, string>;
+      inputRefs: Record<string, unknown>;
+      campaignId: string | null;
+      releaseId?: string | null;
+      launchId?: string | null;
+    };
+    if (parsed.data.kind === CAMPAIGN_GTM) {
+      const { kind, requestNonce, ...refs } = parsed.data;
+      const campaign = await tdb.campaigns.getById(refs.campaignId);
+      // M12 strategy first: the package is only generated from a human-approved GTM strategy brief.
+      const strategy = await tdb.assets.latestApprovedForCampaign("gtm_strategy_brief", campaign.id);
+      if (!strategy || !GtmStrategyBriefV1.safeParse(strategy.content).success) {
+        throw new HttpError(
+          409,
+          "strategy_not_approved",
+          "Approve the GTM strategy brief (target groups, use cases, ICP) before generating the campaign package.",
+        );
+      }
+      admission = {
+        kind,
+        key: await campaignIdempotencyKey({
+          tenantId: actor.tenantId,
+          kind,
+          campaignId: campaign.id,
+          promptVersions: CAMPAIGN_PROMPT_VERSIONS,
+          // A newly approved strategy means a new package run.
+          dataVersion: strategy.versionId,
+          ...(requestNonce ? { requestNonce } : {}),
+        }),
+        promptVersions: CAMPAIGN_PROMPT_VERSIONS,
+        inputRefs: refs,
+        campaignId: campaign.id,
+      };
+    } else if (parsed.data.kind === CAMPAIGN_ASSET) {
+      const { kind, requestNonce, ...refs } = parsed.data;
+      const campaign = await tdb.campaigns.getById(refs.campaignId);
+      // M13: like the campaign package, every asset is built on a human-approved GTM strategy brief.
+      const strategy = await tdb.assets.latestApprovedForCampaign("gtm_strategy_brief", campaign.id);
+      if (!strategy || !GtmStrategyBriefV1.safeParse(strategy.content).success) {
+        throw new HttpError(409, "strategy_not_approved", "Approve the GTM strategy brief before generating assets or sales toolkit deliverables.");
+      }
+      admission = {
+        kind,
+        key: await scopedIdempotencyKey({
+          tenantId: actor.tenantId,
+          kind,
+          scope: { campaignId: campaign.id, deliverableType: refs.deliverableType },
+          promptVersions: ENABLEMENT_PROMPT_VERSIONS,
+          dataVersion: strategy.versionId,
+          ...(requestNonce ? { requestNonce } : {}),
+        }),
+        promptVersions: ENABLEMENT_PROMPT_VERSIONS,
+        inputRefs: refs,
+        campaignId: campaign.id,
+      };
+    } else if (parsed.data.kind === CAMPAIGN_STRATEGY) {
+      const { kind, requestNonce, ...refs } = parsed.data;
+      const campaign = await tdb.campaigns.getById(refs.campaignId);
+      const ucm = await tdb.assets.latestApprovedForProduct("use_case_map", campaign.product.id);
+      admission = {
+        kind,
+        key: await scopedIdempotencyKey({
+          tenantId: actor.tenantId,
+          kind,
+          scope: { campaignId: campaign.id },
+          promptVersions: STRATEGY_PROMPT_VERSIONS,
+          dataVersion: ucm?.versionId ?? "none",
+          ...(requestNonce ? { requestNonce } : {}),
+        }),
+        promptVersions: STRATEGY_PROMPT_VERSIONS,
+        inputRefs: refs,
+        campaignId: campaign.id,
+      };
+    } else if (parsed.data.kind === USE_CASE_DEFINITION) {
+      const { kind, requestNonce, ...refs } = parsed.data;
+      const product = await tdb.products.getById(refs.productId);
+      admission = {
+        kind,
+        key: await scopedIdempotencyKey({
+          tenantId: actor.tenantId,
+          kind,
+          scope: { productId: product.id, market: refs.market },
+          promptVersions: USE_CASE_PROMPT_VERSIONS,
+          ...(requestNonce ? { requestNonce } : {}),
+        }),
+        promptVersions: USE_CASE_PROMPT_VERSIONS,
+        inputRefs: refs,
+        campaignId: null,
+      };
+    } else if (parsed.data.kind === RELEASE_COMMUNICATION) {
+      const { kind, requestNonce, ...refs } = parsed.data;
+      const release = await tdb.releases.getById(refs.releaseId);
+      admission = {
+        kind,
+        key: await scopedIdempotencyKey({
+          tenantId: actor.tenantId,
+          kind,
+          scope: { releaseId: release.id },
+          promptVersions: RELEASE_PROMPT_VERSIONS,
+          ...(requestNonce ? { requestNonce } : {}),
+        }),
+        // productId lets the product page find the plan; the release itself stays the source of truth.
+        promptVersions: RELEASE_PROMPT_VERSIONS,
+        inputRefs: { ...refs, productId: release.product.id },
+        campaignId: null,
+        releaseId: release.id,
+      };
+    } else if (parsed.data.kind === REGULATORY_IMPACT) {
+      const { kind, requestNonce, ...refs } = parsed.data;
+      const change = await tdb.radar.getChange(refs.changeId);
+      admission = {
+        kind,
+        key: await scopedIdempotencyKey({
+          tenantId: actor.tenantId,
+          kind,
+          scope: { changeId: change.id },
+          promptVersions: REGULATORY_PROMPT_VERSIONS,
+          ...(requestNonce ? { requestNonce } : {}),
+        }),
+        promptVersions: REGULATORY_PROMPT_VERSIONS,
+        inputRefs: { ...refs, watchId: change.watch.id },
+        campaignId: null,
+      };
+    } else if (parsed.data.kind === LAUNCH_PLANNING) {
+      const { kind, requestNonce, ...refs } = parsed.data;
+      const launch = await tdb.launches.getById(refs.launchId);
+      admission = {
+        kind,
+        key: await scopedIdempotencyKey({
+          tenantId: actor.tenantId,
+          kind,
+          scope: { launchId: launch.id },
+          promptVersions: LAUNCH_PROMPT_VERSIONS,
+          // A changed briefing (dates, proof) means a new plan run.
+          dataVersion: launch.updatedAt.toISOString(),
+          ...(requestNonce ? { requestNonce } : {}),
+        }),
+        promptVersions: LAUNCH_PROMPT_VERSIONS,
+        // productId lets readiness find the plan's product deliverables; the launch stays the source of truth.
+        inputRefs: { ...refs, productId: launch.product.id },
+        campaignId: null,
+        launchId: launch.id,
+      };
+    } else if (parsed.data.kind === WIN_LOSS_SYNTHESIS) {
+      const { kind, requestNonce, ...refs } = parsed.data;
+      const product = await tdb.products.getById(refs.productId);
+      const interviews = await tdb.winLoss.listForProduct(product.id);
+      const consented = interviews.filter((i) => i.consentStatus === "granted");
+      if (consented.length < MIN_INTERVIEWS_FOR_SYNTHESIS) {
+        throw new HttpError(
+          409,
+          "not_enough_interviews",
+          `A win/loss synthesis needs at least ${MIN_INTERVIEWS_FOR_SYNTHESIS} interviews with granted consent (this product has ${consented.length}).`,
+        );
+      }
+      admission = {
+        kind,
+        key: await scopedIdempotencyKey({
+          tenantId: actor.tenantId,
+          kind,
+          scope: { productId: product.id },
+          promptVersions: RESEARCH_PROMPT_VERSIONS,
+          // New, withdrawn or changed interviews mean a new synthesis run.
+          dataVersion: interviews.map((i) => `${i.id}:${i.consentStatus}:${i.updatedAt.toISOString()}`).join("|"),
+          ...(requestNonce ? { requestNonce } : {}),
+        }),
+        promptVersions: RESEARCH_PROMPT_VERSIONS,
+        inputRefs: refs,
+        campaignId: null,
+      };
+    } else if (parsed.data.kind === CAMPAIGN_PERFORMANCE) {
+      const { kind, requestNonce, ...refs } = parsed.data;
+      const campaign = await tdb.campaigns.getById(refs.campaignId);
+      if ((await tdb.kpis.countMeasurements(campaign.id)) === 0) {
+        throw new HttpError(409, "no_kpi_data", "Import KPI measurements before generating a performance review.");
+      }
+      const dataVersion = (await tdb.kpis.latestImportId(campaign.id)) ?? "none";
+      admission = {
+        kind,
+        key: await campaignIdempotencyKey({
+          tenantId: actor.tenantId,
+          kind,
+          campaignId: campaign.id,
+          promptVersions: PERFORMANCE_PROMPT_VERSIONS,
+          dataVersion,
+          ...(requestNonce ? { requestNonce } : {}),
+        }),
+        promptVersions: PERFORMANCE_PROMPT_VERSIONS,
+        inputRefs: refs,
+        campaignId: campaign.id,
+      };
+    } else {
+      const { kind, requestNonce, ...refs } = parsed.data;
+      await this.resolve(tdb, refs);
+      admission = {
+        kind,
+        key: await idempotencyKey({
+          tenantId: actor.tenantId,
+          kind,
+          ...refs,
+          promptVersions: PROMPT_VERSIONS,
+          ...(requestNonce ? { requestNonce } : {}),
+        }),
+        promptVersions: PROMPT_VERSIONS,
+        inputRefs: refs,
+        campaignId: null,
+      };
+    }
+
+    const { key } = admission;
     const existing = await tdb.workflowRuns.findByKey(key);
     if (existing) return { run: summary(existing), created: false };
 
@@ -161,13 +443,27 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
         if (again) return { run: summary(again), created: false };
         assertConcurrencyAvailable(await t.workflowRuns.countActive());
         const run = await t.workflowRuns.create({
-          kind,
+          kind: admission.kind,
           idempotencyKey: key,
           generationMode: mode,
-          promptVersions: PROMPT_VERSIONS,
-          inputRefs: refs,
+          promptVersions: admission.promptVersions,
+          inputRefs: admission.inputRefs,
+          campaignId: admission.campaignId,
+          releaseId: admission.releaseId ?? null,
+          launchId: admission.launchId ?? null,
         });
-        await t.audit.record({ actorId: actor.userId, action: "workflow.created", entityType: "WorkflowRun", entityId: run.id, metadata: { kind } });
+        await t.audit.record({
+          actorId: actor.userId,
+          action: "workflow.created",
+          entityType: "WorkflowRun",
+          entityId: run.id,
+          metadata: {
+            kind: admission.kind,
+            ...(admission.campaignId ? { campaignId: admission.campaignId } : {}),
+            ...(admission.releaseId ? { releaseId: admission.releaseId } : {}),
+            ...(admission.launchId ? { launchId: admission.launchId } : {}),
+          },
+        });
         await t.workflowRuns.transition(run.id, "created", "queued", actor.userId);
         return { run: summary(await t.workflowRuns.getById(run.id)), created: true };
       });
@@ -209,48 +505,32 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
       status = "running";
 
       const budget = new CostBudget(costCapUsd(this.deps.env ?? process.env), provider);
-      const refs = run.inputRefs as unknown as RunInputRefs;
-      const { product, persona, trigger, competitors } = await this.resolve(tdb, refs);
-      const [{ snapshot, sourceClassifications }, policy] = await Promise.all([
-        tdb.knowledge.snapshot({ competitorIds: refs.competitorIds }),
-        tdb.tenant.policy(),
-      ]);
-      await runPmmPipeline(
-        {
-          snapshot,
-          sourceClassifications,
-          policy,
-          brief: {
-            productName: product.name,
-            market: refs.market,
-            persona: `${persona.name} (${persona.role})`,
-            notes: `Regulatory trigger: ${trigger.name} (${trigger.jurisdiction}): ${trigger.summary}\nCompetitors: ${competitors.map((c) => c.name).join(", ")}`,
-          },
-        },
-        provider,
-        budget,
-        progress,
-        () => tdb.workflowRuns.touch(runId),
-      );
+      const work = await this.prepare(tdb, run.kind, run.inputRefs);
+      await work.run(provider, budget, progress, () => tdb.workflowRuns.touch(runId));
 
-      await tdb.workflowRuns.transition(runId, "running", "validation", null, this.metrics(progress), {
-        messagingFrameworkPassedToC: progress.messagingFrameworkPassedToC,
-      });
+      await tdb.workflowRuns.transition(runId, "running", "validation", null, this.metrics(progress), work.validationMeta(progress));
       status = "validation";
 
       // Gates + persistence for all outputs in ONE transaction: either the three
-      // deliverables are in pending_review and the internal input brief is stored,
-      // or nothing is (a retry cannot duplicate them).
+      // deliverables are in pending_review (and, for pmm_three_asset, the internal
+      // input brief is stored), or nothing is (a retry cannot duplicate them).
       const now = this.now();
       await withTenantTx(actor, this.deps.db, async (t) => {
-        for (const r of progress.results) {
+        for (const [i, r] of progress.results.entries()) {
           const prefix = r.llm.mode === "simulated" ? "[SIMULATED] " : "";
           const internal = isInternalAssetType(r.assetType);
           const label = internal ? INPUT_BRIEF_LABEL : ASSET_LABEL[r.assetType];
-          const title = `${prefix}${label} — ${product.name} (${persona.name}, ${refs.market})`;
-          const { id: assetId } = await t.assets.create({ type: r.assetType, title });
+          const title = `${prefix}${label} — ${work.titleSuffix}`;
+          const { id: assetId } = await t.assets.create({
+            type: r.assetType,
+            title,
+            campaignId: work.campaignId,
+            releaseId: work.releaseId ?? null,
+            launchId: work.launchId ?? null,
+          });
           let rec: AssetRecord = { id: assetId, tenantId: actor.tenantId, type: r.assetType, title, state: "draft", currentVersionId: null, versions: [], approvals: [] };
-          rec = addVersion(rec, r.output, systemActor(actor.tenantId), snapshot, { id: randomUUID(), generationMode: r.llm.mode, now });
+          // +i ms: outputs of one run keep their pipeline order (all rows share one transaction time otherwise).
+          rec = addVersion(rec, r.output, systemActor(actor.tenantId), work.snapshot, { id: randomUUID(), generationMode: r.llm.mode, now: new Date(now.getTime() + i) });
           const v = currentVersion(rec)!;
           await t.assets.insertVersion(v, runId);
           // The internal input brief never enters review; it stays a stored draft.
@@ -272,6 +552,9 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
               promptId: r.prompt.id,
               promptVersion: r.prompt.version,
               internal,
+              ...(work.campaignId ? { campaignId: work.campaignId } : {}),
+              ...(work.releaseId ? { releaseId: work.releaseId } : {}),
+              ...(work.launchId ? { launchId: work.launchId } : {}),
             },
           });
           if (!internal) {
@@ -298,6 +581,363 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
       }
     }
     return summary(await tdb.workflowRuns.getById(runId));
+  }
+
+  /**
+   * Everything a run kind needs to execute: tenant-scoped inputs (resolved via
+   * the DAL, 404 on any miss), the pipeline, how outputs are titled and linked.
+   */
+  private async prepare(tdb: TenantDb, kind: string, inputRefs: unknown): Promise<PreparedRun> {
+    if (kind === PMM_THREE_ASSET) {
+      const refs = inputRefs as RunInputRefs;
+      const { product, persona, trigger, competitors } = await this.resolve(tdb, refs);
+      const [{ snapshot, sourceClassifications }, policy] = await Promise.all([
+        tdb.knowledge.snapshot({ competitorIds: refs.competitorIds, forAgent: true }),
+        tdb.tenant.policy(),
+      ]);
+      const base = {
+        snapshot,
+        sourceClassifications,
+        policy,
+        brief: {
+          productName: product.name,
+          market: refs.market,
+          persona: `${persona.name} (${persona.role})`,
+          notes: `Regulatory trigger: ${trigger.name} (${trigger.jurisdiction}): ${trigger.summary}\nCompetitors: ${competitors.map((c) => c.name).join(", ")}`,
+        },
+      };
+      return {
+        snapshot,
+        titleSuffix: `${product.name} (${persona.name}, ${refs.market})`,
+        campaignId: null,
+        run: (provider: LlmProvider, budget: CostBudget, progress: ReturnType<typeof newProgress>, onStep: () => Promise<unknown>) =>
+          runPmmPipeline(base, provider, budget, progress, onStep),
+        validationMeta: (p: ReturnType<typeof newProgress>) => ({ messagingFrameworkPassedToC: p.messagingFrameworkPassedToC }),
+      };
+    }
+    if (kind === CAMPAIGN_GTM) {
+      const refs = inputRefs as CampaignRunInputRefs;
+      const campaign = await tdb.campaigns.getById(refs.campaignId);
+      const [{ snapshot, sourceClassifications }, policy, approvedMf, approvedStrategy] = await Promise.all([
+        tdb.knowledge.snapshot({ forAgent: true }),
+        tdb.tenant.policy(),
+        tdb.assets.latestApprovedContent("messaging_framework", { productId: campaign.product.id, personaId: campaign.persona.id }),
+        tdb.assets.latestApprovedForCampaign("gtm_strategy_brief", campaign.id),
+      ]);
+      // Only a human-approved, schema-valid messaging framework for the same product and persona becomes context.
+      const mf = approvedMf ? MessagingFrameworkV1.safeParse(approvedMf.content) : null;
+      // M12: the approved GTM strategy brief frames the whole package (checked again here: it could have been superseded).
+      const strategy = approvedStrategy ? GtmStrategyBriefV1.safeParse(approvedStrategy.content) : null;
+      if (!strategy?.success) {
+        throw new HttpError(409, "strategy_not_approved", "Approve the GTM strategy brief before generating the campaign package.");
+      }
+      const base = {
+        snapshot,
+        sourceClassifications,
+        policy,
+        brief: {
+          productName: campaign.product.name,
+          market: campaign.market,
+          persona: `${campaign.persona.name} (${campaign.persona.role})`,
+          notes: campaignBriefNotes(campaign),
+        },
+        ...(mf?.success ? { messagingFramework: mf.data } : {}),
+        gtmStrategy: strategy.data,
+      };
+      return {
+        snapshot,
+        titleSuffix: campaign.name,
+        campaignId: campaign.id,
+        run: (provider: LlmProvider, budget: CostBudget, progress: ReturnType<typeof newProgress>, onStep: () => Promise<unknown>) =>
+          runCampaignPipeline(base, provider, budget, progress, onStep),
+        validationMeta: (p: ReturnType<typeof newProgress>) => ({
+          campaignPlanPassedOn: p.campaignPlanPassedOn,
+          approvedMessagingFrameworkVersionId: mf?.success ? approvedMf!.versionId : null,
+          approvedStrategyVersionId: approvedStrategy!.versionId,
+        }),
+      };
+    }
+    if (kind === CAMPAIGN_ASSET) {
+      const refs = inputRefs as CampaignAssetRunInputRefs;
+      const campaign = await tdb.campaigns.getById(refs.campaignId);
+      const [{ snapshot, sourceClassifications }, policy, approvedMf, approvedStrategy, approvedPlan] = await Promise.all([
+        tdb.knowledge.snapshot({ forAgent: true }),
+        tdb.tenant.policy(),
+        tdb.assets.latestApprovedContent("messaging_framework", { productId: campaign.product.id, personaId: campaign.persona.id }),
+        tdb.assets.latestApprovedForCampaign("gtm_strategy_brief", campaign.id),
+        tdb.assets.latestApprovedForCampaign("campaign_plan", campaign.id),
+      ]);
+      const mf = approvedMf ? MessagingFrameworkV1.safeParse(approvedMf.content) : null;
+      const strategy = approvedStrategy ? GtmStrategyBriefV1.safeParse(approvedStrategy.content) : null;
+      if (!strategy?.success) {
+        throw new HttpError(409, "strategy_not_approved", "Approve the GTM strategy brief before generating assets or sales toolkit deliverables.");
+      }
+      const plan = approvedPlan ? CampaignPlanV1.safeParse(approvedPlan.content) : null;
+      const base = {
+        snapshot,
+        sourceClassifications,
+        policy,
+        brief: {
+          productName: campaign.product.name,
+          market: campaign.market,
+          persona: `${campaign.persona.name} (${campaign.persona.role})`,
+          notes: `${campaignBriefNotes(campaign)}\nrequested_deliverable_type: ${refs.deliverableType}`,
+        },
+        ...(mf?.success ? { messagingFramework: mf.data } : {}),
+        gtmStrategy: strategy.data,
+        ...(plan?.success ? { campaignPlan: plan.data } : {}),
+      };
+      return {
+        snapshot,
+        titleSuffix: campaign.name,
+        campaignId: campaign.id,
+        run: (provider: LlmProvider, budget: CostBudget, progress: Progress, onStep: () => Promise<unknown>) =>
+          runEnablementPipeline(refs.deliverableType)(base, provider, budget, progress, onStep),
+        validationMeta: () => ({
+          deliverableType: refs.deliverableType,
+          approvedStrategyVersionId: approvedStrategy!.versionId,
+          approvedMessagingFrameworkVersionId: mf?.success ? approvedMf!.versionId : null,
+          approvedCampaignPlanVersionId: plan?.success ? approvedPlan!.versionId : null,
+        }),
+      };
+    }
+    if (kind === CAMPAIGN_STRATEGY) {
+      const refs = inputRefs as CampaignRunInputRefs;
+      const campaign = await tdb.campaigns.getById(refs.campaignId);
+      const [{ snapshot, sourceClassifications }, policy, approvedMf, approvedUcm] = await Promise.all([
+        tdb.knowledge.snapshot({ forAgent: true }),
+        tdb.tenant.policy(),
+        tdb.assets.latestApprovedContent("messaging_framework", { productId: campaign.product.id, personaId: campaign.persona.id }),
+        tdb.assets.latestApprovedForProduct("use_case_map", campaign.product.id),
+      ]);
+      const mf = approvedMf ? MessagingFrameworkV1.safeParse(approvedMf.content) : null;
+      const ucm = approvedUcm ? UseCaseMapV1.safeParse(approvedUcm.content) : null;
+      const base = {
+        snapshot,
+        sourceClassifications,
+        policy,
+        brief: {
+          productName: campaign.product.name,
+          market: campaign.market,
+          persona: `${campaign.persona.name} (${campaign.persona.role})`,
+          notes: campaignBriefNotes(campaign),
+        },
+        ...(mf?.success ? { messagingFramework: mf.data } : {}),
+        ...(ucm?.success ? { useCaseMap: ucm.data } : {}),
+      };
+      return {
+        snapshot,
+        titleSuffix: campaign.name,
+        campaignId: campaign.id,
+        run: (provider: LlmProvider, budget: CostBudget, progress: Progress, onStep: () => Promise<unknown>) =>
+          runStrategyPipeline(base, provider, budget, progress, onStep),
+        validationMeta: () => ({
+          approvedUseCaseMapVersionId: ucm?.success ? approvedUcm!.versionId : null,
+          approvedMessagingFrameworkVersionId: mf?.success ? approvedMf!.versionId : null,
+        }),
+      };
+    }
+    if (kind === USE_CASE_DEFINITION) {
+      const refs = inputRefs as UseCaseRunInputRefs;
+      const product = await tdb.products.getById(refs.productId);
+      const [{ snapshot, sourceClassifications }, policy, personas] = await Promise.all([
+        tdb.knowledge.snapshot({ forAgent: true }),
+        tdb.tenant.policy(),
+        tdb.personas.list(),
+      ]);
+      const base = {
+        snapshot,
+        sourceClassifications,
+        policy,
+        brief: {
+          productName: product.name,
+          market: refs.market,
+          notes: `known_personas: ${personas.map((p) => `${p.name} (${p.role})`).join("; ") || "none"}`,
+        },
+      };
+      return {
+        snapshot,
+        titleSuffix: `${product.name} (${refs.market})`,
+        campaignId: null,
+        run: (provider: LlmProvider, budget: CostBudget, progress: Progress, onStep: () => Promise<unknown>) =>
+          runUseCasePipeline(base, provider, budget, progress, onStep),
+        validationMeta: () => ({ personas: personas.length }),
+      };
+    }
+    if (kind === RELEASE_COMMUNICATION) {
+      const refs = inputRefs as ReleaseRunInputRefs;
+      const release = await tdb.releases.getById(refs.releaseId);
+      const [{ snapshot, sourceClassifications }, policy] = await Promise.all([tdb.knowledge.snapshot({ forAgent: true }), tdb.tenant.policy()]);
+      const base = {
+        snapshot,
+        sourceClassifications,
+        policy,
+        brief: { productName: release.product.name, notes: releaseBriefNotes(release) },
+      };
+      return {
+        snapshot,
+        titleSuffix: `${release.product.name} ${release.version}`,
+        campaignId: null,
+        releaseId: release.id,
+        run: (provider: LlmProvider, budget: CostBudget, progress: Progress, onStep: () => Promise<unknown>) =>
+          runReleasePipeline(base, provider, budget, progress, onStep),
+        validationMeta: () => ({ releaseType: release.type, audiences: release.audiences.length }),
+      };
+    }
+    if (kind === REGULATORY_IMPACT) {
+      const refs = inputRefs as RegulatoryImpactRunInputRefs;
+      const change = await tdb.radar.getChange(refs.changeId);
+      const [{ snapshot, sourceClassifications }, policy] = await Promise.all([tdb.knowledge.snapshot({ forAgent: true }), tdb.tenant.policy()]);
+      const base = {
+        snapshot,
+        sourceClassifications,
+        policy,
+        brief: {
+          productName: change.watch.name,
+          notes: changeBriefNotes({
+            watchName: change.watch.name,
+            jurisdiction: change.watch.jurisdiction,
+            topic: change.watch.topic,
+            sourceId: change.watch.sourceId,
+            kind: change.kind,
+            summary: change.summary,
+            previousDeadline: change.previousDeadline,
+            newDeadline: change.newDeadline,
+            impact: change.impact as unknown as Impact,
+          }),
+        },
+      };
+      return {
+        snapshot,
+        titleSuffix: `${change.watch.name} (${change.createdAt.toISOString().slice(0, 10)})`,
+        campaignId: null,
+        run: (provider: LlmProvider, budget: CostBudget, progress: Progress, onStep: () => Promise<unknown>) =>
+          runRegulatoryChangePipeline(base, provider, budget, progress, onStep),
+        validationMeta: () => ({ changeKind: change.kind, affectedAssets: (change.impact as unknown as Impact).affectedAssets.length }),
+      };
+    }
+    if (kind === LAUNCH_PLANNING) {
+      const refs = inputRefs as LaunchRunInputRefs;
+      const launch = await tdb.launches.getById(refs.launchId);
+      const asOf = this.now().toISOString().slice(0, 10);
+      const [facts, { snapshot, sourceClassifications }, policy, approvedMf] = await Promise.all([
+        tdb.launches.facts(
+          { id: launch.id, productId: launch.product.id, releaseId: launch.release?.id ?? null, externalReferences: launch.externalReferences, internalPilot: launch.internalPilot },
+          { forPlan: true },
+        ),
+        tdb.knowledge.snapshot({ forAgent: true }),
+        tdb.tenant.policy(),
+        tdb.assets.latestApprovedForProduct("messaging_framework", launch.product.id),
+      ]);
+      // Deterministic readiness: computed here, never by the model.
+      const readiness = computeReadiness(launch, facts);
+      const mf = approvedMf ? MessagingFrameworkV1.safeParse(approvedMf.content) : null;
+      const base = {
+        snapshot,
+        sourceClassifications,
+        policy,
+        brief: { productName: launch.product.name, notes: launchBriefNotes(launch, readiness) },
+        ...(mf?.success ? { messagingFramework: mf.data } : {}),
+      };
+      return {
+        snapshot,
+        titleSuffix: launch.name,
+        campaignId: null,
+        launchId: launch.id,
+        run: (provider: LlmProvider, budget: CostBudget, progress: Progress, onStep: () => Promise<unknown>) =>
+          runLaunchPipeline(base, { asOf, readiness }, provider, budget, progress, onStep),
+        validationMeta: () => ({
+          asOf,
+          tier: launch.tier,
+          noGoPhases: readiness.phases.filter((p) => p.status === "no_go").length,
+          approvedMessagingFrameworkVersionId: mf?.success ? approvedMf!.versionId : null,
+        }),
+      };
+    }
+    if (kind === WIN_LOSS_SYNTHESIS) {
+      const refs = inputRefs as WinLossRunInputRefs;
+      const product = await tdb.products.getById(refs.productId);
+      const interviews = await tdb.winLoss.listForProduct(product.id);
+      const consented = interviews.filter((i) => i.consentStatus === "granted");
+      if (consented.length < MIN_INTERVIEWS_FOR_SYNTHESIS) {
+        throw new HttpError(409, "not_enough_interviews", "Consent was withdrawn meanwhile: not enough consented interviews for a synthesis.");
+      }
+      const asOf = this.now().toISOString().slice(0, 10);
+      // Deterministic numbers: computed here from the consented interviews, never by the model.
+      const stats = computeWinLossStats(
+        interviews.map((i) => ({
+          outcome: i.outcome as DealOutcome,
+          segment: i.segment,
+          reasons: i.reasons,
+          primaryReason: i.primaryReason,
+          consentStatus: i.consentStatus as ConsentStatus,
+          competitorName: i.competitor?.name ?? null,
+        })),
+      );
+      const interviewSources = consented.filter((i) => i.sourceId).map((i) => ({ sourceId: i.sourceId!, label: i.accountLabel, outcome: i.outcome }));
+      // Only the consented interview sources of THIS product enter the prompt (and the generation-time gates).
+      const [{ snapshot, sourceClassifications }, policy] = await Promise.all([
+        tdb.knowledge.snapshot({ forAgent: true, interviewSourceIds: interviewSources.map((s) => s.sourceId) }),
+        tdb.tenant.policy(),
+      ]);
+      const base = {
+        snapshot,
+        sourceClassifications,
+        policy,
+        brief: { productName: product.name, notes: winLossBriefNotes(stats, interviewSources) },
+        winLossStats: { asOf, stats },
+      };
+      return {
+        snapshot,
+        titleSuffix: `${product.name} (${asOf})`,
+        campaignId: null,
+        run: (provider: LlmProvider, budget: CostBudget, progress: Progress, onStep: () => Promise<unknown>) =>
+          runWinLossPipeline(base, provider, budget, progress, onStep),
+        validationMeta: () => ({ asOf, interviews: stats.interviews, excludedWithoutConsent: stats.excludedWithoutConsent }),
+      };
+    }
+    if (kind === CAMPAIGN_PERFORMANCE) {
+      const refs = inputRefs as CampaignRunInputRefs;
+      const campaign = await tdb.campaigns.getById(refs.campaignId);
+      const asOf = this.now().toISOString().slice(0, 10);
+      const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+      const [kpis, { snapshot, sourceClassifications }, policy, plan] = await Promise.all([
+        tdb.kpis.listForCampaign(campaign.id),
+        tdb.knowledge.snapshot({ forAgent: true }),
+        tdb.tenant.policy(),
+        tdb.assets.latestApprovedForCampaign("campaign_plan", campaign.id),
+      ]);
+      // Deterministic numbers: computed here, never by the model.
+      const results = computeKpiResults(kpis, { startsOn: day(campaign.startsOn), endsOn: day(campaign.endsOn) }, asOf);
+      const parsedPlan = plan ? CampaignPlanV1.safeParse(plan.content) : null;
+      const base = {
+        snapshot,
+        sourceClassifications,
+        policy,
+        brief: {
+          productName: campaign.product.name,
+          market: campaign.market,
+          persona: `${campaign.persona.name} (${campaign.persona.role})`,
+          notes: campaignBriefNotes(campaign),
+        },
+        kpiResults: { asOf, results },
+        ...(parsedPlan?.success ? { campaignPlan: parsedPlan.data } : {}),
+      };
+      return {
+        snapshot,
+        titleSuffix: `${campaign.name} (${asOf})`,
+        campaignId: campaign.id,
+        run: (provider: LlmProvider, budget: CostBudget, progress: ReturnType<typeof newProgress>, onStep: () => Promise<unknown>) =>
+          runPerformancePipeline(base, provider, budget, progress, onStep),
+        validationMeta: () => ({
+          asOf,
+          kpis: results.length,
+          measurements: results.reduce((n, r) => n + r.measurements, 0),
+          offTrack: results.filter((r) => r.status === "off_track").length,
+        }),
+      };
+    }
+    throw new HttpError(409, "unknown_kind", `Unknown run kind: ${kind}.`);
   }
 
   private metrics(p: ReturnType<typeof newProgress>) {
@@ -385,4 +1025,4 @@ export class InProcessOrchestrator implements OrchestratorAdapter {
   }
 }
 
-export { PMM_THREE_ASSET };
+export { CAMPAIGN_ASSET, CAMPAIGN_GTM, CAMPAIGN_PERFORMANCE, CAMPAIGN_STRATEGY, PMM_THREE_ASSET, LAUNCH_PLANNING, REGULATORY_IMPACT, RELEASE_COMMUNICATION, USE_CASE_DEFINITION, WIN_LOSS_SYNTHESIS };

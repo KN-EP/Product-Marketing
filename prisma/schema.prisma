@@ -63,6 +63,150 @@ enum AssetType {
   competitive_battlecard
   regulatory_gtm_brief
   product_intelligence_brief
+  /// M8–M10: campaign package (campaign_gtm run)
+  campaign_plan
+  content_matrix
+  sales_play
+  /// M11: performance review (campaign_performance run)
+  performance_review
+  /// M12: use case map (use_case_definition run), GTM strategy brief (campaign_strategy run),
+  /// release communication plan (release_communication run)
+  use_case_map
+  gtm_strategy_brief
+  release_communication_plan
+  /// M13a: product and conversion assets (campaign_asset run, enablement_asset.v1)
+  product_page
+  solution_brief
+  whitepaper_outline
+  thought_leadership
+  regulatory_explainer
+  case_study
+  ad_copy
+  webinar_outline
+  video_script
+  industry_narrative
+  /// M13b: sales toolkit and training (campaign_asset run, enablement_asset.v1)
+  pitch_deck_outline
+  demo_story
+  one_pager
+  discovery_guide
+  persona_playbook
+  roi_argument
+  sales_training
+  /// M14: win/loss synthesis (win_loss_synthesis run)
+  win_loss_synthesis
+  /// M15: launch plan (launch_planning run)
+  launch_plan
+  /// M16: regulatory change brief (regulatory_impact run)
+  regulatory_change_brief
+}
+
+enum KpiUnit {
+  count
+  percent
+  currency_eur
+  ratio
+}
+
+enum KpiDirection {
+  higher_is_better
+  lower_is_better
+}
+
+/// How the measurements of a KPI combine into its actual value.
+enum KpiAggregation {
+  sum
+  latest
+  average
+}
+
+/// What a campaign is meant to move. Drives the campaign plan and the sales play type.
+enum CampaignType {
+  demand_generation
+  conversion
+  retention
+  loyalty
+  sales_enablement
+}
+
+/// M12: what kind of release or update is planned. Drives the release tier the agent proposes.
+enum ReleaseType {
+  major_release
+  feature_update
+  maintenance_update
+  security_update
+  deprecation
+}
+
+/// M14: outcome of the deal a win/loss interview is about.
+enum DealOutcome {
+  won
+  lost
+  churned
+  no_decision
+}
+
+/// M14: consent of the interviewee to store and use the interview notes.
+enum ConsentStatus {
+  requested
+  granted
+  declined
+  withdrawn
+}
+
+/// M15: launch tier — tier_1 = broad market launch, tier_3 = quiet availability.
+enum LaunchTier {
+  tier_1
+  tier_2
+  tier_3
+}
+
+/// M15: the staged launch — early access → GA → existing customers → market.
+enum LaunchPhase {
+  early_access
+  general_availability
+  customer_launch
+  market_launch
+}
+
+/// M15: a human go / no-go decision for one launch phase.
+enum GoDecision {
+  go
+  no_go
+}
+
+/// M16: what kind of regulatory change the radar recorded.
+enum RegulatoryChangeKind {
+  deadline_shift
+  scope_change
+  new_guidance
+  repeal
+  other
+}
+
+/// M18: which reason codes and wording a tenant uses (software vendor or machine builder).
+enum IndustryProfile {
+  software
+  machinery
+}
+
+/// M18: what a service finding hands over to sales.
+enum HandoverOffer {
+  service_contract
+  spare_parts
+  retrofit
+  upgrade
+  replacement
+}
+
+/// M18: the hand-over from field service to sales (open → contacted → offered → won / lost / no_decision).
+enum HandoverStatus {
+  open
+  contacted
+  offered
+  won
+  lost
+  no_decision
 }
 
 enum AssetState {
@@ -105,6 +249,8 @@ model Tenant {
   isDemo                 Boolean            @default(false)
   /// Highest classification that may be sent to an external model provider.
   maxExternalModelClass  DataClassification @default(internal)
+  /// M18: industry profile — selects the win/loss reason codes offered and accepted.
+  industryProfile        IndustryProfile    @default(software)
   externalModelsApproved Boolean            @default(false)
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
@@ -127,6 +273,20 @@ model Tenant {
   productFeatures        ProductFeature[]
   claimEvidence          ClaimEvidence[]
   valuePropositionClaims ValuePropositionClaim[]
+  campaigns              Campaign[]
+  releases               Release[]
+  kpis                   Kpi[]
+  kpiMeasurements        KpiMeasurement[]
+  kpiImports             KpiImport[]
+  winLossInterviews      WinLossInterview[]
+  launches               Launch[]
+  launchDecisions        LaunchDecision[]
+  regulatoryWatches      RegulatoryWatch[]
+  regulatoryChanges      RegulatoryChange[]
+  installedUnits         InstalledUnit[]
+  installedBaseImports   InstalledBaseImport[]
+  serviceHandovers       ServiceHandover[]
+  costComparisons        CostComparison[]
 }
 
 model User {
@@ -138,8 +298,14 @@ model User {
   updatedAt    DateTime @updatedAt
 
   memberships    Membership[]
-  approvals      Approval[]
-  reviewedClaims Claim[]      @relation("ClaimReviewer")
+  approvals                 Approval[]
+  reviewedClaims            Claim[]            @relation("ClaimReviewer")
+  launchDecisions           LaunchDecision[]
+  installedBaseImports      InstalledBaseImport[]
+  reportedHandovers         ServiceHandover[]  @relation("HandoverReportedBy")
+  costComparisons           CostComparison[]
+  recordedRegulatoryChanges RegulatoryChange[] @relation("ChangeRecordedBy")
+  resolvedRegulatoryChanges RegulatoryChange[] @relation("ChangeResolvedBy")
 }
 
 model Membership {
@@ -169,9 +335,15 @@ model Product {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  features ProductFeature[]
-  claims   Claim[]
+  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  features  ProductFeature[]
+  claims    Claim[]
+  campaigns Campaign[]
+  releases  Release[]
+  winLossInterviews WinLossInterview[]
+  launches          Launch[]
+  installedUnits    InstalledUnit[]
+  costComparisons   CostComparison[]
 
   @@unique([id, tenantId])
   @@index([tenantId])
@@ -218,6 +390,8 @@ model Source {
   tenant             Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   claimEvidence      ClaimEvidence[]
   competitorEvidence CompetitorEvidence[]
+  winLossInterviews  WinLossInterview[]
+  regulatoryWatches  RegulatoryWatch[]
 
   @@unique([id, tenantId])
   @@index([tenantId, status])
@@ -236,6 +410,8 @@ model Claim {
   lastVerifiedAt DateTime?
   reviewDueAt    DateTime?
   staleReason    String?
+  /// M17: conditions the claim's numbers only hold under; statements quoting a number must carry them (gate G17).
+  conditions     String[]      @default([])
   isSynthetic    Boolean       @default(false)
   version        Int           @default(1)
   createdAt      DateTime      @default(now())
@@ -288,6 +464,7 @@ model Persona {
   tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   buyerProblems     BuyerProblem[]
   valuePropositions ValueProposition[]
+  campaigns         Campaign[]
 
   @@unique([id, tenantId])
   @@index([tenantId])
@@ -354,8 +531,9 @@ model Competitor {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  tenant   Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  evidence CompetitorEvidence[]
+  tenant            Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  evidence          CompetitorEvidence[]
+  winLossInterviews WinLossInterview[]
 
   @@unique([id, tenantId])
   @@index([tenantId])
@@ -391,10 +569,305 @@ model RegulatoryTrigger {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant  Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  watches RegulatoryWatch[]
 
   @@unique([id, tenantId])
   @@index([tenantId])
+}
+
+// ───────────────────────── Regulatory radar (M16) ─────────────────────────
+
+/// A watched regulatory item (e.g. the application date of an obligation). Its
+/// current wording lives in a Source (kind regulatory_text). Recording a change
+/// updates that source, marks dependent claims stale and stores the impact.
+model RegulatoryWatch {
+  id                  String    @id @default(cuid())
+  tenantId            String
+  name                String
+  jurisdiction        String
+  topic               String
+  sourceId            String
+  regulatoryTriggerId String?
+  currentDeadline     DateTime? @db.Date
+  isSynthetic         Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  tenant  Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  source  Source             @relation(fields: [sourceId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  trigger RegulatoryTrigger? @relation(fields: [regulatoryTriggerId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  changes RegulatoryChange[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+}
+
+/// An open alert until a reviewer resolves it — which is only possible once
+/// every claim it made stale has been re-verified or retired.
+model RegulatoryChange {
+  id                  String               @id @default(cuid())
+  tenantId            String
+  watchId             String
+  kind                RegulatoryChangeKind
+  summary             String
+  previousDeadline    DateTime?            @db.Date
+  newDeadline         DateTime?            @db.Date
+  previousContentHash String
+  newContentHash      String
+  /// Computed at recording time: stale claim ids and affected assets with reasons.
+  impact              Json
+  recordedById        String
+  resolvedAt          DateTime?
+  resolvedById        String?
+  resolutionNote      String?
+  createdAt           DateTime             @default(now())
+
+  tenant     Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  watch      RegulatoryWatch @relation(fields: [watchId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  recordedBy User            @relation("ChangeRecordedBy", fields: [recordedById], references: [id])
+  resolvedBy User?           @relation("ChangeResolvedBy", fields: [resolvedById], references: [id])
+
+  @@unique([id, tenantId])
+  @@index([tenantId, resolvedAt])
+}
+
+// ───────────────────────── Win/loss & research (M14) ─────────────────────────
+
+/// One win/loss (or churn) interview. Human input. The account is pseudonymised
+/// (no personal names). Notes are stored only with GRANTED consent, as a
+/// confidential Source of kind "interview" — so statements in a synthesis can
+/// cite verbatim excerpts (gate G4). Withdrawn consent erases the notes and
+/// invalidates the source; everything that cited it fails the gates again.
+model WinLossInterview {
+  id             String        @id @default(cuid())
+  tenantId       String
+  productId      String
+  /// Pseudonymised account label, e.g. "Mid-sized automotive supplier A".
+  accountLabel   String
+  segment        String
+  outcome        DealOutcome
+  decidedOn      DateTime?     @db.Date
+  /// The competitor the deal was won against or lost to (same tenant).
+  competitorId   String?
+  /// Reason codes from the fixed taxonomy (src/domain/research/win-loss.ts).
+  reasons        String[]
+  /// The single most important reason (one of `reasons`).
+  primaryReason  String
+  interviewedOn  DateTime?     @db.Date
+  consentStatus  ConsentStatus @default(requested)
+  consentRecordedAt DateTime?
+  /// Interview notes live in this source (null without granted consent).
+  sourceId       String?
+  isSynthetic    Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product    Product     @relation(fields: [productId, tenantId], references: [id, tenantId])
+  competitor Competitor? @relation(fields: [competitorId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  source     Source?     @relation(fields: [sourceId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@unique([id, tenantId])
+  @@index([tenantId, productId])
+}
+
+// ───────────────────────── Campaigns (M8–M10) ─────────────────────────
+
+/// Human-entered campaign briefing. The campaign_gtm run turns it into three
+/// deliverables (campaign plan, content matrix, sales play) that go through the
+/// same gates and human review as every other asset. Nothing is sent or
+/// published from here: deliverables leave the system only as approved exports.
+model Campaign {
+  id                    String       @id @default(cuid())
+  tenantId              String
+  name                  String
+  type                  CampaignType
+  objective             String
+  productId             String
+  personaId             String
+  market                String
+  /// M12: communication channels (LinkedIn, email, webinar …) — previously "channels".
+  communicationChannels String[]
+  /// M12: sales channels (direct_sales, partner_reseller, customer_success …; see SalesChannel).
+  salesChannels         String[]     @default([])
+  startsOn              DateTime?    @db.Date
+  endsOn                DateTime?    @db.Date
+  budgetEur             Decimal?     @db.Decimal(12, 2)
+  isSynthetic           Boolean      @default(false)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product      Product       @relation(fields: [productId, tenantId], references: [id, tenantId])
+  persona      Persona       @relation(fields: [personaId, tenantId], references: [id, tenantId])
+  assets       Asset[]
+  workflowRuns WorkflowRun[]
+  kpis         Kpi[]
+  kpiImports   KpiImport[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+}
+
+// ───────────────────────── KPIs (M11) ─────────────────────────
+
+/// One KPI of a campaign, created from the APPROVED campaign plan. The plan only
+/// proposes targets; the numeric target and baseline are set by a human.
+/// M12: a planned release or update of a product (station "Release & update"). Human input;
+/// the release_communication run turns it into a communication plan for review.
+model Release {
+  id                    String      @id @default(cuid())
+  tenantId              String
+  productId             String
+  name                  String
+  version               String
+  type                  ReleaseType
+  plannedOn             DateTime?   @db.Date
+  summary               String
+  changes               String[]
+  /// existing_customers, prospects, partners_resellers, internal_sales, internal_support (see ReleaseAudience)
+  audiences             String[]
+  communicationChannels String[]
+  salesChannels         String[]    @default([])
+  isSynthetic           Boolean     @default(false)
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product      Product       @relation(fields: [productId, tenantId], references: [id, tenantId])
+  assets       Asset[]
+  workflowRuns WorkflowRun[]
+  launches     Launch[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, plannedOn])
+}
+
+/// M15 station "Launch": a staged launch of a product (optionally tied to a release). Human input.
+/// Readiness per phase is computed in code from approved deliverables, claims and proof; a phase
+/// can only get a human "go" when its required checks pass (LaunchDecision).
+model Launch {
+  id                    String     @id @default(cuid())
+  tenantId              String
+  productId             String
+  releaseId             String?
+  name                  String
+  tier                  LaunchTier
+  summary               String
+  pricingModel          String
+  targetSegments        String
+  earlyAccessOn         DateTime?  @db.Date
+  generalAvailabilityOn DateTime?  @db.Date
+  customerLaunchOn      DateTime?  @db.Date
+  marketLaunchOn        DateTime?  @db.Date
+  /// External customers who agreed to be named or to take reference calls.
+  externalReferences    Int        @default(0)
+  /// "Customer zero": the company runs the product itself and documented it.
+  internalPilot         Boolean    @default(false)
+  isSynthetic           Boolean    @default(false)
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product      Product          @relation(fields: [productId, tenantId], references: [id, tenantId])
+  release      Release?         @relation(fields: [releaseId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  assets       Asset[]
+  workflowRuns WorkflowRun[]
+  decisions    LaunchDecision[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+}
+
+/// M15: go / no-go per launch phase, by a human reviewer, with the readiness snapshot it was based on.
+model LaunchDecision {
+  id          String      @id @default(cuid())
+  tenantId    String
+  launchId    String
+  phase       LaunchPhase
+  decision    GoDecision
+  comment     String?
+  /// The computed readiness of the phase at decision time (checks and their status).
+  readiness   Json
+  decidedById String
+  createdAt   DateTime    @default(now())
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  launch    Launch @relation(fields: [launchId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  decidedBy User   @relation(fields: [decidedById], references: [id])
+
+  @@index([tenantId, launchId])
+}
+
+model Kpi {
+  id              String         @id @default(cuid())
+  tenantId        String
+  campaignId      String
+  name            String
+  funnelStage     String
+  definition      String
+  dataSource      String
+  /// Order of the KPI in the approved plan (funnel order as the plan lists it).
+  position        Int            @default(0)
+  unit            KpiUnit        @default(count)
+  direction       KpiDirection   @default(higher_is_better)
+  aggregation     KpiAggregation @default(sum)
+  target          Decimal?       @db.Decimal(18, 4)
+  baseline        Decimal?       @db.Decimal(18, 4)
+  /// Provenance only: the approved campaign_plan version the KPI came from.
+  sourceVersionId String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaign     Campaign         @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  measurements KpiMeasurement[]
+
+  @@unique([id, tenantId])
+  @@unique([campaignId, name])
+  @@index([tenantId, campaignId])
+}
+
+/// One measured value per KPI and period start. A later import of the same
+/// period replaces the value (and records which import did it).
+model KpiMeasurement {
+  id          String   @id @default(cuid())
+  tenantId    String
+  kpiId       String
+  periodStart DateTime @db.Date
+  value       Decimal  @db.Decimal(18, 4)
+  importId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  kpi    Kpi       @relation(fields: [kpiId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  import KpiImport @relation(fields: [importId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([kpiId, periodStart])
+  @@index([tenantId, kpiId])
+  @@index([importId])
+}
+
+/// A CSV import (who, when, how many rows; rejected rows with line and reason — no raw file content).
+model KpiImport {
+  id           String   @id @default(cuid())
+  tenantId     String
+  campaignId   String
+  fileName     String
+  rowCount     Int
+  acceptedRows Int
+  rejectedRows Json
+  importedById String?
+  createdAt    DateTime @default(now())
+
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaign     Campaign         @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  measurements KpiMeasurement[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, campaignId])
 }
 
 // ───────────────────────── Assets, runs, approvals ─────────────────────────
@@ -406,14 +879,27 @@ model Asset {
   title            String
   state            AssetState @default(draft)
   currentVersionId String?
+  /// Set for campaign deliverables (same tenant, composite FK).
+  campaignId       String?
+  /// M12: set for release communication plans (same tenant, composite FK).
+  releaseId        String?
+  /// M15: set for launch plans (same tenant, composite FK).
+  launchId         String?
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
   tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  /// Restrict (not SetNull): SetNull would also null tenantId of the composite key.
+  campaign Campaign?      @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  release  Release?       @relation(fields: [releaseId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  launch   Launch?        @relation(fields: [launchId, tenantId], references: [id, tenantId], onDelete: Restrict)
   versions AssetVersion[]
 
   @@unique([id, tenantId])
   @@index([tenantId, state])
+  @@index([tenantId, campaignId])
+  @@index([tenantId, releaseId])
+  @@index([tenantId, launchId])
 }
 
 /// Immutable. The data-access layer exposes no update path for content fields.
@@ -459,16 +945,28 @@ model WorkflowRun {
   costEstimateUsd Decimal?       @db.Decimal(10, 4)
   error           String?
   attempts        Int            @default(0)
+  /// Set for campaign runs (same tenant, composite FK).
+  campaignId      String?
+  /// M12: set for release_communication runs (same tenant, composite FK).
+  releaseId       String?
+  /// M15: set for launch_planning runs (same tenant, composite FK).
+  launchId        String?
   startedAt       DateTime?
   completedAt     DateTime?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaign      Campaign?      @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  release       Release?       @relation(fields: [releaseId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  launch        Launch?        @relation(fields: [launchId, tenantId], references: [id, tenantId], onDelete: Restrict)
   assetVersions AssetVersion[]
 
   @@unique([tenantId, idempotencyKey])
   @@index([tenantId, status])
+  @@index([tenantId, campaignId])
+  @@index([tenantId, releaseId])
+  @@index([tenantId, launchId])
 }
 
 model Approval {
@@ -502,4 +1000,108 @@ model AuditEvent {
 
   @@index([tenantId, entityType, entityId])
   @@index([tenantId, createdAt])
+}
+
+// ───────────────────────── Installed base (M18) ─────────────────────────
+
+/// One machine or system installed at a customer. Human input (CSV export of the
+/// installed base). The account is pseudonymised. Triggers and the target list
+/// are computed in code from these facts — never by a model.
+model InstalledUnit {
+  id                    String    @id @default(cuid())
+  tenantId              String
+  productId             String
+  /// The customer's or the vendor's identifier of the unit (serial / machine number).
+  unitRef               String
+  /// Pseudonymised account label, e.g. "Packaging manufacturer A (DACH)".
+  accountLabel          String
+  region                String
+  application           String
+  installedOn           DateTime  @db.Date
+  serviceContract       Boolean   @default(false)
+  sparePartOrders12m    Int       @default(0)
+  materialChangePlanned Boolean   @default(false)
+  regulatedApplication  Boolean   @default(false)
+  lastServiceOn         DateTime? @db.Date
+  importId              String?
+  isSynthetic           Boolean   @default(false)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product         Product           @relation(fields: [productId, tenantId], references: [id, tenantId])
+  handovers       ServiceHandover[]
+  costComparisons CostComparison[]
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, productId, unitRef])
+  @@index([tenantId, productId])
+}
+
+/// One CSV import of the installed base (counts and rejected line numbers only).
+model InstalledBaseImport {
+  id           String   @id @default(cuid())
+  tenantId     String
+  fileName     String
+  rowCount     Int
+  acceptedRows Int
+  rejectedRows Json
+  importedById String
+  createdAt    DateTime @default(now())
+
+  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  importedBy User   @relation(fields: [importedById], references: [id])
+
+  @@index([tenantId, createdAt])
+}
+
+/// A finding from field service handed over to sales, with a response deadline.
+model ServiceHandover {
+  id           String         @id @default(cuid())
+  tenantId     String
+  unitId       String
+  offer        HandoverOffer
+  finding      String
+  reportedById String
+  reportedAt   DateTime       @default(now())
+  /// Sales must contact the customer by this day (reportedAt + SLA).
+  dueOn        DateTime       @db.Date
+  status       HandoverStatus @default(open)
+  contactedAt  DateTime?
+  offeredAt    DateTime?
+  closedAt     DateTime?
+  /// Reason codes (same taxonomy as win/loss) when closed won / lost / no decision.
+  reasons      String[]       @default([])
+  note         String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  unit       InstalledUnit @relation(fields: [unitId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  reportedBy User          @relation("HandoverReportedBy", fields: [reportedById], references: [id])
+
+  @@unique([id, tenantId])
+  @@index([tenantId, status])
+}
+
+/// A cost-per-part comparison (as-is vs. retrofit vs. new machine). The result is
+/// computed in code from the inputs; every input carries its basis.
+model CostComparison {
+  id          String   @id @default(cuid())
+  tenantId    String
+  productId   String
+  unitId      String?
+  title       String
+  inputs      Json
+  result      Json
+  createdById String
+  createdAt   DateTime @default(now())
+
+  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product   Product        @relation(fields: [productId, tenantId], references: [id, tenantId])
+  unit      InstalledUnit? @relation(fields: [unitId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  createdBy User           @relation(fields: [createdById], references: [id])
+
+  @@unique([id, tenantId])
+  @@index([tenantId, productId])
 }

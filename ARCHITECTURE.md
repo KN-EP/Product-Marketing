@@ -36,3 +36,12 @@ POST /api/workflows  → getActor() → validate input (Zod) → idempotencyKey
      → Zod validate → addVersion (gates) → Asset pending_review
   → WorkflowRun(pending_review → completed)
 ```
+
+`{ kind: "campaign_gtm", campaignId }` follows the same path: the Campaign is resolved through
+`tenantDb` (404 on a foreign id), the pipeline is D → E → F, and the three deliverables are stored with
+`campaignId`. The orchestrator selects inputs, pipeline and titles per run kind (`prepare()`); limits,
+idempotency, gates, persistence and audit are shared.
+
+`campaign_performance` (M11) computes the KPI results in code (`src/domain/kpis/analysis.ts`),
+gives them to agent G as delimited data, and attaches them to the stored review as `kpiSnapshot`
+— the model never writes numbers that are stored. Gate G10 checks quoted numbers against it.

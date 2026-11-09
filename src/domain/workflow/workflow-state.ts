@@ -58,6 +58,54 @@ export async function idempotencyKey(parts: {
     competitorIds: [...parts.competitorIds].sort(),
     promptVersions: Object.fromEntries(Object.entries(parts.promptVersions).sort()),
   });
+  return sha256Hex(canonical);
+}
+
+/**
+ * Idempotency key for a campaign_gtm run: same campaign, same prompt
+ * versions (and no new nonce) → same run.
+ */
+export async function campaignIdempotencyKey(parts: {
+  tenantId: string;
+  kind: string;
+  campaignId: string;
+  promptVersions: Record<string, string>;
+  /** campaign_performance: the latest KPI import, so new data means a new run. */
+  dataVersion?: string;
+  requestNonce?: string;
+}): Promise<string> {
+  return sha256Hex(
+    JSON.stringify({
+      ...parts,
+      promptVersions: Object.fromEntries(Object.entries(parts.promptVersions).sort()),
+    }),
+  );
+}
+
+/**
+ * M12: idempotency key for runs scoped to one record (use_case_definition:
+ * product + market; campaign_strategy: campaign; release_communication:
+ * release). Same scope, same prompt versions, same data version (and no new
+ * nonce) → same run.
+ */
+export async function scopedIdempotencyKey(parts: {
+  tenantId: string;
+  kind: string;
+  scope: Record<string, string>;
+  promptVersions: Record<string, string>;
+  dataVersion?: string;
+  requestNonce?: string;
+}): Promise<string> {
+  return sha256Hex(
+    JSON.stringify({
+      ...parts,
+      scope: Object.fromEntries(Object.entries(parts.scope).sort()),
+      promptVersions: Object.fromEntries(Object.entries(parts.promptVersions).sort()),
+    }),
+  );
+}
+
+async function sha256Hex(canonical: string): Promise<string> {
   const bytes = new TextEncoder().encode(canonical);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Buffer.from(digest).toString("hex");

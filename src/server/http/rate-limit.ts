@@ -12,6 +12,20 @@ export const RATE_LIMITS = {
   workflowStart: { limit: 10, windowMs: 60_000 },
   /** per tenant + user */
   decision: { limit: 30, windowMs: 60_000 },
+  /** per tenant + user (createCampaignAction) */
+  campaignCreate: { limit: 20, windowMs: 60_000 },
+  /** per tenant + user (createReleaseAction, M12) */
+  releaseCreate: { limit: 20, windowMs: 60_000 },
+  /** per tenant + user (KPI tree, KPI edits, CSV imports) */
+  kpiWrite: { limit: 60, windowMs: 60_000 },
+  /** per tenant + user (win/loss interviews and consent withdrawal, M14) */
+  researchWrite: { limit: 30, windowMs: 60_000 },
+  /** per tenant + user (launch briefing and proof, M15) */
+  launchWrite: { limit: 30, windowMs: 60_000 },
+  /** per tenant + user (regulatory radar, M16) */
+  radarWrite: { limit: 20, windowMs: 60_000 },
+  /** per tenant + user (installed base: import, findings, hand-overs, cost comparisons — M18) */
+  installedBaseWrite: { limit: 60, windowMs: 60_000 },
 } as const;
 
 export type RateLimitKind = keyof typeof RATE_LIMITS;

@@ -2,6 +2,9 @@ import { DomainError, type Actor } from "../actor";
 import { generationLabel, latestApprovedVersion, type AssetRecord } from "../assets/asset-state";
 import type { KnowledgeSnapshot } from "../knowledge/snapshot";
 import { collectStatements } from "../schemas/agents";
+import { orderedEntries } from "../schemas/display-order";
+import type { KpiResult } from "../schemas/performance";
+import { runQualityGates } from "../quality-gates/gates";
 
 const LABEL: Record<string, string> = {
   fact: "FACT",
@@ -23,6 +26,16 @@ export function exportApprovedMarkdown(asset: AssetRecord, actor: Actor, kb: Kno
   const approved = latestApprovedVersion(asset);
   if (!approved) throw new DomainError("not_approved", "Asset has no approved version");
   const { version, approval } = approved;
+  // M14/M16: an approval holds only while its evidence holds. If a source changed or was
+  // erased (withdrawn consent, regulatory change) or a claim became stale, the approved
+  // version fails the gates again and cannot leave the system as "approved".
+  const recheck = runQualityGates(asset.type, version.content, kb);
+  if (!recheck.passed) {
+    throw new DomainError(
+      "approval_outdated",
+      `Approved v${version.versionNumber} no longer passes the quality gates (${recheck.findings.filter((f) => f.severity === "critical").length} critical finding(s)): a source or claim it relies on has changed. Create a new version and review it again.`,
+    );
+  }
 
   const lines: string[] = [];
   lines.push(`# ${asset.title}`, "");
@@ -47,7 +60,7 @@ export function exportApprovedMarkdown(asset: AssetRecord, actor: Actor, kb: Kno
   const sourceIds = new Set<string>();
   const render = (value: unknown, depth: number): void => {
     if (value === null || value === undefined) return;
-    if (typeof value === "string") {
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
       lines.push(`- ${value}`);
       return;
     }
@@ -65,14 +78,22 @@ export function exportApprovedMarkdown(asset: AssetRecord, actor: Actor, kb: Kno
             return `source:${e.sourceId}`;
           }),
           ...((o.competitorEvidenceIds as string[]) ?? []).map((c) => `competitor-evidence:${c}`),
+          ...((o.kpiRefs as string[]) ?? []).map((k) => `kpi:${k}`),
         ];
         lines.push(`- **[${LABEL[o.kind] ?? o.kind}]** ${o.text}${refs.length ? ` _(${refs.join(", ")})_` : ""}`);
         return;
       }
-      for (const [k, v] of Object.entries(o)) {
+      // Schema order, not storage order (jsonb sorts keys by length).
+      for (const [k, v] of orderedEntries(o, asset.type)) {
         if (k === "schemaVersion") continue;
-        if (typeof v === "string") {
+        if (k === "kpiSnapshot" && Array.isArray(v)) {
+          lines.push(`${"#".repeat(Math.min(depth + 2, 6))} KPI results`, "", ...kpiTable(v as KpiResult[]), "");
+          continue;
+        }
+        if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
           lines.push(`**${humanise(k)}:** ${v}`, "");
+        } else if (v === null) {
+          lines.push(`**${humanise(k)}:** —`, "");
         } else {
           lines.push(`${"#".repeat(Math.min(depth + 2, 6))} ${humanise(k)}`, "");
           render(v, depth + 1);
@@ -96,4 +117,18 @@ export function exportApprovedMarkdown(asset: AssetRecord, actor: Actor, kb: Kno
   }
   lines.push("", "---", "_Automated checks are supporting controls, not fact verification. Approval reflects human review of this exact version._");
   return lines.join("\n").replace(/\n{3,}/g, "\n\n") + "\n";
+}
+
+const cell = (v: number | null, suffix = "") => (v === null ? "—" : `${v}${suffix}`);
+
+/** Server-computed KPI results as a Markdown table (no model-written numbers). */
+export function kpiTable(rows: KpiResult[]): string[] {
+  return [
+    "| KPI | Stage | Actual | Target | Expected to date | Pace | Status |",
+    "|---|---|---|---|---|---|---|",
+    ...rows.map(
+      (r) =>
+        `| ${r.name.replace(/\|/g, "/")} | ${r.funnelStage} | ${cell(r.actual)} | ${cell(r.target)} | ${cell(r.expectedToDate)} | ${cell(r.pacePct, " %")} | ${r.status.replace(/_/g, " ")} |`,
+    ),
+  ];
 }

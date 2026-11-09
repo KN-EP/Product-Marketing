@@ -1,8 +1,8 @@
 /**
  * Seed: SYNTHETIC demo data only.
  *
- * - "DataGuard Demo – Unofficial" from src/demo/fixtures.ts (synthetic; not a
- *   DataGuard product and implies no approval by DataGuard).
+ * - "Nordlicht Demo (fiktiv)" from src/demo/fixtures.ts (synthetic; not a
+ *   real company's product and implies no approval by any company).
  * - A second synthetic tenant, used to prove tenant isolation.
  * - editor / reviewer / admin per tenant. Passwords: DEMO_USER_PASSWORD.
  *
@@ -23,6 +23,9 @@ import {
   SIMULATED_MESSAGING_FRAMEWORK,
 } from "../src/demo/fixtures";
 import { buildSnapshot, type ClaimRecord, type SourceRecord } from "../src/domain/knowledge/snapshot";
+import { DEMO_INTERVIEWS } from "../src/demo/research-fixtures";
+import { DEMO_LAUNCHES } from "../src/demo/launch-fixtures";
+import { DEMO_WATCHES } from "../src/demo/regulatory-fixtures";
 import { runQualityGates } from "../src/domain/quality-gates/gates";
 import type { Role } from "../src/domain/actor";
 import { createPrismaClient, type Db } from "../src/server/db/client";
@@ -60,7 +63,7 @@ export const OTHER_TENANT_NAME = "Other Demo Tenant – Synthetic";
 const ROLES: Role[] = ["editor", "reviewer", "admin"];
 
 export const SEED_TENANTS = [
-  { id: DEMO_TENANT_ID, slug: "dataguard-demo", name: DEMO_TENANT_NAME, emailDomain: "dataguard-demo.example", userPrefix: "usr_demo" },
+  { id: DEMO_TENANT_ID, slug: "nordlicht-demo", name: DEMO_TENANT_NAME, emailDomain: "nordlicht-demo.example", userPrefix: "usr_demo" },
   { id: OTHER_TENANT_ID, slug: "other-demo", name: OTHER_TENANT_NAME, emailDomain: "other-demo.example", userPrefix: "usr_other" },
 ] as const;
 
@@ -74,6 +77,11 @@ export const SEED_IDS = {
     persona: "per_demo_ciso",
     regulatoryTrigger: "rtr_demo_eu_ai_act",
     competitors: ["cmp_a", "cmp_b", "cmp_c"],
+    campaign: "cmpg_demo_ai_inventory",
+    release: "rel_demo_2_4",
+    interview: "wli_demo_a",
+    launch: "lnc_demo_ai_monitoring",
+    watch: "rwt_demo_high_risk_date",
   },
   [OTHER_TENANT_ID]: {
     asset: "ast_other_brief",
@@ -83,6 +91,11 @@ export const SEED_IDS = {
     persona: "per_other_buyer",
     regulatoryTrigger: "rtr_other",
     competitors: ["cmp_other_1", "cmp_other_2", "cmp_other_3"],
+    campaign: "cmpg_other_demo",
+    release: "rel_other_demo",
+    interview: "wli_other_a",
+    launch: "lnc_other_demo",
+    watch: "rwt_other_demo",
   },
 } as const;
 
@@ -103,6 +116,145 @@ async function upsertRunContext(
   for (const [i, id] of ids.competitors.entries()) {
     const c = { name: data.competitorNames[i]!, isPlaceholder: true };
     await db.competitor.upsert({ where: { id }, create: { id, tenantId, ...c }, update: c });
+  }
+}
+
+/** Campaign window around today: `before` days ago until `after` days ahead (YYYY-MM-DD, UTC). */
+export function seedWindow(before: number, after: number, now = new Date()): { startsOn: string; endsOn: string } {
+  const day = (offset: number) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + offset)).toISOString().slice(0, 10);
+  return { startsOn: day(-before), endsOn: day(after) };
+}
+
+/** A synthetic campaign briefing per tenant (M8): the starting point of the campaign_gtm run. */
+async function upsertCampaign(
+  db: Db,
+  tenantId: keyof typeof SEED_IDS,
+  data: {
+    name: string;
+    type: "demand_generation" | "conversion" | "retention" | "loyalty" | "sales_enablement";
+    objective: string;
+    market: string;
+    communicationChannels: string[];
+    salesChannels: string[];
+    startsOn?: string;
+    endsOn?: string;
+    budgetEur?: number;
+  },
+) {
+  const ids = SEED_IDS[tenantId];
+  const c = {
+    name: data.name,
+    type: data.type,
+    objective: data.objective,
+    productId: ids.product,
+    personaId: ids.persona,
+    market: data.market,
+    communicationChannels: data.communicationChannels,
+    salesChannels: data.salesChannels,
+    startsOn: data.startsOn ? new Date(`${data.startsOn}T00:00:00Z`) : null,
+    endsOn: data.endsOn ? new Date(`${data.endsOn}T00:00:00Z`) : null,
+    budgetEur: data.budgetEur ?? null,
+    isSynthetic: true,
+  };
+  await db.campaign.upsert({ where: { id: ids.campaign }, create: { id: ids.campaign, tenantId, ...c }, update: c });
+}
+
+/** A synthetic planned release per tenant (M12): the starting point of the release_communication run. */
+async function upsertRelease(
+  db: Db,
+  tenantId: keyof typeof SEED_IDS,
+  data: {
+    name: string;
+    version: string;
+    type: "major_release" | "feature_update" | "maintenance_update" | "security_update" | "deprecation";
+    plannedOn?: string;
+    summary: string;
+    changes: string[];
+    audiences: string[];
+    communicationChannels: string[];
+    salesChannels: string[];
+  },
+) {
+  const ids = SEED_IDS[tenantId];
+  const r = { ...data, productId: ids.product, plannedOn: data.plannedOn ? new Date(`${data.plannedOn}T00:00:00Z`) : null, isSynthetic: true };
+  await db.release.upsert({ where: { id: ids.release }, create: { id: ids.release, tenantId, ...r }, update: r });
+}
+
+/**
+ * M14: synthetic win/loss interviews. Notes (only with granted consent) are a
+ * confidential source of kind "interview". The upsert also restores consent
+ * and notes after a demo withdrawal.
+ */
+async function upsertInterviews(db: Db, tenantId: string) {
+  for (const i of DEMO_INTERVIEWS.filter((x) => x.tenantId === tenantId)) {
+    if (i.source) {
+      const data = {
+        kind: "interview" as const,
+        classification: "confidential" as const,
+        title: i.source.title,
+        url: null,
+        status: "active" as const,
+        content: i.source.content,
+        contentHash: sha256(i.source.content),
+        isSynthetic: true,
+      };
+      await db.source.upsert({ where: { id: i.source.id }, create: { id: i.source.id, tenantId, ...data }, update: data });
+    }
+    const data = {
+      productId: i.productId,
+      accountLabel: i.accountLabel,
+      segment: i.segment,
+      outcome: i.outcome,
+      decidedOn: new Date(`${seedWindow(30, 0).startsOn}T00:00:00Z`),
+      competitorId: i.competitorId,
+      reasons: i.reasons,
+      primaryReason: i.primaryReason,
+      consentStatus: i.consentStatus,
+      consentRecordedAt: i.consentStatus === "requested" ? null : new Date(`${seedWindow(30, 0).startsOn}T00:00:00Z`),
+      sourceId: i.source?.id ?? null,
+      isSynthetic: true,
+    };
+    await db.winLossInterview.upsert({ where: { id: i.id }, create: { id: i.id, tenantId, ...data }, update: data });
+  }
+}
+
+/** M15: a synthetic staged launch per tenant; dates relative to the seed date. */
+async function upsertLaunches(db: Db, tenantId: string) {
+  for (const l of DEMO_LAUNCHES.filter((x) => x.tenantId === tenantId)) {
+    const on = (offset: number | null) => (offset === null ? null : new Date(`${seedWindow(0, offset).endsOn}T00:00:00Z`));
+    const data = {
+      productId: l.productId,
+      releaseId: null,
+      name: l.name,
+      tier: l.tier,
+      summary: l.summary,
+      pricingModel: l.pricingModel,
+      targetSegments: l.targetSegments,
+      earlyAccessOn: on(l.offsets.earlyAccessOn),
+      generalAvailabilityOn: on(l.offsets.generalAvailabilityOn),
+      customerLaunchOn: on(l.offsets.customerLaunchOn),
+      marketLaunchOn: on(l.offsets.marketLaunchOn),
+      externalReferences: l.externalReferences,
+      internalPilot: l.internalPilot,
+      isSynthetic: true,
+    };
+    await db.launch.upsert({ where: { id: l.id }, create: { id: l.id, tenantId, ...data }, update: data });
+  }
+}
+
+/** M16: watched regulatory items (the source text and claim states are restored by upsertKnowledge). */
+async function upsertWatches(db: Db, tenantId: string) {
+  for (const w of DEMO_WATCHES.filter((x) => x.tenantId === tenantId)) {
+    const data = {
+      name: w.name,
+      jurisdiction: w.jurisdiction,
+      topic: w.topic,
+      sourceId: w.sourceId,
+      regulatoryTriggerId: w.regulatoryTriggerId,
+      currentDeadline: w.currentDeadline ? new Date(`${w.currentDeadline}T00:00:00Z`) : null,
+      isSynthetic: true,
+    };
+    await db.regulatoryWatch.upsert({ where: { id: w.id }, create: { id: w.id, tenantId, ...data }, update: data });
   }
 }
 
@@ -209,12 +361,12 @@ export async function seed(db: Db, opts: { password: string }): Promise<void> {
     }
   }
 
-  // ── Tenant A: DataGuard Demo – Unofficial (fixtures) ──
+  // ── Tenant A: Nordlicht Demo (fiktiv) (fixtures) ──
   const demoProduct = "prd_demo_ai_governance";
   const productData = {
     name: "[SYNTHETIC] AI Governance module (demo)",
     area: "AI governance",
-    description: "Synthetic demo product. Does not describe a real DataGuard product.",
+    description: "Synthetic demo product. Does not describe a real company's product.",
     isSynthetic: true,
   };
   await db.product.upsert({
@@ -246,6 +398,32 @@ export async function seed(db: Db, opts: { password: string }): Promise<void> {
     },
     competitorNames: ["Competitor A (placeholder)", "Competitor B (placeholder)", "Competitor C (placeholder)"],
   });
+  await upsertCampaign(db, DEMO_TENANT_ID, {
+    name: "[SYNTHETIC] AI inventory campaign — CISOs DACH",
+    type: "demand_generation",
+    objective:
+      "[SYNTHETIC] Start qualified conversations with CISOs in German mid-sized companies who need an overview of the AI systems in use.",
+    market: "DACH mid-market",
+    communicationChannels: ["LinkedIn", "Email", "Webinar"],
+    salesChannels: ["direct_sales", "customer_success"],
+    // Relative to the seed date, so the KPI analysis (as of today) always falls inside the campaign.
+    ...seedWindow(28, 28),
+    budgetEur: 15000,
+  });
+  await upsertRelease(db, DEMO_TENANT_ID, {
+    name: "[SYNTHETIC] Review reminders and bulk export",
+    version: "2.4",
+    type: "feature_update",
+    plannedOn: seedWindow(0, 21).endsOn,
+    summary: "[SYNTHETIC] Owner reminders for due AI system reviews and a bulk export of documentation packs.",
+    changes: ["[SYNTHETIC] Owner reminders for due reviews", "[SYNTHETIC] Bulk export of documentation packs"],
+    audiences: ["internal_sales", "internal_support", "existing_customers", "partners_resellers"],
+    communicationChannels: ["Email", "In-product notice", "Partner newsletter"],
+    salesChannels: ["customer_success", "partner_reseller"],
+  });
+  await upsertInterviews(db, DEMO_TENANT_ID);
+  await upsertLaunches(db, DEMO_TENANT_ID);
+  await upsertWatches(db, DEMO_TENANT_ID);
   for (const e of DEMO_COMPETITOR_EVIDENCE) {
     const data = { competitorId: e.competitorId, sourceId: e.sourceId, assertion: e.assertion, excerpt: e.excerpt, state: e.state };
     await db.competitorEvidence.upsert({ where: { id: e.id }, create: { id: e.id, tenantId: DEMO_TENANT_ID, ...data }, update: data });
@@ -283,6 +461,27 @@ export async function seed(db: Db, opts: { password: string }): Promise<void> {
     trigger: { name: "[SYNTHETIC] Other trigger", jurisdiction: "N/A", summary: "[SYNTHETIC] Isolation test record.", sourceIds: ["src_other_note"] },
     competitorNames: ["[SYNTHETIC] Other competitor 1", "[SYNTHETIC] Other competitor 2", "[SYNTHETIC] Other competitor 3"],
   });
+  await upsertCampaign(db, OTHER_TENANT_ID, {
+    name: "[SYNTHETIC] Other tenant campaign",
+    type: "retention",
+    objective: "[SYNTHETIC] Isolation test record for campaigns.",
+    market: "Synthetic",
+    communicationChannels: ["Email"],
+    salesChannels: [],
+  });
+  await upsertRelease(db, OTHER_TENANT_ID, {
+    name: "[SYNTHETIC] Other tenant release",
+    version: "1.0",
+    type: "maintenance_update",
+    summary: "[SYNTHETIC] Isolation test record for releases.",
+    changes: ["[SYNTHETIC] Isolation test change"],
+    audiences: ["existing_customers"],
+    communicationChannels: ["Email"],
+    salesChannels: [],
+  });
+  await upsertInterviews(db, OTHER_TENANT_ID);
+  await upsertLaunches(db, OTHER_TENANT_ID);
+  await upsertWatches(db, OTHER_TENANT_ID);
   const otherKb = buildSnapshot({ tenantId: OTHER_TENANT_ID, sources: [OTHER_SOURCE], claims: [FOREIGN_CLAIM] });
   const otherContent = { ...SIMULATED_MESSAGING_FRAMEWORK, pillars: [], objections: [] };
   await upsertAsset(db, OTHER_TENANT_ID, {

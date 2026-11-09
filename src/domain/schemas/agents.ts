@@ -1,5 +1,13 @@
 import { z } from "zod";
+import { CampaignPlanV1, ContentMatrixV1, SalesPlayV1 } from "./campaign";
 import { ProofPoint, Statement } from "./common";
+import { PerformanceReviewV1 } from "./performance";
+import { ReleaseCommunicationPlanV1 } from "./release";
+import { GtmStrategyBriefV1, UseCaseMapV1 } from "./strategy";
+import { ENABLEMENT_TYPES, EnablementAssetV1, type EnablementType } from "./enablement";
+import { WinLossSynthesisV1 } from "./research";
+import { LaunchPlanV1 } from "./launch";
+import { RegulatoryChangeBriefV1 } from "./regulatory";
 
 // ── Agent A: Product & Market Intelligence ──
 export const ProductIntelligenceBriefV1 = z.object({
@@ -67,6 +75,24 @@ export const ASSET_SCHEMAS = {
   messaging_framework: MessagingFrameworkV1,
   competitive_battlecard: CompetitiveBattlecardV1,
   regulatory_gtm_brief: RegulatoryGtmBriefV1,
+  // M8–M10 campaign package (src/domain/schemas/campaign.ts)
+  campaign_plan: CampaignPlanV1,
+  content_matrix: ContentMatrixV1,
+  sales_play: SalesPlayV1,
+  // M12 strategy first (src/domain/schemas/strategy.ts, release.ts)
+  use_case_map: UseCaseMapV1,
+  gtm_strategy_brief: GtmStrategyBriefV1,
+  release_communication_plan: ReleaseCommunicationPlanV1,
+  // M11 (src/domain/schemas/performance.ts) — stored form incl. the server-computed kpiSnapshot
+  performance_review: PerformanceReviewV1,
+  // M13a + M13b: product assets and sales toolkit (src/domain/schemas/enablement.ts) — one schema, one type each
+  ...(Object.fromEntries(ENABLEMENT_TYPES.map((t) => [t, EnablementAssetV1])) as Record<EnablementType, typeof EnablementAssetV1>),
+  // M14 win/loss & research (src/domain/schemas/research.ts) — stored form incl. the server-computed stats
+  win_loss_synthesis: WinLossSynthesisV1,
+  // M15 launch (src/domain/schemas/launch.ts) — stored form incl. the server-computed readiness
+  launch_plan: LaunchPlanV1,
+  // M16 regulatory radar (src/domain/schemas/regulatory.ts)
+  regulatory_change_brief: RegulatoryChangeBriefV1,
 } as const;
 
 export type AssetType = keyof typeof ASSET_SCHEMAS;

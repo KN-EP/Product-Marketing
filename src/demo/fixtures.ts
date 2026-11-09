@@ -1,7 +1,7 @@
 /**
- * DataGuard Demo – Unofficial: SYNTHETIC demonstration data.
+ * Nordlicht Demo (fiktiv): SYNTHETIC demonstration data.
  *
- * Nothing in this file describes real DataGuard features, customers,
+ * Nothing in this file describes real company features, customers,
  * certifications or competitors. No URLs, quotes or citations are fabricated:
  * every source has url = null and isSynthetic = true. Before any real use,
  * replace these records with verified public sources and exact excerpts.
@@ -9,7 +9,7 @@
 import type { ClaimRecord, CompetitorEvidenceRecord, SourceRecord } from "../domain/knowledge/snapshot";
 
 export const DEMO_TENANT_ID = "tnt_dataguard_demo";
-export const DEMO_TENANT_NAME = "DataGuard Demo – Unofficial";
+export const DEMO_TENANT_NAME = "Nordlicht Demo (fiktiv)";
 export const OTHER_TENANT_ID = "tnt_other_demo";
 
 export const DEMO_SOURCES: SourceRecord[] = [
@@ -46,7 +46,9 @@ export const DEMO_SOURCES: SourceRecord[] = [
     content:
       "SYNTHETIC SUMMARY FOR DEMONSTRATION, NOT LEGAL TEXT. The EU AI Act establishes a risk-based approach to AI systems. " +
       "Obligations differ depending on the risk classification of an AI system and the role of the organisation. " +
-      "Organisations will need an overview of which AI systems they use in order to assess their obligations.",
+      "Organisations will need an overview of which AI systems they use in order to assess their obligations. " +
+      // M16 radar demo: the watched deadline (synthetic scenario, not legal text).
+      "In this demo scenario, obligations for high-risk AI systems apply from 2 August 2026.",
   },
   {
     id: "src_demo_competitor_a",
@@ -117,6 +119,16 @@ export const DEMO_CLAIMS: ClaimRecord[] = [
     isSynthetic: true,
     text: "[SYNTHETIC] Approvals are recorded with reviewer identity and timestamp.",
     evidence: [ev("src_demo_security_note", "approvals in the module are recorded with reviewer identity and timestamp")],
+  },
+  {
+    // M16 radar demo: a regulatory claim that depends on the watched deadline.
+    id: "clm_reg_high_risk_date",
+    tenantId: DEMO_TENANT_ID,
+    category: "regulatory",
+    state: "approved",
+    isSynthetic: true,
+    text: "[SYNTHETIC] In the demo scenario, obligations for high-risk AI systems apply from 2 August 2026.",
+    evidence: [ev("src_demo_regulatory_summary", "obligations for high-risk AI systems apply from 2 August 2026")],
   },
   {
     // Deliberately NOT approved: used to demonstrate that gates block it.
@@ -321,5 +333,531 @@ export const SIMULATED_BATTLECARD_CORRECTED = {
     "Where do you document which AI systems are in use today?",
     "Who signs off on new AI use cases?",
     "How would you show an auditor your AI inventory?",
+  ],
+};
+
+// ─────────────── Campaign package (M8–M10), simulated outputs ───────────────
+// Same rules as above: every fact references an APPROVED synthetic claim,
+// every excerpt is copied verbatim from a synthetic source.
+
+const REG_OVERVIEW = ev("src_demo_regulatory_summary", "need an overview of which AI systems they use in order to assess their obligations");
+
+/** Agent D (simulated): campaign plan. Passes the gates; one regulatory statement → expert review. */
+export const SIMULATED_CAMPAIGN_PLAN = {
+  schemaVersion: "campaign_plan.v1",
+  campaignType: "demand_generation",
+  objective: S("Start qualified conversations with CISOs in German mid-sized companies who need an overview of their AI systems.", "suggestion"),
+  targetAudience: S("CISOs in German mid-sized companies who are asked to show which AI systems are in use.", "interpretation", { evidence: [REG_OVERVIEW] }),
+  coreMessage: S("Know which AI systems you run, who owns them and which risk category they carry.", "suggestion", {
+    claimIds: ["clm_register", "clm_risk_owner"],
+  }),
+  channelMix: [
+    { channel: "LinkedIn", channelType: "communication", funnelStage: "awareness", role: S("Reach CISOs with short inventory-first posts and a checklist offer.", "suggestion") },
+    { channel: "Email", channelType: "communication", funnelStage: "consideration", role: S("Nurture checklist downloads with a three-part inventory series.", "suggestion") },
+    {
+      channel: "Webinar",
+      channelType: "communication",
+      funnelStage: "consideration",
+      role: S("Show the register and the documentation pack in a live walkthrough.", "suggestion", { claimIds: ["clm_register", "clm_doc_pack"] }),
+    },
+    { channel: "Direct sales", channelType: "sales", funnelStage: "decision", role: S("Account executives follow up engaged accounts with the outreach sequence from the sales play.", "suggestion") },
+  ],
+  phases: [
+    { name: "Warm-up", timing: "Weeks 1–2", activities: [S("Publish the inventory checklist and two LinkedIn posts.", "suggestion")] },
+    {
+      name: "Engage",
+      timing: "Weeks 3–5",
+      activities: [
+        S("Run the webinar and the three-part email series.", "suggestion"),
+        S("Organisations will need an overview of the AI systems they use to assess their AI Act obligations.", "interpretation", {
+          regulatory: true,
+          evidence: [ev("src_demo_regulatory_summary", "Organisations will need an overview of which AI systems they use in order to assess their obligations")],
+        }),
+      ],
+    },
+    { name: "Convert", timing: "Weeks 6–8", activities: [S("Sales follows up webinar attendees with the outreach sequence.", "suggestion")] },
+  ],
+  kpis: [
+    {
+      name: "Checklist downloads",
+      funnelStage: "awareness",
+      definition: "Unique downloads of the inventory checklist from campaign links.",
+      proposedTarget: "To be set after a one-week baseline",
+      dataSource: "Web analytics (CSV export)",
+    },
+    {
+      name: "Webinar registrations",
+      funnelStage: "consideration",
+      definition: "Registrations from target accounts.",
+      proposedTarget: "To be set by the team",
+      dataSource: "Webinar tool export",
+    },
+    {
+      name: "Sales-accepted meetings",
+      funnelStage: "decision",
+      definition: "Meetings with CISOs accepted by sales from campaign leads.",
+      proposedTarget: "To be set by the team",
+      dataSource: "CRM",
+    },
+  ],
+  assetList: [
+    { name: "AI inventory checklist (PDF)", channel: "Landing page", funnelStage: "awareness" },
+    { name: "LinkedIn post series (3 posts)", channel: "LinkedIn", funnelStage: "awareness" },
+    { name: "Email nurture series (3 emails)", channel: "Email", funnelStage: "consideration" },
+    { name: "Webinar deck: AI system register walkthrough", channel: "Webinar", funnelStage: "consideration" },
+    { name: "Outreach sequence (sales play)", channel: "Direct sales", funnelStage: "decision" },
+  ],
+  risksAndAssumptions: [
+    "All product statements are synthetic demo data and must be replaced with verified facts.",
+    "KPI targets are proposals; no baseline data exists yet.",
+    "Messaging must not imply that the product makes a customer compliant with the EU AI Act.",
+  ],
+  openQuestions: ["Which webinar tool and CRM does the team use?", "Is there budget for paid LinkedIn distribution?"],
+  approvalChecklist: [
+    "Regulatory statements checked by a qualified expert",
+    "No compliance promises",
+    "KPI targets confirmed by the team",
+    "Synthetic sources replaced before external use",
+  ],
+};
+
+/** Agent E (simulated) v1: one webinar headline is an unsupported, absolute compliance promise → must fail the gates. */
+export const SIMULATED_CONTENT_MATRIX_FLAWED = {
+  schemaVersion: "content_matrix.v1",
+  contentPillars: [
+    { title: "Inventory first", rationale: S("Buyers first need to see which AI systems they run.", "interpretation", { evidence: [REG_OVERVIEW] }) },
+    { title: "Clear ownership", rationale: S("Each AI system can be assigned a risk category and a responsible owner.", "fact", { claimIds: ["clm_risk_owner"] }) },
+    {
+      title: "Reviewable documentation",
+      rationale: S("The module generates an exportable documentation pack per AI system.", "fact", { claimIds: ["clm_doc_pack"] }),
+    },
+  ],
+  items: [
+    {
+      funnelStage: "awareness",
+      channel: "LinkedIn",
+      format: "Post",
+      headline: S("Do you know which AI systems your teams use?", "suggestion"),
+      body: S("A central register gives one place to see every AI system and its owner.", "suggestion", { claimIds: ["clm_register", "clm_risk_owner"] }),
+      callToAction: "Download the AI inventory checklist",
+    },
+    {
+      funnelStage: "consideration",
+      channel: "Email",
+      format: "Nurture email",
+      headline: S("From spreadsheet to register: three steps to an AI inventory", "suggestion"),
+      body: S("The module maintains a central register of AI systems, and each system can be assigned a risk category and a responsible owner.", "fact", {
+        claimIds: ["clm_register", "clm_risk_owner"],
+      }),
+      callToAction: "Register for the webinar",
+    },
+    {
+      funnelStage: "consideration",
+      channel: "Webinar",
+      format: "Live walkthrough",
+      headline: S("Become EU AI Act compliant in 30 days — guaranteed.", "fact"),
+      body: S("See the documentation pack that compliance teams can review and export.", "suggestion", { claimIds: ["clm_doc_pack"] }),
+      callToAction: "Save your seat",
+    },
+    {
+      funnelStage: "decision",
+      channel: "Sales email",
+      format: "1:1 email",
+      headline: S("Every approval with reviewer and timestamp", "suggestion"),
+      body: S("Approvals are recorded with reviewer identity and timestamp.", "fact", { claimIds: ["clm_audit_trail"] }),
+      callToAction: "Book a 30-minute walkthrough",
+    },
+  ],
+  toneOfVoice: [
+    "Calm and factual — no fear-based messaging",
+    "Speak to the CISO's need for overview and ownership",
+    "German market: precise wording, no superlatives",
+  ],
+  doNotSay: ["'Makes you AI Act compliant'", "Guarantees of any kind", "Fines or deadlines without legal review"],
+  approvalChecklist: ["Every fact backed by an approved claim", "No compliance promises", "Regulatory statements checked by an expert"],
+};
+
+/** Content matrix v2: the webinar headline rewritten as a labelled, evidenced suggestion. */
+export const SIMULATED_CONTENT_MATRIX_CORRECTED = {
+  ...SIMULATED_CONTENT_MATRIX_FLAWED,
+  items: SIMULATED_CONTENT_MATRIX_FLAWED.items.map((item, i) =>
+    i === 2
+      ? {
+          ...item,
+          headline: S("Start your AI Act preparation with an overview of the AI systems you use.", "suggestion", {
+            regulatory: true,
+            evidence: [REG_OVERVIEW],
+          }),
+        }
+      : item,
+  ),
+};
+
+/** Agent F (simulated): outreach sequence for demand, conversion and sales-enablement campaigns. */
+export const SIMULATED_SALES_PLAY_OUTREACH = {
+  schemaVersion: "sales_play.v1",
+  playType: "outreach_sequence",
+  whenToUse: S("Use for target accounts that downloaded the checklist or attended the webinar.", "suggestion"),
+  targetPersona: "CISO, German mid-sized company",
+  steps: [
+    {
+      dayOffset: 0,
+      channel: "email",
+      objective: "Open the conversation",
+      message: S("Thanks for downloading the AI inventory checklist — would a short look at a central register of AI systems help your team?", "suggestion", {
+        claimIds: ["clm_register"],
+      }),
+    },
+    { dayOffset: 3, channel: "linkedin", objective: "Connect and add value", message: S("Share one tip from the checklist: start with who owns each AI system.", "suggestion") },
+    { dayOffset: 7, channel: "phone", objective: "Qualify the need", message: S("Ask how the team currently finds out which AI tools are in use.", "suggestion") },
+    {
+      dayOffset: 10,
+      channel: "email",
+      objective: "Offer a walkthrough",
+      message: S("Each AI system can be assigned a risk category and a responsible owner, and an exportable documentation pack is generated per system.", "fact", {
+        claimIds: ["clm_risk_owner", "clm_doc_pack"],
+      }),
+    },
+    {
+      dayOffset: 14,
+      channel: "meeting",
+      objective: "Walkthrough and next steps",
+      message: S("Walk through the register and the approval trail with the CISO's team.", "suggestion", { claimIds: ["clm_register", "clm_audit_trail"] }),
+    },
+  ],
+  objectionHandling: [
+    {
+      objection: "We already track AI tools in a spreadsheet.",
+      response: S("A spreadsheet rarely records ownership and review history; a register with recorded approvals does.", "interpretation", {
+        claimIds: ["clm_audit_trail"],
+        evidence: [ev("src_demo_security_note", "approvals in the module are recorded with reviewer identity and timestamp")],
+      }),
+    },
+  ],
+  discoveryQuestions: [
+    "How do you find out today which AI tools your teams use?",
+    "Who decides whether a new AI use case may go live?",
+    "What would your auditor ask for first?",
+  ],
+  successSignals: ["Reply or accepted meeting within 14 days", "A second stakeholder (e.g. the DPO) joins the walkthrough"],
+  dataRequirements: [],
+  handoffRules: ["Hand over to the account executive after an accepted meeting", "Stop the sequence on any opt-out request"],
+  approvalChecklist: ["Every fact backed by an approved claim", "Opt-out handling confirmed", "Sent by people from the exported sequence — no automated sending"],
+};
+
+/** Agent F (simulated): retention play. Lists the customer data it needs → generic until that data exists. */
+export const SIMULATED_SALES_PLAY_RETENTION = {
+  schemaVersion: "sales_play.v1",
+  playType: "retention_play",
+  whenToUse: S("Use when an existing customer's register activity drops or a renewal is due within 90 days.", "suggestion"),
+  targetPersona: "CISO or AI governance owner at an existing customer",
+  steps: [
+    {
+      dayOffset: 0,
+      channel: "customer_success_call",
+      objective: "Understand what changed",
+      message: S("Ask which AI systems were added or retired since onboarding and who owns them now.", "suggestion"),
+    },
+    {
+      dayOffset: 7,
+      channel: "email",
+      objective: "Share a quick win",
+      message: S("Each AI system can be assigned a risk category and a responsible owner — reviewing unowned systems is a quick win.", "suggestion", {
+        claimIds: ["clm_risk_owner"],
+      }),
+    },
+    {
+      dayOffset: 21,
+      channel: "meeting",
+      objective: "Review value together",
+      message: S("Review the documentation packs generated so far with the customer's compliance team.", "suggestion", { claimIds: ["clm_doc_pack"] }),
+    },
+  ],
+  objectionHandling: [],
+  discoveryQuestions: [
+    "Which AI systems were added since onboarding?",
+    "Who owns the register today?",
+    "What does your compliance team need from it next quarter?",
+  ],
+  successSignals: ["Register activity back at onboarding level", "Renewal conversation scheduled"],
+  dataRequirements: ["Register activity per account (product usage)", "Renewal dates from the CRM", "Customer health or NPS score"],
+  handoffRules: ["Escalate to the account executive when a renewal risk is confirmed"],
+  approvalChecklist: ["Every fact backed by an approved claim", "Customer data use covered by the customer contract"],
+};
+
+/** Agent F (simulated): loyalty play (same structure as retention). */
+export const SIMULATED_SALES_PLAY_LOYALTY = {
+  ...SIMULATED_SALES_PLAY_RETENTION,
+  playType: "loyalty_play",
+  whenToUse: S("Use for satisfied customers who already export documentation packs, to invite them into a reference or advisory programme.", "suggestion", {
+    claimIds: ["clm_doc_pack"],
+  }),
+  steps: [
+    {
+      dayOffset: 0,
+      channel: "customer_success_call",
+      objective: "Thank and listen",
+      message: S("Ask what the register changed for the customer's team and what is still missing.", "suggestion"),
+    },
+    {
+      dayOffset: 14,
+      channel: "event",
+      objective: "Invite to the customer advisory board",
+      message: S("Invite the customer to shape the roadmap in a small advisory group.", "suggestion"),
+    },
+  ],
+  successSignals: ["Customer agrees to a reference call or case study", "Advisory board seat accepted"],
+  dataRequirements: ["Customer health or NPS score", "Reference and case-study consent status from the CRM"],
+};
+
+// ───────────────────────── M12: strategy first ─────────────────────────
+
+/** Use case agent (simulated): use cases, ICP and buying center. Passes the gates; capability facts cite approved claims. */
+export const SIMULATED_USE_CASE_MAP = {
+  schemaVersion: "use_case_map.v1",
+  icp: {
+    summary: S("German mid-sized companies (250–2,500 employees) that already use several AI systems and have a named owner for information security.", "hypothesis"),
+    criteria: ["DACH, 250–2,500 employees", "Several AI systems in use across departments", "CISO or information security lead in place", "Existing data protection or GRC process"],
+    buyingTriggers: [
+      S("Management or the supervisory board asks for an overview of the AI systems in use.", "hypothesis"),
+      S("Organisations will need an overview of which AI systems they use in order to assess their obligations.", "interpretation", {
+        regulatory: true,
+        evidence: [ev("src_demo_regulatory_summary", "Organisations will need an overview of which AI systems they use in order to assess their obligations")],
+      }),
+    ],
+    disqualifiers: ["No AI systems in use yet", "Fewer than 50 employees without a security function"],
+  },
+  targetSegments: [
+    { name: "Manufacturing mid-market", description: S("Mid-sized manufacturers adopting AI in quality control and planning.", "hypothesis"), priority: "primary" },
+    { name: "Financial services mid-market", description: S("Regional banks and insurers with many vendor AI tools.", "hypothesis"), priority: "secondary" },
+  ],
+  buyingCenter: [
+    {
+      role: "CISO",
+      buyingRole: "decision_maker",
+      concern: S("Needs to show which AI systems run in the organisation and who is responsible for each.", "interpretation", { evidence: [REG_OVERVIEW] }),
+      messageFocus: S("One register with owner and risk category per AI system.", "suggestion", { claimIds: ["clm_register", "clm_risk_owner"] }),
+    },
+    {
+      role: "Data protection officer",
+      buyingRole: "influencer",
+      concern: S("Wants AI documentation that can be reviewed alongside existing privacy records.", "hypothesis"),
+      messageFocus: S("A documentation pack per AI system for review and export.", "suggestion", { claimIds: ["clm_doc_pack"] }),
+    },
+  ],
+  useCases: [
+    {
+      title: "Build the AI system inventory",
+      segment: "Manufacturing mid-market",
+      primaryRole: "CISO",
+      problem: S("AI systems are introduced by departments without a central overview.", "hypothesis"),
+      trigger: S("A board request or an audit asks which AI systems are in use.", "hypothesis"),
+      desiredOutcome: S("A maintained register of all AI systems with a responsible owner.", "suggestion"),
+      capabilities: [
+        S("The module maintains a central register of AI systems.", "fact", {
+          claimIds: ["clm_register"],
+          evidence: [ev("src_demo_product_overview", "The AI Governance module maintains a central register of AI systems used across the organisation.")],
+        }),
+        S("Each AI system can be assigned a risk category and a responsible owner.", "fact", { claimIds: ["clm_risk_owner"] }),
+      ],
+      evidenceStatus: "supported",
+      priority: "high",
+    },
+    {
+      title: "Prepare AI documentation for review",
+      segment: "Financial services mid-market",
+      primaryRole: "Data protection officer",
+      problem: S("Documentation for each AI system is scattered across teams and tools.", "hypothesis"),
+      trigger: S("An internal review or an external auditor requests documentation per AI system.", "hypothesis"),
+      desiredOutcome: S("A reviewable documentation pack per AI system, with recorded approvals.", "suggestion"),
+      capabilities: [
+        S("The module generates an exportable documentation pack per AI system.", "fact", { claimIds: ["clm_doc_pack"] }),
+        S("Approvals are recorded with reviewer identity and timestamp.", "fact", { claimIds: ["clm_audit_trail"] }),
+      ],
+      evidenceStatus: "supported",
+      priority: "medium",
+    },
+    {
+      title: "Classify AI systems automatically",
+      segment: "Manufacturing mid-market",
+      primaryRole: "CISO",
+      problem: S("Assigning risk categories by hand takes time for every new AI system.", "hypothesis"),
+      trigger: S("The number of AI systems grows faster than the team can review them.", "hypothesis"),
+      desiredOutcome: S("Faster first classification that a person then confirms.", "suggestion"),
+      capabilities: [S("Automated classification support could shorten the first assessment.", "hypothesis")],
+      evidenceStatus: "unsupported",
+      priority: "low",
+    },
+  ],
+  missingEvidence: ["Automated classification is not an approved claim yet (clm_automated_classification is pending review)."],
+  openQuestions: ["Which segment has the shortest sales cycle?", "Are there reference customers per segment?"],
+  approvalChecklist: [
+    "ICP and segments confirmed by product marketing and sales",
+    "Capabilities only from approved claims",
+    "Regulatory statements checked by a qualified expert",
+    "Synthetic sources replaced before external use",
+  ],
+};
+
+/** Strategy agent (simulated): GTM strategy brief for the demo campaign. Passes the gates; one regulatory statement → expert review. */
+export const SIMULATED_GTM_STRATEGY_BRIEF = {
+  schemaVersion: "gtm_strategy_brief.v1",
+  campaignHypothesis: S(
+    "CISOs in manufacturing mid-market companies respond to an inventory-first offer because the board asks them which AI systems are in use.",
+    "hypothesis",
+  ),
+  icp: {
+    summary: S("German mid-sized manufacturers with several AI systems in use and a CISO who owns the overview.", "hypothesis"),
+    criteria: ["DACH, 250–2,500 employees", "Manufacturing", "CISO in place", "Several AI systems in use"],
+    buyingTriggers: [
+      S("Organisations will need an overview of which AI systems they use in order to assess their obligations.", "interpretation", {
+        regulatory: true,
+        evidence: [ev("src_demo_regulatory_summary", "Organisations will need an overview of which AI systems they use in order to assess their obligations")],
+      }),
+    ],
+    disqualifiers: ["No AI systems in use yet"],
+  },
+  targetSegments: [
+    { name: "Manufacturing mid-market", rationale: S("Highest share of departmental AI tools without a central owner.", "hypothesis"), priority: "primary" },
+    { name: "Existing customers of the privacy module", rationale: S("Already trust the vendor; expansion via customer success.", "hypothesis"), priority: "secondary" },
+  ],
+  buyingCenter: [
+    {
+      role: "CISO",
+      buyingRole: "decision_maker",
+      concern: S("Must report which AI systems run and who owns them.", "interpretation", { evidence: [REG_OVERVIEW] }),
+      messageFocus: S("Know which AI systems you run, who owns them and which risk category they carry.", "suggestion", { claimIds: ["clm_register", "clm_risk_owner"] }),
+    },
+    {
+      role: "Data protection officer",
+      buyingRole: "influencer",
+      concern: S("Wants documentation that fits the existing review process.", "hypothesis"),
+      messageFocus: S("A documentation pack per AI system for review and export.", "suggestion", { claimIds: ["clm_doc_pack"] }),
+    },
+  ],
+  prioritizedUseCases: [
+    {
+      title: "Build the AI system inventory",
+      problem: S("AI systems are introduced by departments without a central overview.", "hypothesis"),
+      valueForCustomer: S("One register with owner and risk category per AI system.", "fact", { claimIds: ["clm_register", "clm_risk_owner"] }),
+      priority: "high",
+    },
+    {
+      title: "Prepare AI documentation for review",
+      problem: S("Documentation is scattered across teams and tools.", "hypothesis"),
+      valueForCustomer: S("The module generates an exportable documentation pack per AI system.", "fact", { claimIds: ["clm_doc_pack"] }),
+      priority: "medium",
+    },
+  ],
+  positioning: S("The inventory-first starting point for AI governance in the mid-market: register, owner, documentation.", "suggestion", {
+    claimIds: ["clm_register", "clm_doc_pack"],
+  }),
+  channelStrategy: {
+    communicationChannels: [
+      { channel: "LinkedIn", segment: "Manufacturing mid-market", role: S("Create awareness with inventory-first posts and the checklist offer.", "suggestion") },
+      { channel: "Email", segment: "Manufacturing mid-market", role: S("Nurture checklist downloads towards the webinar.", "suggestion") },
+      { channel: "Webinar", segment: "Manufacturing mid-market", role: S("Show the register and the documentation pack live.", "suggestion", { claimIds: ["clm_register", "clm_doc_pack"] }) },
+    ],
+    salesChannels: [
+      {
+        channel: "direct_sales",
+        role: S("Account executives follow up engaged new accounts with the outreach sequence.", "suggestion"),
+        handoff: "Webinar attendee or two checklist interactions → account executive within two working days",
+      },
+      {
+        channel: "customer_success",
+        role: S("Customer success offers existing privacy customers an inventory workshop.", "suggestion"),
+        handoff: "Existing customer shows interest → customer success manager, no new-business outreach",
+      },
+    ],
+  },
+  successCriteria: ["Sales-accepted meetings from the primary segment", "Inventory workshops with existing customers", "Checklist-to-webinar conversion"],
+  assumptions: ["All product statements are synthetic demo data.", "Customer success can run inventory workshops in the campaign window."],
+  openQuestions: ["Are partners or resellers involved in the manufacturing segment?", "Which CRM fields identify existing privacy customers?"],
+  approvalChecklist: [
+    "ICP, segments and use cases confirmed by product marketing",
+    "Channel split confirmed by sales and customer success",
+    "Regulatory statements checked by a qualified expert",
+    "No compliance promises",
+  ],
+};
+
+/** Release agent (simulated): release communication plan for the seeded demo release. Passes the gates. */
+export const SIMULATED_RELEASE_COMMUNICATION_PLAN = {
+  schemaVersion: "release_communication_plan.v1",
+  releaseTier: "tier_2",
+  tierRationale: S("A feature update for existing users with no pricing change: a targeted announcement fits; a broad launch is not needed.", "suggestion"),
+  summary: S("Release 2.4 is planned to add owner reminders for AI system reviews and a bulk export of documentation packs.", "suggestion"),
+  audiences: [
+    {
+      audience: "internal_sales",
+      whatChanges: S("Sales can show reminders and bulk export in demos once the release is live.", "suggestion"),
+      keyMessage: S("The documentation pack per AI system can now be exported for several systems at once (planned).", "hypothesis"),
+      actionRequired: "Join the enablement session; update the demo script",
+      channels: [
+        { channelType: "communication", channel: "Internal enablement session" },
+        { channelType: "sales", channel: "Direct sales" },
+      ],
+    },
+    {
+      audience: "internal_support",
+      whatChanges: S("Support receives questions about reminder settings and export formats.", "hypothesis"),
+      keyMessage: S("Reminders go to the responsible owner of an AI system.", "suggestion", { claimIds: ["clm_risk_owner"] }),
+      actionRequired: "Review the FAQ and the help-centre article before launch",
+      channels: [{ channelType: "communication", channel: "Support knowledge base" }],
+    },
+    {
+      audience: "existing_customers",
+      whatChanges: S("Owners of AI systems receive reminders when a review is due (planned).", "hypothesis"),
+      keyMessage: S("Fewer overdue reviews in your AI system register.", "suggestion", { claimIds: ["clm_register"] }),
+      actionRequired: "Check reminder settings after the update",
+      channels: [
+        { channelType: "communication", channel: "In-product notice" },
+        { channelType: "communication", channel: "Email" },
+        { channelType: "sales", channel: "Customer success" },
+      ],
+    },
+    {
+      audience: "partners_resellers",
+      whatChanges: S("Partners can include the bulk export in their onboarding services.", "suggestion"),
+      keyMessage: S("Documentation packs per AI system can be exported in one step (planned).", "hypothesis"),
+      actionRequired: "Update partner onboarding material",
+      channels: [
+        { channelType: "communication", channel: "Partner newsletter" },
+        { channelType: "sales", channel: "Partners & resellers" },
+      ],
+    },
+  ],
+  timeline: [
+    { phase: "internal_enablement", timing: "T-14 days", owner: "Product marketing", activities: [S("Enablement session for sales and support with demo and FAQ.", "suggestion")] },
+    { phase: "pre_announcement", timing: "T-7 days", owner: "Customer success", activities: [S("Inform key accounts personally about the planned update.", "suggestion")] },
+    { phase: "launch", timing: "T-0", owner: "Product marketing", activities: [S("Publish release notes, in-product notice and customer email.", "suggestion")] },
+    { phase: "follow_up", timing: "T+14 days", owner: "Customer success", activities: [S("Check adoption of reminders and collect feedback.", "suggestion")] },
+  ],
+  releaseNotesDraft: [
+    { heading: "Owner reminders", body: S("Responsible owners are reminded when an AI system review is due (planned for 2.4).", "hypothesis") },
+    {
+      heading: "Bulk export of documentation packs",
+      body: S("Export the documentation packs of several AI systems in one step (planned for 2.4).", "hypothesis"),
+    },
+  ],
+  customerUpdateNotice: {
+    subject: "Release 2.4: reminders and bulk export for your AI system register",
+    body: S("With release 2.4 we plan to add review reminders for owners and a bulk export of documentation packs. No action is needed for the update itself.", "suggestion"),
+  },
+  salesAndSupportFaq: [
+    { question: "Does the update change pricing?", answer: S("To be confirmed by product management before launch.", "suggestion") },
+    {
+      question: "Who receives reminders?",
+      answer: S("Each AI system can be assigned a risk category and a responsible owner; reminders are planned to go to that owner.", "hypothesis", { claimIds: ["clm_risk_owner"] }),
+    },
+  ],
+  risksAndDependencies: ["Release date depends on QA sign-off.", "Reminder and export features are planned, not yet approved claims."],
+  openQuestions: ["Confirm release date and export formats.", "Will the reminder feature be available in all plans?"],
+  approvalChecklist: [
+    "Release scope confirmed by product management",
+    "Sales and support enabled before external communication",
+    "Planned features not presented as available before launch",
+    "Synthetic sources replaced before external use",
   ],
 };

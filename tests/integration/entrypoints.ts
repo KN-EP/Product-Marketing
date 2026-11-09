@@ -9,13 +9,19 @@
 export const ID_ENTRYPOINTS = [
   "src/app/(app)/assets/[id]/edit/page.tsx", // ui.test.ts
   "src/app/(app)/assets/[id]/page.tsx", // tenant-isolation.test.ts, ui.test.ts
+  "src/app/(app)/campaigns/[id]/page.tsx", // campaign.test.ts
+  "src/app/(app)/campaigns/[id]/performance/page.tsx", // kpi.test.ts
   "src/app/(app)/products/[id]/page.tsx", // ui.test.ts
+  "src/app/(app)/releases/[id]/page.tsx", // strategy.test.ts
+  "src/app/(app)/launches/[id]/page.tsx", // launch.test.ts
+  "src/app/(app)/installed-base/[id]/page.tsx", // installed-base.test.ts
+  "src/app/(app)/installed-base/calculator/[id]/page.tsx", // installed-base.test.ts
   "src/app/(app)/workflows/[id]/page.tsx", // ui.test.ts
   "src/app/api/assets/[id]/route.ts", // tenant-isolation.test.ts
   "src/app/api/claims/[id]/route.ts", // tenant-isolation.test.ts
   "src/app/api/sources/[id]/route.ts", // tenant-isolation.test.ts
   "src/app/api/workflows/[id]/route.ts", // workflow.test.ts
-  "src/app/api/workflows/route.ts", // workflow.test.ts (foreign product/persona/... ids → 404)
+  "src/app/api/workflows/route.ts", // workflow.test.ts (foreign product/persona/... ids → 404), campaign.test.ts (foreign campaign id → 404)
 ] as const;
 
 /** Every exported server action, with how it is covered. */
@@ -23,12 +29,29 @@ export const SERVER_ACTIONS: Record<string, string> = {
   "src/app/actions/auth.ts#loginAction": "tenant from Membership; injected tenantId field ignored",
   "src/app/actions/auth.ts#switchDemoUserAction": "tenant from Membership; disabled in production",
   "src/app/actions/auth.ts#logoutAction": "no input",
+  "src/app/actions/kpi.ts#createKpiTreeAction": "kpi.test.ts: foreign campaign id → 404; viewer 403",
+  "src/app/actions/kpi.ts#updateKpiAction": "kpi.test.ts: foreign KPI id → 404; injected campaignId/name rejected",
+  "src/app/actions/kpi.ts#importKpiCsvAction": "kpi.test.ts: foreign campaign id → 404; size limit 413",
+  "src/app/actions/release.ts#createReleaseAction": "strategy.test.ts: foreign product id → 404; injected tenantId rejected; viewer 403",
+  "src/app/actions/launch.ts#createLaunchAction": "launch.test.ts: foreign product/release id → 404; injected tenantId rejected; viewer 403",
+  "src/app/actions/launch.ts#updateLaunchProofAction": "launch.test.ts: foreign launch id → 404; viewer 403",
+  "src/app/actions/launch.ts#decideLaunchPhaseAction": "launch.test.ts: foreign launch id → 404; editor 403",
+  "src/app/actions/installed-base.ts#importInstalledBaseAction": "installed-base.test.ts: tenant from the session; products matched within the tenant only; viewer 403; size limit 413",
+  "src/app/actions/installed-base.ts#reportFindingAction": "installed-base.test.ts: foreign unit id → 404; injected tenantId rejected; viewer 403",
+  "src/app/actions/installed-base.ts#updateHandoverAction": "installed-base.test.ts: foreign hand-over id → 404",
+  "src/app/actions/installed-base.ts#saveCostComparisonAction": "installed-base.test.ts: foreign product/unit id → 404; viewer 403",
+  "src/app/actions/installed-base.ts#setIndustryProfileAction": "installed-base.test.ts: admin only (editor 403); tenant from the session",
+  "src/app/actions/radar.ts#recordRegulatoryChangeAction": "radar.test.ts: foreign watch id → 404; injected keys rejected; viewer 403",
+  "src/app/actions/radar.ts#resolveRegulatoryChangeAction": "radar.test.ts: foreign change id → 404; editor 403",
+  "src/app/actions/research.ts#recordInterviewAction": "research.test.ts: foreign product/competitor id → 404; injected tenantId rejected; viewer 403",
+  "src/app/actions/research.ts#withdrawConsentAction": "research.test.ts: foreign interview id → 404; viewer 403",
+  "src/app/actions/campaign.ts#createCampaignAction": "campaign.test.ts: foreign product/persona ids → 404; injected tenantId rejected; viewer 403",
   "src/app/actions/review.ts#submitForReviewAction": "workflow.test.ts: foreign asset id → 404",
   "src/app/actions/review.ts#decideAction": "workflow.test.ts: foreign asset id → 404",
   "src/app/actions/review.ts#createDraftVersionAction": "workflow.test.ts: foreign asset id → 404",
   "src/app/actions/review.ts#exportMarkdownAction": "workflow.test.ts: foreign asset id → 404",
   "src/app/actions/review.ts#transitionClaimAction": "workflow.test.ts: foreign claim id → 404",
   "src/app/actions/workflow.ts#retryWorkflowRunAction": "workflow.test.ts: foreign run id → 404",
-  "src/app/actions/workflow.ts#startWorkflowAction": "ui.test.ts: foreign product/persona/... ids → 404",
+  "src/app/actions/workflow.ts#startWorkflowAction": "ui.test.ts: foreign product/persona/... ids → 404; campaign.test.ts: foreign campaign id → 404",
   "src/app/actions/workflow.ts#markRunFailedAction": "ui.test.ts: foreign run id → 404",
 };

@@ -4,12 +4,16 @@ import { childPath, humanise, statementAnchor } from "@/lib/content-paths";
 import { groupFindings } from "@/lib/findings";
 import { cn } from "@/lib/utils";
 import type { Finding } from "@/domain/quality-gates/gates";
+import { orderedEntries } from "@/domain/schemas/display-order";
+import type { KpiResult } from "@/domain/schemas/performance";
+import { KpiResultsTable } from "@/components/kpi/results-table";
 
 interface StatementLike {
   text: string;
   kind: string;
   claimIds?: string[];
   competitorEvidenceIds?: string[];
+  kpiRefs?: string[];
   evidence?: { sourceId: string; excerpt: string }[];
   regulatory?: boolean;
   comparative?: boolean;
@@ -25,19 +29,42 @@ const HIDDEN_KEYS = new Set(["schemaVersion"]);
  * their kind label, claim/source/competitor-evidence references (linked to the
  * evidence panel) and, inline, the gate findings for their path.
  */
-export function AssetContent({ content, findings }: { content: unknown; findings: Finding[] }) {
+export function AssetContent({ content, findings, assetType }: { content: unknown; findings: Finding[]; assetType?: string }) {
   const byPath = new Map<string, Finding[]>();
   for (const f of findings) byPath.set(f.path, [...(byPath.get(f.path) ?? []), f]);
   return (
     <div className="flex flex-col gap-4">
-      <Node value={content} path="$" depth={0} byPath={byPath} />
+      <Node value={content} path="$" depth={0} byPath={byPath} assetType={assetType} />
     </div>
   );
 }
 
-function Node({ value, path, depth, byPath, label }: { value: unknown; path: string; depth: number; byPath: Map<string, Finding[]>; label?: string }) {
+function Node({
+  value,
+  path,
+  depth,
+  byPath,
+  label,
+  assetType,
+}: {
+  value: unknown;
+  path: string;
+  depth: number;
+  byPath: Map<string, Finding[]>;
+  label?: string;
+  /** Orders object keys as the asset's schema declares them (stored jsonb loses key order). */
+  assetType?: string;
+}) {
   if (value === null || value === undefined) return null;
   if (isStatement(value)) return <Statement s={value} path={path} label={label} findings={byPath.get(path) ?? []} />;
+  if (path === "$.kpiSnapshot" && Array.isArray(value)) {
+    return (
+      <div className="flex flex-col gap-2">
+        <Heading depth={depth}>KPI results (computed from imported data)</Heading>
+        <KpiResultsTable rows={value as KpiResult[]} />
+      </div>
+    );
+  }
   if (typeof value !== "object") {
     return label ? (
       <p className="text-sm">
@@ -69,7 +96,7 @@ function Node({ value, path, depth, byPath, label }: { value: unknown; path: str
           <ol className="flex flex-col gap-3">
             {value.map((v, i) => (
               <li key={i}>
-                <Node value={v} path={childPath(path, i)} depth={depth + 1} byPath={byPath} />
+                <Node value={v} path={childPath(path, i)} depth={depth + 1} byPath={byPath} assetType={assetType} />
               </li>
             ))}
           </ol>
@@ -77,11 +104,11 @@ function Node({ value, path, depth, byPath, label }: { value: unknown; path: str
       </div>
     );
   }
-  const entries = Object.entries(value as Record<string, unknown>).filter(([k]) => !HIDDEN_KEYS.has(k));
+  const entries = orderedEntries(value as Record<string, unknown>, assetType).filter(([k]) => !HIDDEN_KEYS.has(k));
   const body = (
     <div className={cn("flex flex-col gap-3", depth > 0 && "rounded-lg border p-3")}>
       {entries.map(([k, v]) => (
-        <Node key={k} value={v} path={childPath(path, k)} depth={depth + 1} byPath={byPath} label={humanise(k)} />
+        <Node key={k} value={v} path={childPath(path, k)} depth={depth + 1} byPath={byPath} label={humanise(k)} assetType={assetType} />
       ))}
     </div>
   );
@@ -119,7 +146,7 @@ function Statement({ s, path, label, findings }: { s: StatementLike; path: strin
         {s.comparative ? <Badge variant="outline">comparative</Badge> : null}
       </div>
       <p className="mt-1 text-sm">{s.text}</p>
-      {(s.claimIds?.length || evidence.length || s.competitorEvidenceIds?.length) ? (
+      {(s.claimIds?.length || evidence.length || s.competitorEvidenceIds?.length || s.kpiRefs?.length) ? (
         <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
           {s.claimIds?.map((c) => (
             <a key={c} href={`#ev-claim-${c}`} className="underline underline-offset-2">
@@ -136,6 +163,9 @@ function Statement({ s, path, label, findings }: { s: StatementLike; path: strin
             <a key={c} href={`#ev-cev-${c}`} className="underline underline-offset-2">
               competitor-evidence:{c}
             </a>
+          ))}
+          {s.kpiRefs?.map((k) => (
+            <span key={k}>kpi:{k}</span>
           ))}
         </p>
       ) : (

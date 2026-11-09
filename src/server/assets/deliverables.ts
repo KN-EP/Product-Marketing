@@ -1,14 +1,40 @@
 import type { AssetType } from "../../domain/schemas/agents";
 import { HttpError } from "../errors";
+import { ENABLEMENT_TYPES } from "../../domain/schemas/enablement";
 
 /**
  * The pmm_three_asset run has THREE deliverables (messaging framework,
  * battlecard, regulatory brief). Agent A's product intelligence brief is an
  * internal input: it is stored for traceability but never enters review,
  * never counts as an asset and can never be exported.
+ * The campaign_gtm run (M8–M10) has three more: campaign plan, content
+ * matrix, sales play — all reviewed like any other deliverable.
  */
 export const INTERNAL_ASSET_TYPES: readonly AssetType[] = ["product_intelligence_brief"];
-export const DELIVERABLE_ASSET_TYPES: readonly AssetType[] = ["messaging_framework", "competitive_battlecard", "regulatory_gtm_brief"];
+export const PMM_DELIVERABLE_TYPES: readonly AssetType[] = ["messaging_framework", "competitive_battlecard", "regulatory_gtm_brief"];
+export const CAMPAIGN_DELIVERABLE_TYPES: readonly AssetType[] = ["campaign_plan", "content_matrix", "sales_play"];
+/** M11: performance review of a campaign (campaign_performance run). */
+export const PERFORMANCE_DELIVERABLE_TYPES: readonly AssetType[] = ["performance_review"];
+/** M12: use case map (product), GTM strategy brief (campaign), release communication plan (release). */
+export const STRATEGY_DELIVERABLE_TYPES: readonly AssetType[] = ["use_case_map", "gtm_strategy_brief", "release_communication_plan"];
+/** M13a + M13b: product assets and sales toolkit (campaign_asset run). */
+export const ENABLEMENT_DELIVERABLE_TYPES: readonly AssetType[] = ENABLEMENT_TYPES;
+/** M14: win/loss synthesis (win_loss_synthesis run). */
+export const RESEARCH_DELIVERABLE_TYPES: readonly AssetType[] = ["win_loss_synthesis"];
+/** M15: launch plan (launch_planning run). */
+export const LAUNCH_DELIVERABLE_TYPES: readonly AssetType[] = ["launch_plan"];
+/** M16: regulatory change brief (regulatory_impact run). */
+export const RADAR_DELIVERABLE_TYPES: readonly AssetType[] = ["regulatory_change_brief"];
+export const DELIVERABLE_ASSET_TYPES: readonly AssetType[] = [
+  ...PMM_DELIVERABLE_TYPES,
+  ...CAMPAIGN_DELIVERABLE_TYPES,
+  ...PERFORMANCE_DELIVERABLE_TYPES,
+  ...STRATEGY_DELIVERABLE_TYPES,
+  ...ENABLEMENT_DELIVERABLE_TYPES,
+  ...RESEARCH_DELIVERABLE_TYPES,
+  ...LAUNCH_DELIVERABLE_TYPES,
+  ...RADAR_DELIVERABLE_TYPES,
+];
 
 export const INPUT_BRIEF_LABEL = "Input brief (internal — not for external use)";
 

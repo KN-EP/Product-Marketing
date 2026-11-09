@@ -14,13 +14,22 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const actor = await requirePageActor();
   const tdb = tenantDb(actor, getDb());
-  const [tenant, counts, queue, runs, progress] = await Promise.all([
+  const [tenant, counts, queue, runs, progress, gov] = await Promise.all([
     tdb.tenant.get(),
     tdb.counts(),
     tdb.views.reviewQueue(),
     tdb.views.runs(5),
     tdb.views.demoProgress(),
+    tdb.views.governance(),
   ]);
+  const enforced = [
+    { label: "Human approvals", value: gov.approved, sub: `${gov.expertAck} with expert acknowledgement`, href: "/approvals" },
+    { label: "Approvals blocked by gates", value: gov.approvalBlocked, sub: "unsupported claims, numbers, comparisons", href: "/approvals" },
+    { label: "Exports blocked", value: gov.exportBlocked, sub: `evidence changed after approval · ${gov.exported} exported`, href: "/assets" },
+    { label: "Launch “go” refused", value: gov.goBlocked, sub: `${gov.goDecisions} go / no-go decisions recorded`, href: "/launches" },
+    { label: "Stale claims", value: gov.staleClaims, sub: "to re-verify after a source changed", href: "/knowledge/claims" },
+    { label: "Open regulatory alerts", value: gov.openAlerts, sub: `${gov.consentWithdrawn} interview consent(s) withdrawn`, href: "/radar" },
+  ];
 
   const stats = [
     { label: "Sources", value: counts.sources, href: "/knowledge/sources" },
@@ -41,6 +50,9 @@ export default async function DashboardPage() {
                 Guided demo
               </Link>
             ) : null}
+            <Link href="/campaigns" className={buttonVariants({ variant: "outline" })}>
+              Campaigns
+            </Link>
             <Link href="/workflows" className={buttonVariants()}>
               Start workflow
             </Link>
@@ -67,6 +79,31 @@ export default async function DashboardPage() {
           </li>
         ))}
       </ul>
+
+      <Section
+        title="Governance — what the system enforced"
+        description="Counted from the audit log. AI drafts; people approve; evidence is checked at generation, approval and export. This is what a prompt plugin cannot show."
+      >
+        <ul className="grid grid-cols-2 gap-3 lg:grid-cols-3" aria-label="Governance figures">
+          {enforced.map((s) => (
+            <li key={s.label}>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    <Link href={s.href} className="hover:underline">
+                      {s.label}
+                    </Link>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-semibold tabular-nums">{s.value}</p>
+                  <p className="text-xs text-muted-foreground">{s.sub}</p>
+                </CardContent>
+              </Card>
+            </li>
+          ))}
+        </ul>
+      </Section>
 
       <Section title="Awaiting review" description="Assets in pending_review, oldest first.">
         {queue.length === 0 ? (

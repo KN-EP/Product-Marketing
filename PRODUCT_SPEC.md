@@ -4,13 +4,20 @@
 Enable ExtendPartner to run senior-led, AI-assisted Product Marketing as a managed service.
 AI drafts and flags; humans own strategy, approvals and every external representation.
 
+## Positioning
+A governed system of record for product marketing — the difference to every prompt plugin: evidence
+per statement, human approval per version, approvals that expire when their evidence changes, and
+decisions (launch go / no-go) that only people make. Built for compliance-driven and regulated B2B
+companies, whose marketing statements about security, privacy and regulation must be true, current
+and approved.
+
 ## First use case
 30-day Product Marketing Accelerator demonstration for a prospect in AI Governance /
-EU AI Act messaging and sales enablement. The demo tenant is **"DataGuard Demo – Unofficial"**
+EU AI Act messaging and sales enablement. The demo tenant is **"Nordlicht Demo (fiktiv)"**
 and uses synthetic data only.
 
 ## P0 demonstration flow
-1. Select tenant "DataGuard Demo – Unofficial".
+1. Select tenant "Nordlicht Demo (fiktiv)".
 2. Product area: AI Governance. 3. Persona: CISO. 4. Market: Germany. 5. Trigger: EU AI Act.
 6. Load approved product claims and sources. 7. Select three competitors with evidence.
 8–10. Generate Messaging Framework, Competitive Battlecard, Regulatory GTM Brief.
@@ -63,3 +70,300 @@ A dashboard + demo selection · B inspect knowledge/evidence · C start three-as
 D schema-valid simulated outputs · E unsupported critical claim cannot be approved ·
 F reject → request changes → approve corrected version · G export with version + sources ·
 H cross-tenant access blocked · I missing API key does not break demo · J tests, typecheck, build green.
+
+---
+
+# Extension M8–M10 — campaign package (sales-near campaigns, digital activation, GTM)
+
+## Purpose
+Turn a human campaign briefing into three reviewable deliverables, with the same evidence rules,
+gates and human approval as the P0 assets. AI drafts; people decide, send and publish.
+
+| Capability | Area | Deliverable | Agent |
+|---|---|---|---|
+| F1 Campaigns for demand, conversion and retention | a, b, d | `campaign_plan.v1`: objective, audience, core message, channel mix × funnel stage, phases, KPI proposals, asset list | D — Campaign planning |
+| F4 Target-group content and communication concepts | b, d | `content_matrix.v1`: content pillars, items per channel and funnel stage (headline, body, CTA), tone of voice, do-not-say | E — Content & communication |
+| F2 Sales, retention and loyalty measures | a | `sales_play.v1`: outreach sequence, retention play or loyalty play (by campaign type) with steps, objections, discovery questions, success signals, data requirements, hand-off rules | F — Sales & CS enablement |
+
+Not in this extension (see `IMPLEMENTATION_PLAN.md`, M11/M12): F5 KPI analysis (needs CSV import or
+CRM/analytics data) and F3 channel audit / social strategy.
+
+## Rules
+- **Campaign** = human briefing (name, type, objective, product, persona, market, channels, optional
+  timeframe and budget). Passed to agents as untrusted data, never as evidence.
+- Run kind `campaign_gtm`: D → E → F. E and F receive D's plan only after it re-validates against
+  `campaign_plan.v1`. The latest **approved** messaging framework for the same product and persona (if
+  any) is context for all three; an unapproved one is never used.
+- Headlines, bodies, messages, objectives and rationales are Statements → gates G1–G9 apply unchanged
+  (product facts need approved claims, regulatory statements need excerpts + expert review, no absolute
+  promises, comparisons need approved competitor evidence).
+- KPI targets are proposals ("To be set by the team" without a baseline), never promised results.
+- Retention and loyalty plays must list `dataRequirements`; until that data exists they are generic.
+- No automated sending: no integration in this extension writes to an external channel.
+
+## Pages
+/campaigns (briefing form + list) · /campaigns/[id] (briefing, campaign package, runs, "Generate").
+/workflows shows the run kind; /demo has steps 16–19.
+
+## Acceptance tests
+K create a campaign (editor; viewer 403; foreign product/persona 404; injected tenantId 400) ·
+L campaign run → plan, content matrix, sales play in `pending_review`, linked to the campaign ·
+M content matrix v1 blocked (unsupported, absolute regulatory promise) → changes requested →
+prepared correction → v2 approved with expert acknowledgement → Markdown export ·
+N approved messaging framework (same product + persona) used as context; unapproved or other-persona one not ·
+O cross-tenant campaign page / campaign run → 404.
+
+---
+
+# Extension M11 — KPI analysis and performance optimisation (F5)
+
+## Flow
+1. Campaign plan approved (human) → **KPI tree** created from its KPIs (once per campaign).
+2. Team sets numeric **target**, baseline, unit, direction (higher/lower is better) and aggregation
+   (sum / latest / average) per KPI — the plan only proposed targets as text.
+3. **CSV import** of measurements: columns `kpi`, `date`, `value` (aliases accepted), separator `,`
+   or `;`, dates `YYYY-MM-DD` or `DD.MM.YYYY`, English or German number format. Same KPI and date →
+   replaced. Rejected rows are reported by line and reason (never by content).
+4. **Target vs. actual** is computed deterministically (`src/domain/kpis/analysis.ts`): actual,
+   expected to date (sum KPIs: target pro rata to the elapsed campaign time), deviation, pace and
+   status (on track ≥ 95 %, at risk ≥ 75 %, off track, no target, no data).
+5. Run kind `campaign_performance` → agent G writes the **performance review** draft (summary,
+   findings with likely causes, recommendations, data gaps). The server adds `asOf` and the computed
+   `kpiSnapshot`; human edits cannot change them.
+
+## Rules
+- Numbers are never model output. Statements reference KPIs by name (`kpiRefs`).
+- **G10**: a fact with `kpiRefs` must only quote numbers found in the referenced KPI results
+  (rounded and locale forms accepted) — otherwise critical; in hypotheses/suggestions a warning.
+  A verified percentage is not treated as an absolute promise; promise words still are.
+- KPI references outside performance reviews fail G2.
+- Causes are hypotheses; recommendations are suggestions; correlation is not causation.
+
+## Acceptance tests
+P KPI tree only from an approved plan, once; foreign campaign 404; viewer 403 ·
+Q KPI edits limited to target/baseline/unit/direction/aggregation; foreign KPI 404 ·
+R CSV import: accepted/rejected rows, replace on same date, 413 above 200 KB, 400 on a bad header ·
+S performance run needs data (409), produces a gated review with server numbers; edits keep them;
+approve → export with KPI table · T same data → same run, new import → new run.
+
+
+# Extension M12 — strategy first (use cases, ICP, release communication)
+
+Feedback from the product marketing review: the campaign package started too late — without target
+groups, use cases and ICPs it is marketing, not product marketing. Communication channels and sales
+channels were mixed. Release and update planning and communication were missing.
+
+## The street (stations)
+1. Knowledge (product, claims, sources) → 2. **Use cases & ICP** → 3. Messaging → 4. Competition &
+regulation → 5. **Release & update** → 6. GTM strategy brief → campaign (plan, content, sales play) →
+7. Impact (KPI analysis).
+
+## Flow
+- **Use case map** (`use_case_definition`, per product and market): ICP (summary, criteria, buying
+  triggers, disqualifiers), target segments with priority, buying center, up to eight use cases with
+  problem, trigger, desired outcome, capabilities (facts need approved claims) and evidence status.
+- **GTM strategy brief** (`campaign_strategy`, per campaign): campaign hypothesis, ICP, segments,
+  buying center, prioritised use cases (from the approved use case map), positioning, channel strategy
+  (communication channels with segment and role; sales channels with role and hand-off), success
+  criteria. **The campaign package (`campaign_gtm`) can only start once a reviewer has approved the
+  brief** (409 `strategy_not_approved` otherwise); D, E and F receive it as context. A newly approved
+  brief means a new package run (idempotency key includes the brief's version).
+- **Releases** (`/releases`): release plan (version, date, type, changes, audiences, channels). The
+  `release_communication` run drafts a communication plan: release tier, message and action per
+  audience, timeline from internal enablement (T-14) to follow-up, release notes, customer notice,
+  sales/support FAQ.
+
+## Rules
+- Communication channels (carry a message) and sales channels (close a deal or a renewal) are separate
+  fields everywhere: briefing, strategy brief, campaign plan (`channelType`), release plan.
+- Planned release changes are not facts until an approved claim supports them.
+- Internal audiences are enabled before external audiences.
+- All three new deliverables pass the same gates, human review and Markdown export as every other.
+
+## Acceptance tests
+- Unit: `tests/unit/strategy.test.ts`; integration: `tests/integration/strategy.test.ts` (strategy
+  gate, use case map as context, releases, isolation of every new entry point, demo reset); E2E:
+  `tests/e2e/release-flow.spec.ts` and the updated campaign/KPI flows.
+
+---
+
+# Extension M14 — win/loss & research (station "Win/loss & research")
+
+## Purpose
+Replace assumptions about why deals are won and lost with evidence. In a regulated market, interview
+statements are personal data and quotes are evidence — so consent, pseudonymisation and verbatim
+excerpts are built in, not left to discipline.
+
+## Flow
+1. **Record an interview** (`/research`, editors): product, pseudonymised account (no person, no
+   e-mail or phone number — refused), segment, outcome (won / lost / churned / no decision), optional
+   competitor and date, up to five **reason codes** from a fixed taxonomy (the same list a CRM
+   loss-reason field should use) with one primary reason, and the consent state.
+2. **Notes only with granted consent.** They are stored as a `Source` of kind `interview`,
+   classification `confidential`. Agent prompts never see interview sources — except the win/loss
+   synthesis of the same product, which gets exactly that product's consented interview sources.
+3. **Statistics in code** (`src/domain/research/win-loss.ts`): counts per outcome, win rate of decided
+   deals, reasons (named, primary, by outcome), competitors, segments — consented interviews only;
+   interviews without consent are counted, never analysed.
+4. **Win/loss synthesis** (`win_loss_synthesis`, per product, ≥ 3 consented interviews, else 409
+   `not_enough_interviews`): the research agent (`agent-wl.win-loss-synthesis` 1.0.0) writes the
+   summary, win and loss drivers, competitor and segment patterns, implications per area (messaging,
+   product, sales enablement, pricing & packaging, segment focus, CRM data), hypotheses to validate,
+   limitations. The server attaches `asOf` and `stats`. Idempotent until an interview changes.
+5. **Consent withdrawn** (editors): the notes are erased, the source becomes `invalid`, claims citing
+   it become stale, the interview drops out of every future synthesis.
+
+## Gates
+- **G15** — numbers: every number a statement quotes must be in the computed stats (critical in a
+  fact, warning otherwise). Fewer than five consented interviews: warning on `$.stats`; a driver
+  stated as fact from such a sample is critical.
+- G4 applies to interview quotes: an excerpt must exist verbatim in an **active** interview source.
+- **Export re-checks the gates** (all asset types): an approved version whose evidence no longer
+  holds (erased interview, changed source, stale claim) cannot be exported as approved — 409
+  `approval_outdated`, audited as `asset.export_blocked`.
+
+## Acceptance tests
+Unit `tests/unit/research.test.ts` (input rules, stats, G15, simulated agent, erased source → G4);
+integration `tests/integration/research.test.ts` (consent and source handling, audit without free
+text, 404/400/403/401, synthesis run and prompt scoping, 409, idempotency, withdrawal blocks export,
+demo reset).
+
+---
+
+# Extension M15 — station "Launch"
+
+## Purpose
+A launch is a decision, not a date. The release communication plan (M12) proposes a tier; M15 adds
+the staged launch, a readiness check per phase that is computed — not written — and a recorded,
+human go / no-go.
+
+## Flow
+1. **Launch briefing** (`/launches`, editors): product, optional release (same product), tier, summary,
+   pricing model, target segments, dates for the phases **early access → general availability →
+   existing customers → market** (at least one, in this order), proof (external reference customers,
+   internal pilot = "customer zero").
+2. **Readiness per phase** (`src/domain/launches/launch.ts`), computed from what the server reads:
+   approved claims, stale claims, open regulatory alerts (M16), launch plan approved, messaging
+   framework approved, release communication plan approved (if a release is linked), sales enablement
+   approved (sales play or toolkit deliverable), battlecard approved, proof, win/loss synthesis
+   approved. Each check is required, recommended or n/a per phase and tier. Status: **ready** (all
+   pass), **ready with risks** (a recommended check fails), **not ready** (a required check fails).
+3. **Launch plan** (`launch_planning`, per launch): the launch agent (`agent-l.launch-plan` 1.0.0)
+   drafts phases (timing, owner, objective, audiences, activities, checkable exit criteria), proof plan
+   (gap → action), enablement plan, success signals, risks. The server attaches `asOf` and the
+   readiness (the plan's own approval is n/a while it is generated). Idempotent until the briefing
+   changes.
+4. **Go / no-go** (reviewers): readiness is recomputed on the server. "Go" is refused while a required
+   check fails (409 `readiness_no_go`, audited as `launch.go_blocked`); with open recommended checks it
+   needs an acknowledgement and a reason (422 `risk_ack_required`); every earlier planned phase needs a
+   "go" first (409 `phase_order`). "No-go" needs a reason. Each decision stores the readiness snapshot.
+5. **Proof update** (editors): references grow during early access; readiness follows.
+
+## Gates
+- **G16** — the plan may schedule a phase that is not ready (that is how gaps get closed), but each such
+  phase is a warning naming the missing checks; a duplicate phase is critical. The plan never decides.
+
+## Acceptance tests
+Unit `tests/unit/launch.test.ts` (input, readiness rules per tier and phase, the role-play case, G16,
+simulated plan); integration `tests/integration/launch.test.ts` (briefing, 404/400/403/401, plan run
+and links, idempotency, go/no-go rules incl. phase order and risk acknowledgement, proof, reset).
+
+---
+
+# Extension M16 — regulatory radar
+
+## Purpose
+Regulatory timelines move. Messaging that argues with an old deadline becomes wrong overnight, and
+nobody notices until a customer does. The radar makes a regulatory change a recorded event with a
+computed impact.
+
+## Flow
+1. **Watched items** (`RegulatoryWatch`): name, jurisdiction, topic, the source holding the current
+   wording, optional regulatory trigger, current deadline.
+2. **Record a change** (`/radar`, editors): kind (deadline shift / scope change / new guidance /
+   repeal / other), summary, new deadline (required for a deadline shift), the verified new wording.
+   Nothing is fetched automatically (an allow-listed fetcher is on the roadmap). In one transaction:
+   - impact computed in code (`src/domain/regulatory/radar.ts`): claims citing the source; assets
+     (current and latest approved version) that cite the source, quote text that is no longer in it,
+     rely on a stale claim, or mention the previous deadline (EN/DE spellings);
+   - the source gets the new wording (version + 1), the claims become stale (with reason), the
+     deadline moves, the change is stored as an **open alert** with its impact; audited with counts.
+3. **Consequences** follow from existing rules: approvals that rest on removed text or a stale claim
+   fail the gates at export (409 `approval_outdated`, M14); launch readiness (M15) is "not ready" for
+   every phase of an affected product while the alert is open or a claim is stale.
+4. **Change brief** (`regulatory_impact`, per change): agent `agent-rr.regulatory-change-brief` 1.0.0 —
+   what changed (verbatim excerpt of the new wording), why it matters, affected messages with a
+   suggested change, implications, customer communication, updated do-not-say, what an expert must
+   validate. Regulatory statements require expert acknowledgement (G7).
+5. **Resolve** (reviewers): refused while any claim the change made stale is still stale (409
+   `claims_still_stale`) — re-verify it against the new text or retire it first.
+
+## Governance panel
+The dashboard counts, from the audit log: human approvals (with expert acknowledgement), approvals
+blocked by gates, exports blocked, launch "go" refused, stale claims, open regulatory alerts and
+withdrawn interview consents.
+
+## Acceptance tests
+Unit `tests/unit/radar.test.ts` (input, deadline tokens, impact reasons, simulated brief);
+integration `tests/integration/radar.test.ts` (recording, 409/400/404/403/401, export blocked,
+launch readiness, change brief, resolution rules, isolation, reset).
+
+# Extension M17 — industrial gates
+
+Found in a trial with a machine builder (public data: thermoforming for packaging, medical bags,
+appliance liners). Model drafts wrote what such teams are tempted to write; the gates let these through:
+a German comparative naming a competitor backed only by an own claim, superlatives, "immer",
+PFAS / PPWR / MDR / FDA / CE / food-contact statements, "PPWR-konform" backed only by the law text,
+and "50 %" quoted without "bis zu" and without the claim's comparison basis.
+
+1. **Vocabulary (G5, G7, G7b).** German comparatives ("höherer … als", "mehr … als" — not quantities
+   like "mehr als 800"), English "faster/higher … than", superlatives, "immer/nie/stets/ausnahmslos",
+   and the regulatory vocabulary of packaging, food contact, medical devices and machinery.
+   Comparative forms and superlatives count as a comparison when they name a competitor or the market
+   ("Wettbewerb", "im Markt", "any other vendor"); a superlative without such a reference is a warning.
+2. **Named competitor (G7b).** A comparison that names a competitor (full name, or its upper-case
+   brand word such as "WM") needs approved competitor evidence about **that** competitor.
+3. **Product conformity (G7c).** "konform / compliant / zertifiziert / zugelassen / PFAS-frei /
+   lebensmittelecht / CE-gekennzeichnet", or "erfüllt / entspricht" about the product, need an
+   approved claim of category `compliance` with evidence. A verified excerpt of the law shows what the
+   law says, not that the product meets it. Critical for facts and interpretations, a warning for
+   hypotheses. Obligations ("müssen erfüllen") and buyer needs ("brauchen PFAS-freie …") are excluded.
+   Expert review (G7) still applies.
+4. **Claim conditions (G17).** `Claim.conditions` (migration `20261110090000_claim_conditions`) holds
+   the conditions a claim's numbers only hold under. A statement that quotes a number of a cited claim
+   must keep "bis zu / up to" when the claim has it, and must contain every condition.
+
+Gates are deterministic patterns; they make gaps visible and do not establish truth. Unit
+`tests/unit/industry-gates.test.ts`.
+
+# Extension M18 — installed base
+
+For machine builders, revenue after the sale lives in the machines already at customers: service
+contracts, spare parts, retrofits, upgrades, replacement. From a role-play with a thermoforming
+machine builder (pilot: retrofit of one series in one region, sold by new-machine sales).
+
+1. **Installed units** (`/installed-base`): CSV export from ERP or service system — product (series),
+   unit ref, pseudonymised account, region, application, installation year or date, service contract,
+   spare-part orders in 12 months, planned material change, regulated application, last service.
+   English or German headers; rows with e-mail or phone are rejected; a re-import updates a unit
+   (unique per tenant, product, unit ref). Imports are audited with counts only.
+2. **Triggers and target list** — computed in code: older than 10 / 20 years, no service contract,
+   ≥ 3 spare-part orders, material change planned, regulated application, no service in 12 months;
+   weighted score; suggested offer by a fixed rule (material change or old and worn → retrofit; older
+   than 20 and worn → replacement; no contract → service contract; else spare parts). People decide.
+3. **Service → sales hand-over**: a finding (no contact data) becomes a hand-over due in 5 days;
+   open → contacted → offered → won / lost / no decision; overdue while open past the due day.
+   Closing records reason codes from the win/loss taxonomy (required for lost / no decision).
+4. **Industry profile** (tenant, admins): `software` or `machinery` selects the reason codes offered
+   and accepted (interviews and hand-overs). Machinery adds cost per part, technology risk, trial
+   result, delivery time, financing, local presence, third-party retrofitter, used equipment.
+5. **Cost-per-part calculator** (`/installed-base/calculator`): as is vs. retrofit (vs. new machine).
+   Cost per good part = (depreciation + maintenance + energy + labour + material) ÷ good parts
+   (output × hours × OEE × (1 − scrap)); payback = investment ÷ annual operating savings. Every input
+   carries its basis (measured, customer input, benchmark to verify, illustrative); the result says
+   "contains assumptions" and lists them. Computed in code; a model may quote it, never compute it.
+
+Demo data stays generic: no installed base is seeded; the import form offers a fictional sample.
+Demo reset removes installed-base data and sets the profile back to `software`.
+Unit `tests/unit/installed-base.test.ts`; integration `tests/integration/installed-base.test.ts`;
+E2E `tests/e2e/installed-base-flow.spec.ts`.

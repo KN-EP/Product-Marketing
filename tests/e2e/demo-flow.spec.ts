@@ -7,8 +7,8 @@ import { expect, test, type Page } from "@playwright/test";
 
 const PASSWORD = process.env.E2E_PASSWORD!;
 const USERS = {
-  editor: "editor@dataguard-demo.example",
-  reviewer: "reviewer@dataguard-demo.example",
+  editor: "editor@nordlicht-demo.example",
+  reviewer: "reviewer@nordlicht-demo.example",
   otherAdmin: "admin@other-demo.example",
 };
 
@@ -112,7 +112,7 @@ test("reviewer approves v2 with an explicit selection; Markdown export has v2, r
   const md = await readFile((await download.path())!, "utf8");
   expect(download.suggestedFilename()).toBe("competitive-battlecard-v2.md");
   expect(md).toMatch(/\| Version \| v2 \(/);
-  expect(md).toContain("[SYNTHETIC] DataGuard Demo – Unofficial reviewer");
+  expect(md).toContain("[SYNTHETIC] Nordlicht Demo (fiktiv) reviewer");
   expect(md).toContain("claim:clm_register");
   expect(md).toContain("competitor-evidence:cev_a_no_register");
   expect(md).toContain("## Sources");
@@ -122,7 +122,7 @@ test("reviewer approves v2 with an explicit selection; Markdown export has v2, r
   await logout(page);
 });
 
-test("a user of another tenant gets 404 for the DataGuard asset URL", async ({ page }) => {
+test("a user of another tenant gets 404 for the demo asset URL", async ({ page }) => {
   await login(page, USERS.otherAdmin);
   const res = await page.goto(battlecardUrl);
   expect(res?.status()).toBe(404);

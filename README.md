@@ -3,9 +3,31 @@
 AI-assisted, human-managed Product Marketing operating system for B2B technology companies.
 Built by ExtendPartner Solutions GmbH.
 
-> **Demo data disclaimer.** The seeded tenant "DataGuard Demo – Unofficial" contains only
-> **synthetic** example data. It is not a DataGuard product, does not describe real DataGuard
-> features and implies no approval by DataGuard.
+## Positioning: a governed system of record, not a prompt plugin
+
+Prompt-based skill sets (e.g. a "product management" or "product marketing" plugin for an AI
+assistant) are fast: they draft specs, briefs and messaging in a conversation. They forget everything
+afterwards and control nothing. For compliance-driven and regulated customers that is the gap — their
+product marketing makes statements about security, privacy and regulation that must be true, current
+and approved.
+
+| | Prompt plugin | Product Marketing OS ("the street") |
+|---|---|---|
+| Knowledge | per conversation | approved claims, sources, competitor evidence, interviews — kept and versioned |
+| Truth | whatever the model writes | every statement labelled fact / interpretation / hypothesis / suggestion; facts need approved claims or verbatim excerpts (gates G1–G17) |
+| Approval | none | human reviewer per version; expert acknowledgement for regulatory content; audit trail |
+| Change | none | a changed source or a withdrawn consent makes claims stale and blocks the export of approvals that rest on them; the regulatory radar shows every affected asset |
+| Decisions | none | readiness computed in code; launch go / no-go only by a person, stored with its readiness |
+| Numbers | invented if asked | computed in code (KPIs, win/loss); the model may only quote them |
+
+The dashboard shows what the system enforced (approvals, blocked approvals and exports, refused
+"go" decisions, stale claims, open regulatory alerts). The full street runs as a managed service
+(senior-led by ExtendPartner); a lighter, conversational entry product ("PMM Lite" — skills plus a
+"gates lite" check) can start the work before a tenant exists.
+
+> **Demo data disclaimer.** The seeded tenant "Nordlicht Demo (fiktiv)" contains only
+> **synthetic** example data. It is not a real company's product, does not describe real
+> features and implies no approval by any company.
 
 ## Status
 
@@ -21,6 +43,15 @@ This repository is being built milestone by milestone (see `IMPLEMENTATION_PLAN.
 | M5 | Workflow engine, persistence, run history, review persistence | ✅ done |
 | M6 | UI pages, review screen, guided `/demo`, human_edit provenance | ✅ done |
 | M7 | Demo correctness (QA), demo reset, hardening, Playwright E2E | 🔍 in review |
+| M8–M10 | Campaign package: campaigns, agents D/E/F (campaign plan, content matrix, sales play), `/campaigns`, guided demo steps 16–19 | 🔍 in review (`feature/m8-gtm-capabilities`) |
+| M11 | KPI analysis: KPI tree from the approved plan, CSV import, computed target vs. actual, agent G performance review (gate G10), demo steps 20–22 | 🔍 in review (`feature/m11-kpi-analysis`, stacked on M8–M10) |
+| M12 | Strategy first: use cases & ICP, GTM strategy brief as gate, release communication | 🔍 in review (`feature/m12-strategy-first`) |
+| M13 | Product assets and sales toolkit (17 deliverables, gates G11–G14) | 🔍 in review (`feature/m13-assets-sales-toolkit`) |
+| M14 | Win/loss & research: pseudonymised interviews with consent tracking, computed statistics, win/loss synthesis (gate G15), consent withdrawal invalidates evidence, export re-checks the gates | 🔍 in review (`feature/m14-win-loss-research`) |
+| M16 | Regulatory radar: watched regulatory items, recorded changes with computed impact (stale claims, affected assets with reasons), change brief, reviewer resolution; launch readiness and export follow; governance panel on the dashboard | 🔍 in review (`feature/m16-regulatory-radar`) |
+| M15 | Station "Launch": staged launches (early access → GA → customers → market), readiness per phase computed in code, human go / no-go with stored readiness, launch plan (gate G16) | 🔍 in review (`feature/m15-launch`) |
+| M17 | Industrial gates (from a machine-builder trial): German comparatives and superlatives, "immer/nie", regulatory vocabulary (PFAS, PPWR, MDR, FDA/GMP, CE, food contact); a comparison naming a competitor needs evidence about that competitor (G7b); product conformity needs an approved compliance claim, not only the law text (G7c); numbers quoted from a claim keep "up to" and the claim's conditions (G17, `Claim.conditions`) | 🔍 in review (`feature/m17-industry-gates`) |
+| M18 | Installed base (machine builders): CSV import of installed units, triggers and target list computed in code, field-service findings handed over to sales with a 5-day deadline, closing reasons from the win/loss taxonomy, industry profile per tenant (software / machine builder reason codes), cost-per-part calculator (as is vs. retrofit vs. new machine) with the basis of every input | 🔍 in review (`feature/m18-installed-base`) |
 
 ## Requirements
 
@@ -67,6 +98,20 @@ approved — only a human reviewer can approve, via `decideAction`. Repeating a 
 run (`requestNonce` deliberately starts a new one). Limits (`WORKFLOW_LIMITS`): 3 attempts, cost cap
 checked before every model call, 2 active runs per tenant. Failed runs are retried only explicitly.
 
+`POST /api/workflows` with `{ kind: "campaign_gtm", campaignId }` (or "Generate campaign package" on
+`/campaigns/[id]`) starts a **campaign package** run for a Campaign briefing: agent D (campaign plan) →
+E (content matrix) → F (sales play: outreach sequence, or a retention/loyalty play for those campaign
+types). E and F get D's plan as context; all three get the latest **approved** messaging framework for the same
+product and persona, if there is one. The three deliverables go through the same gates and human review. Nothing is sent,
+posted or booked — approved deliverables leave the system only as Markdown exports.
+
+**KPI analysis (M11).** On `/campaigns/[id]/performance` an editor creates the KPI tree from the
+**approved** campaign plan, sets numeric targets (the plan only proposes them) and imports
+measurements as CSV (`kpi,date,value`; `,` or `;`; ≤ 200 KB / 5,000 rows). Target vs. actual and
+pace are computed in code. `{ kind: "campaign_performance", campaignId }` runs agent G, which writes
+findings and recommendations; the server attaches the computed `kpiSnapshot`, and gate **G10**
+blocks any fact that quotes a number not found in the referenced KPI results.
+
 Before any external call the classification gate checks the tenant's
 `externalModelsApproved` and `maxExternalModelClass`; restricted data never leaves the server
 unless an admin raises the limit.
@@ -83,7 +128,7 @@ npm run dev                   # http://localhost:3000/login → /demo
 ```
 
 Seeded demo users (password: `DEMO_USER_PASSWORD`), all synthetic:
-`editor|reviewer|admin@dataguard-demo.example` and `editor|reviewer|admin@other-demo.example`.
+`editor|reviewer|admin@nordlicht-demo.example` and `editor|reviewer|admin@other-demo.example`.
 With `DEMO_MODE=true` in development, `/login` also shows a one-click demo identity switcher;
 it is hard-disabled when `NODE_ENV=production`.
 
@@ -94,7 +139,7 @@ npm run check             # prisma generate + typecheck + unit tests + schema va
 npm run build             # prisma generate + next build
 npm run test:integration  # migrates TEST_DATABASE_URL, runs tests/integration in simulated mode
 npm run test:e2e          # builds, starts next against TEST_DATABASE_URL (simulated), runs Playwright
-npm run demo:reset        # demo tenants only: delete runs/assets/versions/approvals + their audit events, re-seed
+npm run demo:reset        # demo tenants only: delete runs/assets/versions/approvals/campaigns + their audit events, re-seed
 ```
 
 `test:integration` exits with code 2 and prints `NOT EXECUTED` if `TEST_DATABASE_URL` is

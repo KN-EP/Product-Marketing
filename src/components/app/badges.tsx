@@ -19,6 +19,11 @@ const STATE_VARIANT: Record<string, Variant> = {
   invalid: "destructive",
   changed: "outline",
   archived: "outline",
+  // M14 consent states
+  granted: "default",
+  requested: "outline",
+  declined: "outline",
+  withdrawn: "destructive",
 };
 
 const human = (s: string) => s.replace(/_/g, " ");

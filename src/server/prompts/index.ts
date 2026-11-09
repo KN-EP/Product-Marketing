@@ -1,10 +1,34 @@
 import { AGENT_A_PROMPT } from "./agent-a";
 import { AGENT_B_PROMPT } from "./agent-b";
 import { AGENT_C_BATTLECARD_PROMPT, AGENT_C_REGULATORY_PROMPT } from "./agent-c";
+import { AGENT_D_CAMPAIGN_PLAN_PROMPT, AGENT_E_CONTENT_MATRIX_PROMPT, AGENT_F_SALES_PLAY_PROMPT } from "./campaign";
 import type { PromptInput, PromptTemplate } from "./common";
+import { AGENT_ENABLEMENT_PROMPT } from "./enablement";
+import { AGENT_G_PERFORMANCE_PROMPT } from "./performance";
+import { AGENT_RELEASE_PROMPT } from "./release";
+import { AGENT_STRATEGY_PROMPT, AGENT_USE_CASE_PROMPT } from "./strategy";
+import { AGENT_RESEARCH_PROMPT } from "./research";
+import { AGENT_LAUNCH_PROMPT } from "./launch";
+import { AGENT_REGULATORY_CHANGE_PROMPT } from "./regulatory";
 import type { RenderedPrompt } from "../llm/types";
 
-export { AGENT_A_PROMPT, AGENT_B_PROMPT, AGENT_C_BATTLECARD_PROMPT, AGENT_C_REGULATORY_PROMPT };
+export {
+  AGENT_A_PROMPT,
+  AGENT_B_PROMPT,
+  AGENT_C_BATTLECARD_PROMPT,
+  AGENT_C_REGULATORY_PROMPT,
+  AGENT_D_CAMPAIGN_PLAN_PROMPT,
+  AGENT_E_CONTENT_MATRIX_PROMPT,
+  AGENT_ENABLEMENT_PROMPT,
+  AGENT_F_SALES_PLAY_PROMPT,
+  AGENT_G_PERFORMANCE_PROMPT,
+  AGENT_LAUNCH_PROMPT,
+  AGENT_REGULATORY_CHANGE_PROMPT,
+  AGENT_RELEASE_PROMPT,
+  AGENT_RESEARCH_PROMPT,
+  AGENT_STRATEGY_PROMPT,
+  AGENT_USE_CASE_PROMPT,
+};
 export type { AgentBrief, PromptInput, PromptTemplate } from "./common";
 
 export const PROMPT_TEMPLATES: readonly PromptTemplate[] = [
@@ -12,6 +36,17 @@ export const PROMPT_TEMPLATES: readonly PromptTemplate[] = [
   AGENT_B_PROMPT,
   AGENT_C_BATTLECARD_PROMPT,
   AGENT_C_REGULATORY_PROMPT,
+  AGENT_D_CAMPAIGN_PLAN_PROMPT,
+  AGENT_E_CONTENT_MATRIX_PROMPT,
+  AGENT_F_SALES_PLAY_PROMPT,
+  AGENT_G_PERFORMANCE_PROMPT,
+  AGENT_USE_CASE_PROMPT,
+  AGENT_STRATEGY_PROMPT,
+  AGENT_RELEASE_PROMPT,
+  AGENT_ENABLEMENT_PROMPT,
+  AGENT_RESEARCH_PROMPT,
+  AGENT_LAUNCH_PROMPT,
+  AGENT_REGULATORY_CHANGE_PROMPT,
 ];
 
 export function renderPrompt(t: PromptTemplate, input: PromptInput): RenderedPrompt {

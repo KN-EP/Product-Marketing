@@ -11,7 +11,8 @@ import {
 import { transitionClaim } from "../../domain/claims/claim-state";
 import type { ClaimState } from "../../domain/knowledge/snapshot";
 import { exportApprovedMarkdown } from "../../domain/export/markdown";
-import { SIMULATED_BATTLECARD_CORRECTED } from "../../demo/fixtures";
+import { SIMULATED_BATTLECARD_CORRECTED, SIMULATED_CONTENT_MATRIX_CORRECTED } from "../../demo/fixtures";
+import { SIMULATED_ONE_PAGER_CORRECTED } from "../../demo/enablement-fixtures";
 import type { Db } from "../db/client";
 import { tenantDb, withTenantTx } from "../db/tenant-scope";
 import { assertDeliverable } from "../assets/deliverables";
@@ -115,13 +116,19 @@ export async function createDraftVersion(
     if (input.origin === "prepared_correction_simulated") {
       const tenant = await t.tenant.get();
       if (!preparedCorrectionFor(tenant, rec.type)) {
-        throw new HttpError(409, "not_applicable", "A prepared correction exists only for the battlecard of a demo tenant.");
+        throw new HttpError(409, "not_applicable", "A prepared correction exists only for the battlecard, the content matrix and the one-pager of a demo tenant.");
       }
     }
     const base = currentVersion(rec);
     const { snapshot } = await t.knowledge.snapshot();
+    // Performance reviews: the KPI numbers are server-computed — a human edit
+    // changes the text, never the numbers it is checked against (gate G10).
+    const content =
+      rec.type === "performance_review" && base && input.content && typeof input.content === "object"
+        ? { ...(input.content as object), asOf: (base.content as { asOf?: unknown }).asOf, kpiSnapshot: (base.content as { kpiSnapshot?: unknown }).kpiSnapshot }
+        : input.content;
     // Provenance: a human edit is its own generation mode, linked to its base version.
-    const next = addVersion(rec, input.content, actor, snapshot, {
+    const next = addVersion(rec, content, actor, snapshot, {
       id: randomUUID(),
       generationMode: "human_edit",
       basedOnVersionId: base?.id ?? null,
@@ -157,7 +164,15 @@ export async function exportAssetMarkdown(actor: Actor, db: Db, assetId: string)
   assertDeliverable(rec.type);
   const { snapshot } = await tdb.knowledge.snapshot();
   const names = await tdb.memberNames([...new Set(rec.approvals.map((a) => a.reviewerId))]);
-  const markdown = exportApprovedMarkdown(rec, actor, snapshot, (id) => names.get(id) ?? "Former member");
+  let markdown: string;
+  try {
+    markdown = exportApprovedMarkdown(rec, actor, snapshot, (id) => names.get(id) ?? "Former member");
+  } catch (e) {
+    if (e instanceof DomainError && e.code === "approval_outdated") {
+      await tdb.audit.record({ actorId: actor.userId, action: "asset.export_blocked", entityType: "Asset", entityId: assetId, metadata: { reason: e.code } });
+    }
+    throw e;
+  }
   const approved = latestApprovedVersion(rec)!;
   await tdb.audit.record({
     actorId: actor.userId,
@@ -192,11 +207,20 @@ export async function transitionClaimState(actor: Actor, db: Db, input: { claimI
   });
 }
 
+const PREPARED_CORRECTIONS: Record<string, unknown> = {
+  competitive_battlecard: SIMULATED_BATTLECARD_CORRECTED,
+  content_matrix: SIMULATED_CONTENT_MATRIX_CORRECTED,
+  // M13: the one-pager v1 quotes "40 %" as a fact (gate G11); v2 marks it as an assumption.
+  one_pager: SIMULATED_ONE_PAGER_CORRECTED,
+};
+
 /**
- * Demo tenant only: the prepared, SYNTHETIC correction for the battlecard.
+ * Demo tenant only: the prepared, SYNTHETIC correction for the battlecard, the
+ * content matrix and the one-pager (the deliverables whose simulated v1 fails the gates).
  * It is only used to PRE-FILL the editor; nothing is stored until the editor
  * saves, which creates a human_edit version like any other edit.
  */
 export function preparedCorrectionFor(tenant: { isDemo: boolean }, assetType: string): unknown | null {
-  return tenant.isDemo && assetType === "competitive_battlecard" ? structuredClone(SIMULATED_BATTLECARD_CORRECTED) : null;
+  const fixture = tenant.isDemo ? PREPARED_CORRECTIONS[assetType] : undefined;
+  return fixture === undefined ? null : structuredClone(fixture);
 }

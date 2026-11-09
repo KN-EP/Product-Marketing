@@ -46,7 +46,7 @@ export function InputBrief({
         Input for the messaging framework, battlecard and regulatory brief. Not reviewed, not approved and not exportable — do not use
         externally. Missing evidence and expert questions below are open work items.
       </p>
-      <AssetContent content={content} findings={gateReport.findings} />
+      <AssetContent content={content} findings={gateReport.findings} assetType="product_intelligence_brief" />
     </div>
   );
 }

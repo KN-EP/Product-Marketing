@@ -15,11 +15,17 @@ const GROUPS: { label: string; links: { href: string; label: string }[] }[] = [
       { href: "/knowledge/claims", label: "Claims" },
       { href: "/personas", label: "Personas" },
       { href: "/competitors", label: "Competitors" },
+      { href: "/radar", label: "Regulatory radar" },
     ],
   },
   {
     label: "Work",
     links: [
+      { href: "/campaigns", label: "Campaigns" },
+      { href: "/releases", label: "Releases" },
+      { href: "/launches", label: "Launches" },
+      { href: "/installed-base", label: "Installed base" },
+      { href: "/research", label: "Win/loss & research" },
       { href: "/workflows", label: "Workflows" },
       { href: "/assets", label: "Assets" },
       { href: "/approvals", label: "Approvals" },

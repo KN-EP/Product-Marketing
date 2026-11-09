@@ -1,9 +1,14 @@
 # Demo script (target, ~15 minutes)
 
-Say up front: *"Everything you see uses synthetic demo data. This is not a DataGuard product and
-DataGuard has not reviewed it. Simulated mode replays prepared outputs — nothing is generated live."*
+> **Opening line (positioning):** "A prompt plugin writes. This system governs: every statement has
+> evidence, every deliverable has a human approval, an approval expires when its evidence changes —
+> and a launch only goes ahead when a person says go." Close the demo on the dashboard's governance
+> panel.
 
-1. **/demo → Select "DataGuard Demo – Unofficial".** Point out the *Simulated* banner.
+Say up front: *"Everything you see uses synthetic demo data. This is a fictional company and
+no real company has reviewed it. Simulated mode replays prepared outputs — nothing is generated live."*
+
+1. **/demo → Select "Nordlicht Demo (fiktiv)".** Point out the *Simulated* banner.
 2. **Context:** AI Governance · CISO · Germany · EU AI Act.
 3. **Knowledge:** open a claim; show its source and exact excerpt. Show the pending claim
    "automatically classifies AI systems" — not approved, no evidence.
@@ -20,7 +25,86 @@ DataGuard has not reviewed it. Simulated mode replays prepared outputs — nothi
    “Approve” explicitly (nothing is pre-selected) → approved.
 9. **Regulatory brief:** regulatory facts backed by source excerpts; "do not say" list; approve with ack.
 10. **Export** the Messaging Framework as Markdown: version, approver, claim and source references, synthetic label.
-11. **Isolation:** switch to the second demo tenant; the DataGuard demo URLs return 404.
+11. **Isolation:** switch to the second demo tenant; the first demo tenant's URLs return 404.
 
-Current state (M7): every step runs in the UI and is covered by the Playwright E2E suite. Before a demo,
+**Campaign package (M8–M10, ~10 more minutes)**
+
+12. **/campaigns:** open the seeded campaign "[SYNTHETIC] AI inventory campaign — CISOs DACH"
+    (demand generation · CISO · communication channels LinkedIn, Email, Webinar · sales channels
+    direct sales, customer success). The briefing is human input.
+12a. **Use cases & ICP (M12):** on the product, “Define use cases & ICP” → ICP, segments, buying
+    center, use cases. The automated-classification use case stays “unsupported” (claim pending).
+    Approve as reviewer (expert acknowledgement).
+12b. **GTM strategy brief (M12):** on the campaign, “Generate GTM strategy brief”. The package button
+    is locked until the brief is approved. Show the channel strategy: communication channels vs. sales
+    channels with hand-offs. Approve as reviewer (expert acknowledgement).
+13. **Generate campaign package:** agent D writes the campaign plan, E the content matrix, F the sales
+    play (outreach sequence). The messaging framework approved in step 6 is reused as context.
+14. **Campaign plan:** KPI targets are proposals ("To be set by the team"), the AI Act statement needs
+    expert acknowledgement.
+15. **Content matrix v1:** the webinar headline "Become EU AI Act compliant in 30 days — guaranteed."
+    is blocked (fact without claim, absolute promise, regulatory fact without excerpt). Request changes;
+    as editor load the prepared correction, save v2, submit; approve with acknowledgement.
+16. **Sales play:** every product fact references an approved claim; opt-out handling; no automated
+    sending. Optional: create a *retention* campaign → the play lists the customer data it needs.
+17. **Export** an approved campaign deliverable as Markdown.
+
+**KPI analysis (M11, ~5 more minutes)**
+
+18. Approve the campaign plan (expert acknowledgement). On the campaign, open **Performance (KPIs)**
+    → “Create KPI tree from approved plan”. Set targets (e.g. 400 / 100 / 50) — the plan only proposed them.
+19. “Fill with synthetic sample data” → **Import measurements**. Show the computed target-vs-actual
+    table (pace pro rata to the campaign time) and the import log.
+20. **Generate performance review**: findings quote only computed numbers (G10), causes are
+    hypotheses, recommendations suggestions. Approve and export — the Markdown has the KPI table.
+
+**Release & update (M12, ~3 more minutes)**
+
+21. **/releases:** the release plan with the seeded release 2.4 (feature update, four audiences).
+22. **Generate communication plan:** tier proposal, message per audience, timeline from internal
+    enablement (T-14) to follow-up, release notes, customer notice, FAQ — planned features stay
+    “planned”.
+
+**Assets & sales toolkit (M13, ~5 more minutes)**
+
+23. On the campaign (strategy brief approved), section **3 · Assets & sales toolkit**: pick a
+    deliverable and generate it — one deliverable per run, built on the approved strategy brief.
+24. **One-pager v1:** "Teams save 40 % …" is a fact without a claim → gate G11 blocks approval.
+    Request changes; as editor load the prepared correction: the number becomes a marked,
+    illustrative assumption. Save v2, submit, approve.
+25. **ROI argument:** every number rests on a named assumption (customer input, benchmark to verify,
+    illustrative), never a fact. **Case study:** anonymous until the customer approves — a named
+    customer without documented approval is blocked (G12). **Ad copy:** Google and LinkedIn limits (G13).
+
+**Win/loss & research (M14, ~5 more minutes)**
+
+26. **/research:** six pseudonymised interviews with CRM reason codes; five with granted consent (notes
+    are a confidential interview source), one only "requested" — counted, never analysed. The
+    statistics are computed in code.
+27. **Generate win/loss synthesis:** drivers, patterns and implications; numbers only from the stats
+    (G15), quotes only as verbatim interview excerpts (G4). Approve and export.
+28. **Withdraw consent** for "automotive supplier A": notes erased, source invalid. Export the
+    approved synthesis again → blocked (`approval_outdated`). A new synthesis leaves the interview out.
+
+**Launch (M15, ~5 more minutes)**
+
+29. **/launches:** the seeded tier-1 launch of a new module — internal pilot only, no external
+    reference. The readiness matrix shows why every phase is "not ready" (plan not approved) and why
+    the market phase will stay so (no external reference).
+30. **Generate launch plan:** staged phases, proof plan ("turn early-access customers into
+    references"), enablement plan; G16 warns for planned phases that are not ready. Approve it.
+31. **Go / no-go** as reviewer: early access "go" with acknowledged risks; market launch "go" →
+    refused. As editor, update the proof (two references): the check turns green.
+
+**Regulatory radar (M16, ~5 more minutes)**
+
+32. **/radar:** the watched (synthetic) AI Act application date and the approved claim that depends on
+    it. "Load prepared change (simulated)" → deadline moves → record. Claim stale; every affected
+    asset listed with the reason.
+33. **Consequences:** the launch is "not ready" in every phase; an approval that relied on the claim
+    cannot be exported. **Generate change brief** (expert acknowledgement required).
+34. **Resolve** as reviewer: refused while the claim is stale → retire it (claims page) → resolve.
+    Back on the **dashboard**: the governance panel counts what the system enforced.
+
+Current state (M13a + M13b, M14, M15, M16): every step runs in the UI; steps 1–11 and the campaign generation, the strategy brief gate, the blocked content matrix, use cases, releases and campaign/release isolation are covered by the Playwright E2E suite. Before a demo,
 run `npm run demo:reset` for a clean state (demo tenants only).

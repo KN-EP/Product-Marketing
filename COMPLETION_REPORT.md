@@ -120,3 +120,147 @@ compact menu and stacked tables at 375 px.
 3. Nonce-based CSP; external penetration test of tenant isolation.
 4. Source management UI (upload, re-verification, stale propagation to claims) and reference editing in the editor.
 5. Live-mode evaluation set for agents A/B/C before enabling external models for real customer data.
+
+---
+
+# Addendum — M8–M10 campaign package (branch `feature/m8-gtm-capabilities`, 2026-10-28)
+
+Status: implemented, in review. All campaign demo content is **synthetic** as well.
+
+## What was added
+
+| Area | What it does |
+|---|---|
+| Data model | `Campaign` (briefing), `Asset.campaignId`, `WorkflowRun.campaignId` — composite `(id, tenantId)` FKs, ON DELETE RESTRICT; asset types `campaign_plan`, `content_matrix`, `sales_play`; migration `20261028190000_campaigns` |
+| Agents | D campaign plan (F1), E content matrix (F4), F sales play (F2: outreach / retention / loyalty). Versioned prompts; the campaign plan is passed to E and F as delimited untrusted data; the latest approved messaging framework for the same product and persona is context for all three |
+| Workflow | Run kind `campaign_gtm` (`{ kind, campaignId }`): same admission, idempotency, limits, cost cap, gates, single-transaction persistence and audit as `pmm_three_asset` |
+| UI | `/campaigns` (briefing form, list), `/campaigns/[id]` (briefing, campaign package, runs, generate), run kind on `/workflows`, guided demo steps 16–19 |
+| Review | Content matrix v1 is blocked by the gates (unsupported, absolute regulatory promise); prepared correction for the demo tenant; approval and Markdown export unchanged |
+| Display | UI and Markdown export render object keys in schema order (jsonb does not keep key order) |
+
+## Test results (2026-10-28, local Postgres 16, simulated mode)
+
+| Suite | Result |
+|---|---|
+| `npm run check` | typecheck OK · **157/157** unit tests (8 files) · schema valid |
+| `npm run build` | OK (built with the Google font stubbed — fonts.googleapis.com was not reachable from the build sandbox; no code change) |
+| Integration | **121/121** (5 files) — migrations applied with `psql` because binaries.prisma.sh was blocked; `prisma migrate deploy` still to be run once against Neon |
+| E2E (Playwright) | **11/11** (4 new campaign tests + the 7 existing) |
+
+## Known limitations of this extension
+- Simulated mode replays one fixture per deliverable (the sales play by requested play type).
+- KPI analysis (F5) and channel audit / social strategy (F3) are not part of it (M11, M12).
+- The migration was written by hand in Prisma's format; run `prisma migrate dev` once locally to
+  confirm there is no drift before deploying.
+
+---
+
+# Addendum — M11 KPI analysis (branch `feature/m11-kpi-analysis`, 2026-10-28)
+
+| Area | What it does |
+|---|---|
+| Data model | `Kpi`, `KpiMeasurement`, `KpiImport` (composite FKs, cascade with the campaign); asset type `performance_review`; migration `20261029090000_kpis` |
+| KPI tree | Created once from the approved campaign plan; targets, baselines, unit, direction and aggregation set by people |
+| Import | Strict CSV reader (`,`/`;`, ISO/German dates, EN/DE numbers), ≤ 200 KB / 5,000 rows, rejected rows by line and reason, re-import replaces |
+| Analysis | Deterministic target vs. actual, pace pro rata to the campaign time, status thresholds 95 % / 75 % |
+| Agent G | `campaign_performance` run; draft from the model, `kpiSnapshot` + `asOf` from the server; human edits keep the server numbers |
+| Gates | `kpiRefs` on statements; G2 for unknown KPIs; **G10** blocks facts quoting numbers not in the referenced KPI results |
+| UI | `/campaigns/[id]/performance` (KPI tree editor, import, results table, reviews), KPI table in the review and in the Markdown export, demo steps 20–22 |
+
+Test results (local Postgres 16, simulated mode): `npm run check` 180/180 unit · integration 127/127 ·
+E2E 15/15 · build OK (Google font stubbed for the sandbox build only). The migration is hand-written in
+Prisma's format — confirm with `prisma migrate dev --create-only` before deploying.
+
+Also fixed on this branch: the Markdown export now renders numeric fields (e.g. a sales play's
+`dayOffset`), which were silently dropped before.
+
+
+---
+
+# Addendum — M12 strategy first (branch `feature/m12-strategy-first`, 2026-10-30)
+
+Input: comments from the presentation review (product marketing, not just marketing).
+
+| Area | What it does |
+|---|---|
+| Channels | `Campaign.channels` → `communicationChannels` + `salesChannels` (fixed list); same split in releases, strategy brief and campaign plan (`channelType`); migration moves "Sales outreach" / "Customer success" |
+| Use cases & ICP | `use_case_definition` run, use case agent (`agent-uc.use-case-map` 1.0.0), asset `use_case_map`, section on the product page |
+| Strategy first | `campaign_strategy` run, strategy agent (`agent-s.gtm-strategy` 1.0.0), asset `gtm_strategy_brief`; `campaign_gtm` refused (409) until it is approved; D/E/F get it as context (prompts 1.1.0) |
+| Release & update | `Release` model + `/releases` (plan, form, detail), `release_communication` run, release agent (`agent-r.release-communication` 1.0.0), asset `release_communication_plan` |
+| Demo | seeded release 2.4 per tenant; guided demo steps 16–26; demo reset includes releases |
+
+Test results (local Postgres 16, simulated mode): typecheck OK · unit **217/217** (10 files) ·
+integration **142/142** (7 files) · E2E **19/19** · build OK (Google font stubbed for the sandbox build
+only). Migration `20261030120000_strategy_first` is hand-written in Prisma's format (binaries.prisma.sh
+blocked in the sandbox) and was verified with `psql`, including the channel data move — confirm with
+`prisma migrate dev --create-only` before deploying.
+
+
+---
+
+# Addendum — M14 win/loss & research (branch `feature/m14-win-loss-research`, 2026-11-09)
+
+Input: a product marketing role-play (regulated SaaS + services provider): the first gap was that every
+reason for winning and losing deals was a hypothesis — no win/loss data.
+
+| Area | What it does |
+|---|---|
+| Interviews | `WinLossInterview` + `/research`: pseudonymised account (contact data refused), outcome, competitor, CRM reason taxonomy (13 codes, primary reason), consent state |
+| Consent | Notes only with granted consent, as a confidential `interview` source; prompts of other runs never see interview sources; withdrawal erases the notes, invalidates the source, marks citing claims stale |
+| Synthesis | `win_loss_synthesis` run (≥ 3 consented interviews), research agent `agent-wl.win-loss-synthesis` 1.0.0, stats computed in code and attached by the server, gate **G15** |
+| Export | every export re-runs the gates: an approval whose evidence no longer holds → 409 `approval_outdated` (audited) |
+| Demo | six synthetic interviews (one without consent) per demo tenant; guided demo steps 30–32; demo reset includes interviews |
+
+Test results (local Postgres 16, simulated mode): typecheck OK · unit **278/278** (12 files) ·
+integration **158/158** (9 files). Migration `20261109120000_win_loss_research` is hand-written in
+Prisma's format (binaries.prisma.sh blocked in the sandbox) and applied with `psql` — confirm with
+`prisma migrate dev --create-only` before deploying.
+
+
+---
+
+# Addendum — M15 station "Launch" (branch `feature/m15-launch`, 2026-11-09)
+
+Input: the same role-play — a tier-1 launch planned for a holiday, no external beta customer, no
+references. The system now says which phase is ready and why, and only a human can say "go".
+
+| Area | What it does |
+|---|---|
+| Briefing | `Launch` + `/launches`: tier, phases with dates in order, pricing model, segments, proof (references, customer zero) |
+| Readiness | 11 deterministic checks, required / recommended / n/a per phase and tier, status ready / ready with risks / not ready (`src/domain/launches/launch.ts`) |
+| Plan | `launch_planning` run, launch agent `agent-l.launch-plan` 1.0.0, readiness attached by the server, gate **G16** |
+| Decision | `LaunchDecision` with readiness snapshot; go refused while not ready (audited), risk acknowledgement, phase order, reason for no-go; reviewers only |
+| Demo | seeded tier-1 launch per demo tenant; guided demo steps 33–35; demo reset includes launches and decisions |
+
+Test results (local Postgres 16, simulated mode): typecheck OK · unit **290/290** (13 files) ·
+integration **168/168** (10 files). Migration `20261109130000_launch` hand-written, applied with
+`psql` — confirm with `prisma migrate dev --create-only` before deploying.
+
+
+---
+
+# Addendum — M16 regulatory radar + governance positioning (branch `feature/m16-regulatory-radar`, 2026-11-09)
+
+Input: the role-play surfaced a shifted EU AI Act timeline by hand — a launch message built on the old
+deadline would have passed every check. Now the change is an event with a computed impact.
+
+| Area | What it does |
+|---|---|
+| Watches | `RegulatoryWatch` + `/radar`: watched items with their current wording (a source) and deadline |
+| Change | `RegulatoryChange`: new wording replaces the source, dependent claims stale, impact computed in code (cites source / removed excerpt / stale claim / previous deadline) and stored as an open alert |
+| Consequences | export of outdated approvals blocked (M14 rule); launch readiness "not ready" while an alert is open (M15) |
+| Brief | `regulatory_impact` run, agent `agent-rr.regulatory-change-brief` 1.0.0, asset `regulatory_change_brief` (expert acknowledgement) |
+| Resolution | reviewers only, refused while a claim is still stale |
+| Positioning | README / spec / demo script: governed system of record vs. prompt plugin; dashboard governance panel (counts from the audit log) |
+| Demo | synthetic deadline + dependent regulatory claim + prepared change; guided demo steps 36–38; demo reset restores text, claim and deadline |
+
+Also fixed: outputs of one run now get creation times 1 ms apart, so their order is stable (all
+versions of a run share one transaction time; `campaign.test.ts` was flaky on the output order).
+
+Test results (local Postgres 16, simulated mode): typecheck OK · unit **297/297** (14 files) ·
+integration **176/176** (11 files, three consecutive runs) · E2E **25/25** (new
+`tests/e2e/governance-flow.spec.ts`: win/loss synthesis, launch readiness and refused "go", radar
+change and refused resolution, governance panel, cross-tenant 404) · `next build --webpack` OK
+(Google font mocked for the sandbox build only; pre-installed Chromium). Migration
+`20261109140000_regulatory_radar` hand-written, applied with `psql` — confirm with
+`prisma migrate dev --create-only` before deploying.

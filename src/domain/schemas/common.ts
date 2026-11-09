@@ -15,6 +15,8 @@ export const Statement = z.object({
   claimIds: z.array(z.string().min(1)).max(20).default([]),
   competitorEvidenceIds: z.array(z.string().min(1)).max(20).default([]),
   evidence: z.array(EvidenceRef).max(20).default([]),
+  /** M11: names of KPIs in the asset's own kpiSnapshot (performance reviews only; gates G2 + G10). */
+  kpiRefs: z.array(z.string().min(1).max(80)).max(10).default([]),
   /** Self-declared by the model. Gate 7 also detects this independently. */
   regulatory: z.boolean().default(false),
   comparative: z.boolean().default(false),
